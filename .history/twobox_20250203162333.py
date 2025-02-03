@@ -451,6 +451,7 @@ class TwoBox:
         return Q1, Q2, PD_angle_Q1, PD_angle_Q2, PD_wavelength_Q1, PD_wavelength_Q2
 
     #### 2nd derivative
+
     def grad2_Q(self, method_one, method_two, param_one, param_two, h_angle, h_wavelength):
         """
         ## Inputs
@@ -599,6 +600,7 @@ class TwoBox:
         return second(method_two)
 
     ### 3rd derivative
+
     def grad3_Q(self, method_one, method_two, method_three,
                 param_one, param_two, param_three, 
                 h_one, h_two, h_three):
@@ -813,14 +815,17 @@ class TwoBox:
         return third(method_three)
 
     ##################
-    #### Optimisation functions
 
-    def FoM(self, grad_method: str="finite"):
+    def FoM(self):
         """
-        ## Outputs
         Calculate the grating single-wavelength figure of merit FD.
+
+        Parameters
+        ----------
+        grating :           TwoBox instance containing the grating parameters
         """
-        eigReal, eigImag = self.Eigs(grad_method=grad_method, check_det=True, return_vec=False)
+        
+        eigReal, eigImag = self.Eigs( check_det=True, return_vec=False)
 
         def unique_filled(x, filled_value):
             """
@@ -841,6 +846,8 @@ class TwoBox:
                 unique_values=npa.append(unique_values,filled_value)
 
             return unique_values
+
+        ##### Fourth FoM
     
         ## Reward all Re(eig) being negative
         eig_real_unique     =   unique_filled( eigReal, -1 )
@@ -870,7 +877,7 @@ class TwoBox:
 
         return FD
 
-    def Eigs(self, grad_method: str='finite', check_det: bool = False, return_vec: bool = False):
+    def Eigs(self, check_det: bool = False, return_vec: bool = False):
         """
         ## Inputs
         check_det: FoM is non-differentiable if det(J)=0
@@ -878,14 +885,7 @@ class TwoBox:
         ## Outputs
         Calculate eigenvalues of Jacobian matrix at equilibrium
         """
-        if grad_method=='finite':
-            # For optimisation, need to use finite differences. ~optimal step size is ...
-            h_angle = 10**(-6.5)
-            h_wavelength = 10**(-6.5)
-            Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs(h_angle, h_wavelength)
-        if grad_method=="grad":
-            Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs_auto()
-        
+        Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs( 10**(-6.5) , 10**(-6.5) )
         w = self.gaussian_width
         w_bar = w/L
 
@@ -1011,9 +1011,6 @@ class TwoBox:
             return avg_Reig
         if not isinstance(return_eigs,bool):
             raise ValueError("input return_eigs must be a bool")
-
-    ##################
-    #### Plotting
 
     def calculate_y_fields(self, height):
         """
@@ -1193,7 +1190,7 @@ class TwoBox:
             elif efficiency_quantity == "FoM":
                 efficiencies[0,idx] = self.FoM()
             elif efficiency_quantity == "eig":
-                real,imag=self.Eigs(grad_method="grad", check_det=False, return_vec=False)
+                real,imag=self.Eigs()
                 Reig1[0,idx] = real[0]
                 Reig2[0,idx] = real[1]
                 Reig3[0,idx] = real[2]
@@ -1298,97 +1295,7 @@ class TwoBox:
             return (fig, ax), (fig2, ax2)
         else:
             return fig, ax
-
-    def show_Eigs(self, marker: str='o', log_1: bool=True, log_2: bool=True, wavelength_range: list=[1., 1.5], num_plot_points: int=200):
-        wavelengths = np.linspace(*wavelength_range, num_plot_points)
-        init_wavelength = self.wavelength # record user-initialised wavelength
-
-        ## CALCULATE EIGS ##
-        Reig1 = np. zeros( (1,num_plot_points) , dtype=float)
-        Reig2 = np. zeros( (1,num_plot_points) , dtype=float)
-        Reig3 = np. zeros( (1,num_plot_points) , dtype=float)
-        Reig4 = np. zeros( (1,num_plot_points) , dtype=float)
-        Ieig1 = np. zeros( (1,num_plot_points) , dtype=float)
-        Ieig2 = np. zeros( (1,num_plot_points) , dtype=float)
-        Ieig3 = np. zeros( (1,num_plot_points) , dtype=float)
-        Ieig4 = np. zeros( (1,num_plot_points) , dtype=float)
-
-        for idx, lam in enumerate(wavelengths):
-            # Calculate eigs for each order
-            self.wavelength = lam
-            real, imag   = self.Eigs(grad_method="grad", check_det=False, return_vec=False)
-
-            Reig1[0,idx] = real[0]
-            Reig2[0,idx] = real[1]
-            Reig3[0,idx] = real[2]
-            Reig4[0,idx] = real[3]
-
-            Ieig1[0,idx] = imag[0]
-            Ieig2[0,idx] = imag[1]
-            Ieig3[0,idx] = imag[2]
-            Ieig4[0,idx] = imag[3]
-        self.wavelength = init_wavelength # restore user-initialised wavelength
-
-        ### PLOTTING ### 
-        # Set up figure
-        fig, (ax1, dummy, ax2) = plt.subplots(nrows=1, ncols=3, width_ratios=(1,0.1,1))
-        # fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2)
-        dummy.axis('off')
-        p = self.grating_pitch
-        ax1.set_xlim(np.array(wavelength_range)/p) # normalise to grating pitch
-        ax2.set_xlim(np.array(wavelength_range)/p) # normalise to grating pitch
-        ax2.yaxis.tick_right()
-        ax2.yaxis.set_label_position("right")
-
-        ## Plot eigs vs wavelength ##
-        colorReal=(0.7, 0, 0)
-        ax1.plot(wavelengths/p,Reig1[0]*1e5, markerstyle=marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ax1.plot(wavelengths/p,Reig2[0]*1e5, markerstyle=marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ax1.plot(wavelengths/p,Reig3[0]*1e5, markerstyle=marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ax1.plot(wavelengths/p,Reig4[0]*1e5, markerstyle=marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ylabel=rf"$\Re(\lambda) \times 10^-5$"
-
-        colorImag= 'blue'
-        ax2.plot(wavelengths/p,Ieig1[0], markerstyle=marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
-        ax2.plot(wavelengths/p,Ieig2[0], markerstyle=marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
-        ax2.plot(wavelengths/p,Ieig3[0], markerstyle=marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
-        ax2.plot(wavelengths/p,Ieig4[0], markerstyle=marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
-        ylabel2=rf"$\Im(\lambda)$"
-
-        ## Logarithmic
-        if log_1:
-            linthr = 0.1
-            ax1.set_yscale("symlog", linthresh=linthr, linscale=0.4)
-            ax1.yaxis.set_minor_locator(MinorSymLogLocator(linthr))
-        if log_2:
-            linthr = 0.1
-            ax2.set_yscale("symlog", linthresh=linthr, linscale=0.4)
-            ax2.yaxis.set_minor_locator(MinorSymLogLocator(linthr))
-
-        
-        # Axis labels
-        ax1.axhline(y=0, color='black', linestyle='-', lw = '1')
-        ax1.tick_params(axis='both', which='both', direction='in') # ticks inside box
-        # ax1.tick_params(axis='y', color=colorReal, labelcolor=colorReal) # colored ticks
-        ax1.set_ylabel(ylabel=ylabel)  #color=colorReal  # colored y label
-        ax1.set(xlabel=r"$\lambda'/\Lambda'$")
-
-        ax2.axhline(y=0, color='black', linestyle='-', lw = '1')
-        ax2.tick_params(axis='both', which='both', direction='in') # ticks inside box
-        # ax2.tick_params(axis='y', color = colorImag, labelcolor=colorImag) # colored ticks
-        ax2.set_ylabel(ylabel=ylabel2) #color=colorImag  # colored y label
-        ax2.set(xlabel=r"$\lambda'/\Lambda'$")
-
-        # fig.suptitle(t=rf"$h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$")
-
-        # Modify axes
-        cm_to_inch = 0.393701
-        fig_width = 30*cm_to_inch
-        fig_height = 17.6*cm_to_inch
-        fig.set_size_inches(fig_width/1.2, fig_height/1.2)
-
-        return fig, (ax1, ax2)
-
+    
     def show_depth_dependence(self, angle: float=0., efficiency_quantity: str="PDr", depth_range: list=[0., 1.], num_plot_points: int=200):
         """
         Show grating depth dependence for the twobox.

@@ -303,10 +303,7 @@ class TwoBox:
         self.RCWA = obj
         return obj
 
-    ##################
-    #### Diffraction efficiences + efficiency factors
-
-    def eff(self):
+    def RT(self):
         """
         Calculate up to -1 <= m <= 1 orders' reflection/transmission for the twobox.
         """
@@ -324,84 +321,91 @@ class TwoBox:
             Ts.append(npa.sum(T_byorder[Fourier_orders[:,0]==order]))
 
         return Rs,Ts
-    
-    def Q(self):
-        """
-        Calculates efficiency factors Q_{pr,j}'(delta', lambda')
-        """
-        r,t = self.eff()
-        def beta_m(m,self):
-            """
-            Calculates diffraction angles
-            """
-            test=(npa.sin(self.angle)+m*self.wavelength/self.grating_pitch)
-            if abs(test)>=1:
-                delta_m="no_diffraction_order"
-            else:
-                delta_m=npa.arcsin(test)
-            return delta_m
-        Q1=0
-        Q2=0
-        M=[-1,0,1]
-        for m in range(len(M)):
-            delta_m=beta_m(M[m],self)
-            if isinstance(delta_m,str):
-                """
-                If no diffraction order, Q_{pr,j}' is unchanged
-                """
-                Q1 = Q1 + 0
-                Q2 = Q2 + 0
-            else:
-                Q1 = Q1+ r[m]*(1+npa.cos(self.angle+delta_m))+t[m]*(1-npa.cos(delta_m-self.angle))
-                Q2 = Q2+ r[m]*npa.sin(self.angle+delta_m)+t[m]*npa.sin(delta_m-self.angle)
-        Q1 =  npa.cos(self.angle)*Q1
-        Q2 = -npa.cos(self.angle)*Q2
-        return npa.array( [Q1, Q2] )
 
-    ##################
-    #### 1st derivatives
-
-    ## Finite difference
-    def return_Qs(self, h_angle, h_wavelength):
+    # Finite difference
+    def return_Qs(self):
         """
         Calculate efficiency factors and their derivatives
         """
+
+        def eff(self):
+            """
+            Calculate reflection and transmission coefficients 
+            """
+            self.init_RCWA()
+            R_byorder,T_byorder = self.RCWA.RT_Solve(normalize=1, byorder=1)
+            Fourier_orders = self.RCWA.G
+
+            Rs = []
+            Ts = []
+            RT_orders = [-1,0,1]
+            # IMPORTANT: have to use append method to a list rather than index assignment
+            # Else, autograd will throw a TypeError with float() argument being an ArrayBox
+            for order in RT_orders:
+                Rs.append(npa.sum(R_byorder[Fourier_orders[:,0]==order]))
+                Ts.append(npa.sum(T_byorder[Fourier_orders[:,0]==order]))
+
+            return Rs,Ts
+
+        def Q(self):
+            """
+            Calculates efficiency factors
+            """
+
+            r,t=eff(self)
+            def beta_m(m,self):
+                test=(npa.sin(self.angle)+m*self.wavelength/self.grating_pitch)
+                if abs(test)>=1:
+                    delta_m="no_diffraction_order"
+                else:
+                    delta_m=npa.arcsin(test)
+                return delta_m
+            Q1=0
+            Q2=0
+            M=[-1,0,1]
+            for m in range(len(M)):
+                delta_m=beta_m(M[m],self)
+                if isinstance(delta_m,str):
+                    Q1=Q1+0
+                    Q2=Q2+0
+                else:
+                    Q1=Q1+ r[m]*(1+npa.cos(self.angle+delta_m))+t[m]*(1-npa.cos(delta_m-self.angle))
+                    Q2=Q2+ r[m]*npa.sin(self.angle+delta_m)+t[m]*npa.sin(delta_m-self.angle)
+            Q1=npa.cos(self.angle)*Q1
+            Q2=-npa.cos(self.angle)*Q2
+            return Q1,Q2
+
         ## Saving current angle, wavelength
         input_angle=self.angle
         input_wavelength=self.wavelength
-        
+
         ## Centred 
-        Q = self.Q()
-        Q1 = Q[0];  Q2 = Q[1]
+        Q1,Q2=Q(self)
 
         ########### Angle
-        
+        h_angle=1e-4
         ## Backwards angle
         self.angle=input_angle - h_angle
-        Q_ = self.Q()
-        Q1_back_angle = Q_[0]; Q2_back_angle = Q_[1]
+        Q1_back_angle,Q2_back_angle=Q(self)
 
         ## Forwards angle
         self.angle=input_angle + h_angle
-        Q_ = self.Q()
-        Q1_forwards_angle = Q_[0]; Q2_forwards_angle = Q_[1]
+        Q1_forwards_angle,Q2_forwards_angle=Q(self)
 
         ########### Wavelength
         self.angle=input_angle
-        
+        h_wavelength=1e-4
         ## Backwards angle
         self.wavelength=input_wavelength - h_wavelength
-        Q_ = self.Q()
-        Q1_back_wavelength = Q_[0]; Q2_back_wavelength = Q_[1]
+        Q1_back_wavelength,Q2_back_wavelength=Q(self)
 
         ## Forwards angle
         self.wavelength=input_wavelength + h_wavelength
-        Q_ = self.Q()
-        Q1_forwards_wavelength = Q_[0]; Q2_forwards_wavelength = Q_[1]
+        Q1_forwards_wavelength,Q2_forwards_wavelength=Q(self)
 
         ########### Restore
-        self.angle = input_angle
-        self.wavelength = input_wavelength
+        self.angle=input_angle
+        self.wavelength=input_wavelength
 
         ########### Derivatives
         PD_Q1_angle=(Q1_forwards_angle - Q1_back_angle) / (2 * h_angle)
@@ -410,515 +414,258 @@ class TwoBox:
         PD_Q1_wavelength=(Q1_forwards_wavelength - Q1_back_wavelength) / (2 * h_wavelength)
         PD_Q2_wavelength=(Q2_forwards_wavelength - Q2_back_wavelength) / (2 * h_wavelength)
 
-        # return Q1,Q2,PD_Q1_angle,PD_Q2_angle,PD_Q1_wavelength,PD_Q2_wavelength
-        return Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength
+        return Q1,Q2,PD_Q1_angle,PD_Q2_angle,PD_Q1_wavelength,PD_Q2_wavelength
 
-    ## Automatic differentiation (incompatible with optimsation ~ second derivatives)
-    def return_Qs_auto(self):
-        """
-        Calculate efficiency factors and their derivatives
-        """
-        ## Saving current angle, wavelength
-        input_angle=self.angle
-        input_wavelength=self.wavelength
+    # automatic diff.
+    # def return_Qs(self):
+    #     """
+    #     Calculate efficiency factors and their derivatives
+    #     """
 
-        ## Centred 
-        Q_ = self.Q()
-        Q1 = Q_[0]; Q2 = Q_[1]
+    #     def eff(self):
+    #         """
+    #         Calculate reflection and transmission coefficients 
+    #         """
+    #         self.init_RCWA()
+    #         R_byorder,T_byorder = self.RCWA.RT_Solve(normalize=1, byorder=1)
+    #         Fourier_orders = self.RCWA.G
+
+    #         Rs = []
+    #         Ts = []
+    #         RT_orders = [-1,0,1]
+    #         # IMPORTANT: have to use append method to a list rather than index assignment
+    #         # Else, autograd will throw a TypeError with float() argument being an ArrayBox
+    #         for order in RT_orders:
+    #             Rs.append(npa.sum(R_byorder[Fourier_orders[:,0]==order]))
+    #             Ts.append(npa.sum(T_byorder[Fourier_orders[:,0]==order]))
+
+    #         return Rs,Ts
+
+    #     def Q(self):
+    #         """
+    #         Calculates efficiency factors
+    #         """
+
+    #         r,t=eff(self)
+    #         def beta_m(m,self):
+    #             test=(npa.sin(self.angle)+m*self.wavelength/self.grating_pitch)
+    #             if abs(test)>=1:
+    #                 delta_m="no_diffraction_order"
+    #             else:
+    #                 delta_m=npa.arcsin(test)
+    #             return delta_m
+    #         Q1=0
+    #         Q2=0
+    #         M=[-1,0,1]
+    #         for m in range(len(M)):
+    #             delta_m=beta_m(M[m],self)
+    #             if isinstance(delta_m,str):
+    #                 Q1=Q1+0
+    #                 Q2=Q2+0
+    #             else:
+    #                 Q1=Q1+ r[m]*(1+npa.cos(self.angle+delta_m))+t[m]*(1-npa.cos(delta_m-self.angle))
+    #                 Q2=Q2+ r[m]*npa.sin(self.angle+delta_m)+t[m]*npa.sin(delta_m-self.angle)
+    #         Q1=npa.cos(self.angle)*Q1
+    #         Q2=-npa.cos(self.angle)*Q2
+    #         return npa.array( [Q1,Q2] )
+
+    #     ## Saving current angle, wavelength
+    #     input_angle=self.angle
+    #     input_wavelength=self.wavelength
+
+    #     ## Centred 
+    #     Q_ = Q(self)
+    #     Q1 = Q_[0]; Q2 = Q_[1]
+
+    #     ####################################
+
+    #     def Q_both(self, params):
+    #         angle, wavelength = params
+    #         self.angle = angle
+    #         self.wavelength = wavelength
+    #         return Q(self)
+
+    #     PD_both_Q = jacobian(Q_both, argnum=1)
+    #     params =npa.array([ input_angle, input_wavelength] )
+    #     PD_both_Q_ = PD_both_Q(self, params)
+
+    #     PD_angle_Q1 = PD_both_Q_[0][0]
+    #     PD_angle_Q2 = PD_both_Q_[1][0]
+
+    #     PD_wavelength_Q1 = PD_both_Q_[0][1]
+    #     PD_wavelength_Q2 = PD_both_Q_[1][1]
+
+    #     ########### Restore
+    #     self.angle=input_angle
+    #     self.wavelength=input_wavelength
+
+    #     return Q1,Q2,PD_angle_Q1,PD_angle_Q2,PD_wavelength_Q1,PD_wavelength_Q2
+
+
+    def FoM(self):
+        """
+        Calculate the grating single-wavelength figure of merit FD.
+
+        Parameters
+        ----------
+        grating :           TwoBox instance containing the grating parameters
+        """
+        
+        Q1,Q2,PD_Q1_angle,PD_Q2_angle,PD_Q1_wavelength,PD_Q2_wavelength=self.return_Qs()
+        w=self.gaussian_width
+        w_bar=w/L
+
+        # Starting wavelength set to 1
+        lam=self.wavelength  # needs to be lambda'
+
+        D=1/lam 
+        g=(npa.power(lam,2) + 1)/(2*lam) 
+
+        # Set-up (not sure about whether left or right makes sense - constraints)
+        Q1R=Q1; Q2R=Q2; PD_Q1R_angle=PD_Q1_angle;   PD_Q2R_angle=PD_Q2_angle
+        PD_Q1R_omega=(lam/D)*PD_Q1_wavelength;   PD_Q2R_omega=(lam/D)*PD_Q2_wavelength
+
+        # Symmetry
+        Q1L=Q1R 
+        Q2L= - Q2R
+
+        PD_Q1L_angle= - PD_Q1R_angle
+        PD_Q2L_angle=PD_Q2R_angle
+
+        PD_Q1L_omega=PD_Q1R_omega
+        PD_Q2L_omega= - PD_Q2R_omega
+
 
         ####################################
+        # y acc
+        fy_y= -     D**2 * (I0/(m*c)) * ( Q2R - Q2L) * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+        fy_phi= -   D**2 * (I0/(m*c)) * ( PD_Q2R_angle + PD_Q2L_angle) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
+        fy_vy= -    D**2 * (I0/(m*c)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + PD_Q1R_angle + PD_Q1L_angle ) * (w/2) * npa.sqrt( np.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
+        fy_vphi=    D**2 * (I0/(m*c)) * ( 2*( Q2R - Q2L ) - D*( PD_Q2R_omega - PD_Q2L_omega ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
 
-        def Q_both(self, params):
-            angle, wavelength = params
-            self.angle = angle
-            self.wavelength = wavelength
-            return self.Q()
+        ####################################
+        # phi acc
+        fphi_y=     D**2 * (12*I0/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
+        fphi_phi=   D**2 * (12*I0/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+        fphi_vy=    D**2 * (12*I0/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
+        fphi_vphi= -D**2 * (12*I0/( m*c*L**2)) * ( 2*( Q1R + Q1L ) - D*( PD_Q1R_omega + PD_Q1L_omega ) ) * (w/2)**2 * (  (w/2)*npa.sqrt( np.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
 
-        PD_both_Q = jacobian(Q_both, argnum=1)
-        params =npa.array([ input_angle, input_wavelength] )
-        PD_both_Q_ = PD_both_Q(self, params)
+        # Build the Jacobian matrix
+        J00=fy_y;   J01=fy_phi;     J02=fy_vy/c;    J03=fy_vphi/c
+        J10=fphi_y; J11=fphi_phi;   J12=fphi_vy/c;  J13=fphi_vphi/c
+        J=npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
 
-        PD_angle_Q1 = PD_both_Q_[0][0]
-        PD_angle_Q2 = PD_both_Q_[1][0]
+        # Find the real part of eigenvalues    
+        EIGVALVEC=npaLA.eig(J)
+        eig=EIGVALVEC[0]
+        EIGreal=npa.real(eig)
+        EIGimag=npa.imag(eig)
 
-        PD_wavelength_Q1 = PD_both_Q_[0][1]
-        PD_wavelength_Q2 = PD_both_Q_[1][1]
+        if npaLA.det(J)==0:
+            print("Grating parameters:")
+            print(self.grating_pitch)
+            print(self.grating_depth)
+            print(self.box1_width)
+            print(self.box2_width)
+            print(self.box_centre_dist)
+            print(self.box1_eps)
+            print(self.box2_eps)
+            print(self.gaussian_width)
+            print(self.substrate_depth)
+            print(self.substrate_eps)
 
-        ########### Restore
-        self.angle=input_angle
-        self.wavelength=input_wavelength
+            print("lam: ", lam)
+            print("Efficiency factors: ",Q1,Q2,PD_Q1_angle,PD_Q2_angle,PD_Q1_wavelength,PD_Q2_wavelength)
+            print("\n")
 
-        return Q1, Q2, PD_angle_Q1, PD_angle_Q2, PD_wavelength_Q1, PD_wavelength_Q2
-
-    #### 2nd derivative
-    def grad2_Q(self, method_one, method_two, param_one, param_two, h_angle, h_wavelength):
-        """
-        ## Inputs
-        method_one: derivative method applied first - "grad" or "finite"
-        method_two: derivative method applied last - "grad" or "finite"
-        param_one: variable for derivative method one - "angle" or "wavelength
-        param_two: variable for derivative method two - "angle" or "wavelength
-        h_angle: angular step size 
-        h_angle: wavelength step size 
-        ## Outputs
-        d^2 Q1/ d(), d^2 Q2/ d()
-        """
-        allowed_methods = ("grad", "finite")
-        if (method_one or method_two) not in allowed_methods:
-            invalid_quantity_message = f"Invalid derivative method. Allowed quantities are: {allowed_methods}"
-            raise ValueError(invalid_quantity_message)
-        allowed_variables = ("angle", "wavelength")
-        if (param_one or param_two) not in allowed_variables:
-            invalid_quantity_message = f"Invalid derivative method. Allowed quantities are: {allowed_variables}"
-            raise ValueError(invalid_quantity_message)
-
-        input_angle = self.angle
-        input_wavelength = self.wavelength
-        
-        def restore():
-            self.angle = input_angle
-            self.wavelength = input_wavelength
-
-        ## First call
-        def first(angle, wavelength, method_one):
-            
-            if param_one == "angle":
-                var = 0
-                input = angle
-                h = h_angle
-                def backwards():
-                    self.angle = input - h
-                    self.wavelength = wavelength
-                def forwards():
-                    self.angle = input + h
-                    self.wavelength = wavelength
-            if param_one == "wavelength":
-                var = 1
-                input = wavelength
-                h = h_wavelength
-                def backwards():
-                    self.angle = angle
-                    self.wavelength = input - h
-                def forwards():
-                    self.angle = angle
-                    self.wavelength = input + h
-            
-            if method_one=="finite":    
-                
-                ## Backwards
-                backwards()
-                Q_ = self.Q()
-                Q1_back = Q_[0]; Q2_back = Q_[1]
-    
-                ## Forwards
-                forwards()
-                Q_ = self.Q()
-                Q1_forwards = Q_[0]; Q2_forwards = Q_[1]
-
-                ########### Derivatives
-                PD_Q1 = (Q1_forwards - Q1_back) / (2 * h)
-                PD_Q2 = (Q2_forwards - Q2_back) / (2 * h)
-
-                self.angle = angle
-                self.wavelength = wavelength
-
-                return npa.array( [PD_Q1, PD_Q2] )
-
-            if method_one=="grad":
-                def Q_params(angle, wavelength):
-                    self.angle = angle
-                    self.wavelength = wavelength
-                    return self.Q()
-                
-                PD = jacobian(Q_params, argnum = var)
-                PD_value = PD(angle, wavelength)
-
-                self.angle = angle
-                self.wavelength = wavelength
-
-                return PD_value
-
-        ## Second call (+ composition)
-        def second(method_two):
-            if param_two == "angle":
-                var = 0
-                input = input_angle
-                h = h_angle
-                def backwards():
-                    angle = input - h
-                    wavelength = input_wavelength
-                    return angle, wavelength
-                def forwards():
-                    angle = input + h
-                    wavelength = input_wavelength
-                    return angle, wavelength
-            
-            if param_two == "wavelength":
-                var = 1
-                input = input_wavelength
-                h = h_wavelength
-                def backwards():
-                    angle = input_angle
-                    wavelength = input - h
-                    return angle, wavelength
-                def forwards():
-                    angle = input_angle
-                    wavelength = input + h
-                    return angle, wavelength
-
-            if method_two == "finite":
-
-                ## Backwards
-                angle, wavelength = backwards()
-                Q_ = first(angle, wavelength, method_one)
-                Q1_back = Q_[0]; Q2_back = Q_[1]
-
-                ## Forwards
-                angle, wavelength = forwards()
-                Q_ = first(angle, wavelength, method_one)
-                Q1_forwards = Q_[0]; Q2_forwards = Q_[1]
-
-                ########### Derivatives
-                restore()
-                PD_Q1 = (Q1_forwards - Q1_back) / (2 * h)
-                PD_Q2 = (Q2_forwards - Q2_back) / (2 * h)
-
-                return npa.array( [PD_Q1, PD_Q2] )
-
-            if method_two == "grad":
-                restore()
-
-                def fun(angle, wavelength):
-                    return first(angle, wavelength, method_one)
-                
-                PD2 = jacobian(fun, argnum = var)
-                PD2_value = PD2(input_angle, input_wavelength)
-                restore()
-                return PD2_value
-
-        return second(method_two)
-
-    ### 3rd derivative
-    def grad3_Q(self, method_one, method_two, method_three,
-                param_one, param_two, param_three, 
-                h_one, h_two, h_three):
-        """
-        ## Inputs
-        method_one: derivative method applied first - "grad" or "finite"
-        method_two: derivative method applied last - "grad" or "finite"
-        param_one: variable for derivative method one - "angle" or "wavelength
-        param_two: variable for derivative method two - "angle" or "wavelength
-        h_one: method_one step size 
-        h_two: method_two step size 
-        h_three: method_three step size 
-        ## Outputs
-        d^2 Q1/ d(), d^2 Q2/ d()
-        """
-        allowed_methods = ("grad", "finite")
-        if (method_one or method_two) not in allowed_methods:
-            invalid_quantity_message = f"Invalid derivative method. Allowed quantities are: {allowed_methods}"
-            raise ValueError(invalid_quantity_message)
-        allowed_variables = ("angle", "wavelength")
-        if (param_one or param_two) not in allowed_variables:
-            invalid_quantity_message = f"Invalid derivative method. Allowed quantities are: {allowed_variables}"
-            raise ValueError(invalid_quantity_message)
-
-        input_angle = self.angle
-        input_wavelength = self.wavelength
-
-        def restore( angle, wavelength ):
-            self.angle = angle
-            self.wavelength = wavelength
-
-        ## First call
-        def first(angle, wavelength, method_one):
-            
-            if param_one == "angle":
-                var = 0
-                input = angle
-                h = h_one
-                def backwards():
-                    self.angle = input - h
-                    self.wavelength = wavelength
-                def forwards():
-                    self.angle = input + h
-                    self.wavelength = wavelength
-            if param_one == "wavelength":
-                var = 1
-                input = wavelength
-                h = h_one
-                def backwards():
-                    self.angle = angle
-                    self.wavelength = input - h
-                def forwards():
-                    self.angle = angle
-                    self.wavelength = input + h
-            
-            if method_one=="finite":    
-                
-                ## Backwards
-                backwards()
-                Q_ = self.Q()
-                Q1_back = Q_[0]; Q2_back = Q_[1]
-    
-                ## Forwards
-                forwards()
-                Q_ = self.Q()
-                Q1_forwards = Q_[0]; Q2_forwards = Q_[1]
-
-                ########### Derivatives
-                restore( angle, wavelength )
-                PD_Q1 = (Q1_forwards - Q1_back) / (2 * h)
-                PD_Q2 = (Q2_forwards - Q2_back) / (2 * h)
-
-                return npa.array( [PD_Q1, PD_Q2] )
-
-            if method_one=="grad":
-                restore( angle, wavelength )
-                def Q_params(angle, wavelength):
-                    self.angle = angle
-                    self.wavelength = wavelength
-                    return self.Q()
-                
-                PD = jacobian(Q_params, argnum = var)
-                PD_value = PD(angle, wavelength)
-
-                restore( angle, wavelength )
-
-                return PD_value
-
-        ## Second call (+ composition)
-        def second(angle2, wavelength2, method_two):
-
-            if param_two == "angle":
-                var = 0
-                input = angle2
-                h = h_two
-                def backwards():
-                    angle = input - h
-                    wavelength = wavelength2
-                    return angle, wavelength
-                def forwards():
-                    angle = input + h
-                    wavelength = wavelength2
-                    return angle, wavelength          
-            if param_two == "wavelength":
-                var = 1
-                input = wavelength2
-                h = h_two
-                def backwards():
-                    angle = angle2
-                    wavelength = input - h
-                    return angle, wavelength
-                def forwards():
-                    angle = angle2
-                    wavelength = input + h
-                    return angle, wavelength
-
-            if method_two == "finite":
-
-                ## Backwards
-                angle, wavelength = backwards()
-                Q_ = first(angle, wavelength, method_one)
-                Q1_back = Q_[0]; Q2_back = Q_[1]
-
-                restore( angle2, wavelength2 )
-
-                ## Forwards
-                angle, wavelength = forwards()
-                Q_ = first(angle, wavelength, method_one)
-                Q1_forwards = Q_[0]; Q2_forwards = Q_[1]
-
-                ########### Derivatives
-                restore( angle2, wavelength2 )
-                PD_Q1 = (Q1_forwards - Q1_back) / (2 * h)
-                PD_Q2 = (Q2_forwards - Q2_back) / (2 * h)
-
-                return npa.array( [PD_Q1, PD_Q2] )
-
-            if method_two == "grad":
-                restore( angle2, wavelength2 )
-
-                def fun(angle2, wavelength2):
-                    return first(angle2, wavelength2, method_one)
-                
-                PD2 = jacobian(fun, argnum = var)
-                PD2_value = PD2(angle2, wavelength2)
-                
-                restore( angle2, wavelength2 )
-                
-                return PD2_value
-
-        ## Third call (+ composition)
-        def third(method_three):
-            if param_three == "angle":
-                var = 0
-                input = input_angle
-                h = h_three
-                def backwards():
-                    angle = input - h
-                    wavelength = input_wavelength
-                    return angle, wavelength
-                def forwards():
-                    angle = input + h
-                    wavelength = input_wavelength
-                    return angle, wavelength           
-            if param_three == "wavelength":
-                var = 1
-                input = input_wavelength
-                h = h_three
-                def backwards():
-                    angle = input_angle
-                    wavelength = input - h
-                    return angle, wavelength
-                def forwards():
-                    angle = input_angle
-                    wavelength = input + h
-                    return angle, wavelength
-
-            if method_three == "finite":
-
-                ## Backwards
-                angle, wavelength = backwards()
-                Q_ = second(angle, wavelength, method_two)
-                Q1_back = Q_[0]; Q2_back = Q_[1]
-
-                restore( input_angle, input_wavelength)
-
-                ## Forwards
-                angle, wavelength = forwards()
-                Q_ = second(angle, wavelength, method_two)
-                Q1_forwards = Q_[0]; Q2_forwards = Q_[1]
-
-                ########### Derivatives
-                restore( input_angle, input_wavelength)
-                PD_Q1 = (Q1_forwards - Q1_back) / (2 * h)
-                PD_Q2 = (Q2_forwards - Q2_back) / (2 * h)
-
-                return npa.array( [PD_Q1, PD_Q2] )
-
-            if method_three == "grad":
-                restore( input_angle, input_wavelength)
-
-                def fun(angle, wavelength):
-                    return second(angle, wavelength, method_two)
-                
-                PD3 = jacobian(fun, argnum = var)
-                PD3_value = PD3(input_angle, input_wavelength)
-                
-                restore( input_angle, input_wavelength)
-                
-                return PD3_value
-
-        return third(method_three)
-
-    ##################
-    #### Optimisation functions
-
-    def FoM(self, grad_method: str="finite"):
-        """
-        ## Outputs
-        Calculate the grating single-wavelength figure of merit FD.
-        """
-        eigReal, eigImag = self.Eigs(grad_method=grad_method, check_det=True, return_vec=False)
+        ## Product of real part eigenvalues
 
         def unique_filled(x, filled_value):
             """
-            ## Inputs
-            x: 4-d array
-            filled_value: Float to fill remaining
+            Returns a 4-dimensional array with unique values from `x` and the remaining
+            filled by `filled_value`.
 
-            ## Outputs
-            Unique contents of x, with remaining items filled by filled_value
+            Parameters:
+            x (np.ndarray): 4-dimensional input array.
+            filled_value (float): Value to fill the remaining positions.
+
+            Returns:
+            np.ndarray: A 4-dimensional array of the same shape as `x`.
             """
-            # Sort to ensure differentiability
+            
+            # Sorting ensures differentiability of np.unique
             sorted_x = npa.sort(x.flatten())
             unique_values = sorted_x[np.concatenate(([True], npa.diff(sorted_x) != 0))]
 
-            # Append filled_value as needed
-            k = len(unique_values)
+            k=len(unique_values)
             for i in range(4-k):
                 unique_values=npa.append(unique_values,filled_value)
 
             return unique_values
-    
-        ## Reward all Re(eig) being negative
-        eig_real_unique     =   unique_filled( eigReal, -1 )
+
+        ##### First FoM - incl. product of unique, real eigenvalues
+        # func_real_array = unique_filled(EIGreal,1)
+        # func_real = func_real_array[0] * func_real_array[1] * func_real_array[2] * func_real_array[3]
+        
+        ##### Second FoM - product of real part, unless 0 or positive, where it's 0
+        
+        # Reward all Re(eig) being negative
+        eig_real_unique     =   unique_filled( EIGreal, -1 )
         eig_real_neg_unique =   npa.minimum( 0., eig_real_unique )
         func_real_neg_array =   npa.power( eig_real_neg_unique , 2 )
         func_real_neg       =   func_real_neg_array[0]  *   func_real_neg_array[1]  *   func_real_neg_array[2]  *   func_real_neg_array[3]
 
-        ## Penalise mixed positive and negative Re(eig)
-        real_unique_0       =   unique_filled( eigReal, 0. )
-        neg_array           =   npa.power( npa.minimum(0., real_unique_0) , 2 )
-        pos_array           =   npa.power( npa.maximum(0., real_unique_0) , 2 )
-        neg_sum             =   neg_array[0] + neg_array[1] + neg_array[2] + neg_array[3]
-        pos_sum             =   pos_array[0] + pos_array[1] + pos_array[2] + pos_array[3]
-        penalty             =   neg_sum * pos_sum
+        # Penalise any positive Re(eig)
+        eig_real_unique_0   =   unique_filled( EIGreal, 0 )
+        pos_eig_real_unique =   npa.maximum( 0., eig_real_unique_0 )
+        func_real_pos_array =   npa.power( pos_eig_real_unique , 2 )
+        func_real_pos       =   func_real_pos_array[0]  +   func_real_pos_array[1]  +   func_real_pos_array[2]  +   func_real_pos_array[3]  
 
-        ## All positive
-        real_unique_1       =   unique_filled( eigReal, 1 )
-        all_pos_array       =   npa.power( npa.maximum( 0., real_unique_1 ) , 2 )
-        penalty2            =   all_pos_array[0]  *   all_pos_array[1]  *   all_pos_array[2]  *   all_pos_array[3]
-
-        ## Remove Re(eig)<0 contribution if no restoring behaviour
-        func_imag_array = npa.power( npa.tanh(eigImag) , 2 )
+        # Is any imaginary part zero?
+        func_imag_array = npa.power( npa.tanh(EIGimag) , 2 )
         func_imag = func_imag_array[0] * func_imag_array[1] * func_imag_array[2] * func_imag_array[3]
+        # If so, remove contribution of Re(eig)<0 , hence keeping penalty for Re(eig)>0
 
-        ## Build FoM
-        FD = func_real_neg * func_imag - penalty - penalty2
+        FD = func_real_neg * func_imag - func_real_pos
 
         return FD
 
-    def Eigs(self, grad_method: str='finite', check_det: bool = False, return_vec: bool = False):
-        """
-        ## Inputs
-        check_det: FoM is non-differentiable if det(J)=0
-        return_vec: Returns eigenvectors when true
-        ## Outputs
-        Calculate eigenvalues of Jacobian matrix at equilibrium
-        """
-        if grad_method=='finite':
-            # For optimisation, need to use finite differences. ~optimal step size is ...
-            h_angle = 10**(-6.5)
-            h_wavelength = 10**(-6.5)
-            Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs(h_angle, h_wavelength)
-        if grad_method=="grad":
-            Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs_auto()
-        
-        w = self.gaussian_width
-        w_bar = w/L
 
-        lam = self.wavelength 
+    def Eigs(self):
+        Q1,Q2,PD_Q1_angle,PD_Q2_angle,PD_Q1_wavelength,PD_Q2_wavelength=self.return_Qs()
+        w=self.gaussian_width
+        w_bar=w/L
 
-        ## Convert velocity dependence to wavelength dependence
-        D = 1/lam 
-        g = (npa.power(lam,2) + 1)/(2*lam) 
+        # Starting wavelength set to 1
+        lam=self.wavelength  # needs to be lambda'
 
-        ## Convert wavelength derivative to efficiency factor
+        D=1/lam 
+        g=(npa.power(lam,2) + 1)/(2*lam) 
+
+        # Set-up (not sure about whether left or right makes sense - constraints)
         Q1R=Q1; Q2R=Q2; PD_Q1R_angle=PD_Q1_angle;   PD_Q2R_angle=PD_Q2_angle
         PD_Q1R_omega=(lam/D)*PD_Q1_wavelength;   PD_Q2R_omega=(lam/D)*PD_Q2_wavelength
 
-        ## Symmetry of effiency factors
-        Q1L =   Q1R 
-        Q2L = - Q2R
+        # Symmetry
+        Q1L=Q1R 
+        Q2L= - Q2R
 
-        PD_Q1L_angle = - PD_Q1R_angle
-        PD_Q2L_angle =   PD_Q2R_angle
+        PD_Q1L_angle= - PD_Q1R_angle
+        PD_Q2L_angle=PD_Q2R_angle
 
-        PD_Q1L_omega =   PD_Q1R_omega
-        PD_Q2L_omega = - PD_Q2R_omega
+        PD_Q1L_omega=PD_Q1R_omega
+        PD_Q2L_omega= - PD_Q2R_omega
 
 
         ####################################
-        # y acceleration
+        # y acc
         fy_y= -     D**2 * (I0/(m*c)) * ( Q2R - Q2L) * ( 1 - npa.exp( -1/(2*w_bar**2) ))
         fy_phi= -   D**2 * (I0/(m*c)) * ( PD_Q2R_angle + PD_Q2L_angle) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
         fy_vy= -    D**2 * (I0/(m*c)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + PD_Q1R_angle + PD_Q1L_angle ) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
         fy_vphi=    D**2 * (I0/(m*c)) * ( 2*( Q2R - Q2L ) - D*( PD_Q2R_omega - PD_Q2L_omega ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
 
         ####################################
-        # phi acceleration
+        # phi acc
         fphi_y=     D**2 * (12*I0/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
         fphi_phi=   D**2 * (12*I0/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
         fphi_vy=    D**2 * (12*I0/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
@@ -929,35 +676,13 @@ class TwoBox:
         J10=fphi_y; J11=fphi_phi;   J12=fphi_vy/c;  J13=fphi_vphi/c
         J=npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
 
-        # Debugging during optimisation
-        if check_det:
-            if npaLA.det(J)==0:
-                print("Grating parameters:")
-                print(self.grating_pitch)
-                print(self.grating_depth)
-                print(self.box1_width)
-                print(self.box2_width)
-                print(self.box_centre_dist)
-                print(self.box1_eps)
-                print(self.box2_eps)
-                print(self.gaussian_width)
-                print(self.substrate_depth)
-                print(self.substrate_eps)
-
-                print("lam: ", lam)
-                print("\n")
-
         # Find the real part of eigenvalues    
-        EIGVALVEC   = npaLA.eig(J)
-        eig         = EIGVALVEC[0]
-        eigReal     = npa.real(eig)
-        eigImag     = npa.imag(eig)
+        EIGVALVEC=npaLA.eig(J)
+        eig=EIGVALVEC[0]
+        eigReal=npa.real(eig)
+        eigImag=npa.imag(eig)
 
-        if return_vec:
-            vec = EIGVALVEC[1]
-            return eigReal, eigImag, vec
-        else:
-            return eigReal, eigImag
+        return eigReal,eigImag
 
     def average_real_eigs(self, final_speed, goal, return_eigs:bool=False):
         """
@@ -1012,8 +737,21 @@ class TwoBox:
         if not isinstance(return_eigs,bool):
             raise ValueError("input return_eigs must be a bool")
 
-    ##################
-    #### Plotting
+
+    def rNeg1(self, angle):
+        self.angle = angle
+        r = self.RT()[0][0]
+        return r
+    def tNeg1(self, angle):
+        self.angle = angle
+        t = self.RT()[1][0]
+        return t
+    
+    def PDrNeg1(self, angle):
+        return grad(self.rNeg1)(angle)
+    def PDtNeg1(self, angle):
+        return grad(self.tNeg1)(angle)
+            
 
     def calculate_y_fields(self, height):
         """
@@ -1193,7 +931,7 @@ class TwoBox:
             elif efficiency_quantity == "FoM":
                 efficiencies[0,idx] = self.FoM()
             elif efficiency_quantity == "eig":
-                real,imag=self.Eigs(grad_method="grad", check_det=False, return_vec=False)
+                real,imag=self.Eigs()
                 Reig1[0,idx] = real[0]
                 Reig2[0,idx] = real[1]
                 Reig3[0,idx] = real[2]
@@ -1298,96 +1036,7 @@ class TwoBox:
             return (fig, ax), (fig2, ax2)
         else:
             return fig, ax
-
-    def show_Eigs(self, marker: str='o', log_1: bool=True, log_2: bool=True, wavelength_range: list=[1., 1.5], num_plot_points: int=200):
-        wavelengths = np.linspace(*wavelength_range, num_plot_points)
-        init_wavelength = self.wavelength # record user-initialised wavelength
-
-        ## CALCULATE EIGS ##
-        Reig1 = np. zeros( (1,num_plot_points) , dtype=float)
-        Reig2 = np. zeros( (1,num_plot_points) , dtype=float)
-        Reig3 = np. zeros( (1,num_plot_points) , dtype=float)
-        Reig4 = np. zeros( (1,num_plot_points) , dtype=float)
-        Ieig1 = np. zeros( (1,num_plot_points) , dtype=float)
-        Ieig2 = np. zeros( (1,num_plot_points) , dtype=float)
-        Ieig3 = np. zeros( (1,num_plot_points) , dtype=float)
-        Ieig4 = np. zeros( (1,num_plot_points) , dtype=float)
-
-        for idx, lam in enumerate(wavelengths):
-            # Calculate eigs for each order
-            self.wavelength = lam
-            real, imag   = self.Eigs(grad_method="grad", check_det=False, return_vec=False)
-
-            Reig1[0,idx] = real[0]
-            Reig2[0,idx] = real[1]
-            Reig3[0,idx] = real[2]
-            Reig4[0,idx] = real[3]
-
-            Ieig1[0,idx] = imag[0]
-            Ieig2[0,idx] = imag[1]
-            Ieig3[0,idx] = imag[2]
-            Ieig4[0,idx] = imag[3]
-        self.wavelength = init_wavelength # restore user-initialised wavelength
-
-        ### PLOTTING ### 
-        # Set up figure
-        fig, (ax1, dummy, ax2) = plt.subplots(nrows=1, ncols=3, width_ratios=(1,0.1,1))
-        # fig, (ax1, ax2) = plt.subplots(nrows=1, ncols=2)
-        dummy.axis('off')
-        p = self.grating_pitch
-        ax1.set_xlim(np.array(wavelength_range)/p) # normalise to grating pitch
-        ax2.set_xlim(np.array(wavelength_range)/p) # normalise to grating pitch
-        ax2.yaxis.tick_right()
-        ax2.yaxis.set_label_position("right")
-
-        ## Plot eigs vs wavelength ##
-        colorReal=(0.7, 0, 0)
-        ax1.plot(wavelengths/p,Reig1[0]*1e5, markerstyle=marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ax1.plot(wavelengths/p,Reig2[0]*1e5, markerstyle=marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ax1.plot(wavelengths/p,Reig3[0]*1e5, markerstyle=marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ax1.plot(wavelengths/p,Reig4[0]*1e5, markerstyle=marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ylabel=rf"$\Re(\lambda) \times 10^-5$"
-
-        colorImag= 'blue'
-        ax2.plot(wavelengths/p,Ieig1[0], markerstyle=marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
-        ax2.plot(wavelengths/p,Ieig2[0], markerstyle=marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
-        ax2.plot(wavelengths/p,Ieig3[0], markerstyle=marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
-        ax2.plot(wavelengths/p,Ieig4[0], markerstyle=marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
-        ylabel2=rf"$\Im(\lambda)$"
-
-        ## Logarithmic
-        if log_1:
-            linthr = 0.1
-            ax1.set_yscale("symlog", linthresh=linthr, linscale=0.4)
-            ax1.yaxis.set_minor_locator(MinorSymLogLocator(linthr))
-        if log_2:
-            linthr = 0.1
-            ax2.set_yscale("symlog", linthresh=linthr, linscale=0.4)
-            ax2.yaxis.set_minor_locator(MinorSymLogLocator(linthr))
-
-        
-        # Axis labels
-        ax1.axhline(y=0, color='black', linestyle='-', lw = '1')
-        ax1.tick_params(axis='both', which='both', direction='in') # ticks inside box
-        # ax1.tick_params(axis='y', color=colorReal, labelcolor=colorReal) # colored ticks
-        ax1.set_ylabel(ylabel=ylabel)  #color=colorReal  # colored y label
-        ax1.set(xlabel=r"$\lambda'/\Lambda'$")
-
-        ax2.axhline(y=0, color='black', linestyle='-', lw = '1')
-        ax2.tick_params(axis='both', which='both', direction='in') # ticks inside box
-        # ax2.tick_params(axis='y', color = colorImag, labelcolor=colorImag) # colored ticks
-        ax2.set_ylabel(ylabel=ylabel2) #color=colorImag  # colored y label
-        ax2.set(xlabel=r"$\lambda'/\Lambda'$")
-
-        # fig.suptitle(t=rf"$h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$")
-
-        # Modify axes
-        cm_to_inch = 0.393701
-        fig_width = 30*cm_to_inch
-        fig_height = 17.6*cm_to_inch
-        fig.set_size_inches(fig_width/1.2, fig_height/1.2)
-
-        return fig, (ax1, ax2)
+    
 
     def show_depth_dependence(self, angle: float=0., efficiency_quantity: str="PDr", depth_range: list=[0., 1.], num_plot_points: int=200):
         """

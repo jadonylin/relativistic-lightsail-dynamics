@@ -884,7 +884,7 @@ class TwoBox:
             h_wavelength = 10**(-6.5)
             Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs(h_angle, h_wavelength)
         if grad_method=="grad":
-            Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs_auto()
+            Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs_auto(h_angle, h_wavelength)
         
         w = self.gaussian_width
         w_bar = w/L
