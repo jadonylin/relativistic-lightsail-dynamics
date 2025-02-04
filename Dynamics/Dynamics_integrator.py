@@ -376,6 +376,7 @@ if Email_result:
     from email.mime.text import MIMEText 
     from email.mime.multipart import MIMEMultipart 
     import smtplib 
+    from login import email_address, password, from_address, to
 
 
     smtp = smtplib.SMTP('smtp.gmail.com', 587) 
@@ -383,7 +384,7 @@ if Email_result:
     smtp.starttls() 
 
     # Login with your email and password 
-    smtp.login('midgetliamllama','mbdj mnnf hqld objn')
+    smtp.login(email_address,password)
 
     def message(subject="Python Notification", 
                 text="", img=None, 
@@ -401,12 +402,8 @@ if Email_result:
                   text=rf"Did it stop early? {STOPPED}",img=None, 
                   attachment=None) 
 
-    # Make a list of emails, where you wanna send mail 
-    to = ["lvan0119@uni.sydney.edu.au", "mail.liam.vr@gmail.com"] 
-
     # Provide some data to the sendmail function! 
-    smtp.sendmail(from_addr="midgetliamllama@gmail.com", 
-                to_addrs=to, msg=msg.as_string()) 
+    smtp.sendmail(from_addr=from_address, to_addrs=to, msg=msg.as_string()) 
 
     # Finally, don't forget to close the connection 
     smtp.quit()

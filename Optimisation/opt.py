@@ -21,6 +21,9 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1" 
 os.environ["NUMEXPR_NUM_THREADS"] = "1" 
 
+import sys
+sys.path.append("../")
+
 import random
 
 import scipy

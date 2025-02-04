@@ -19,89 +19,35 @@ import sys
 sys.path.append("../")
 
 from opt import FOM_uniform, global_optimise
-from parameters import D1_ND, Parameters, Initial_bigrating
+from parameters import Initial_bigrating, opt_Parameters, Bounds
 from twobox import TwoBox
 
 Email_result = True
 
-# GLOBAL OPTIMISATION ###########################################################################
-## FIXED PARAMETERS ##
-wavelength = 1. # Laser wavelength
-angle = 0.
-Nx = 100 # Number of grid points
-nG = 25 # 25 # Number of Fourier components
+## GLOBAL OPTIMISATION ##
+xtol_rel = 1e-4 # local
+ftol_rel = 1e-8 # local
+num_cores = 32 # number of cores to run parallel optimisation
+maxfev = 5000 # global 1000
+h1_min, h1_max, param_bounds = Bounds()
 
-# relaxation parameter, should be infinite unless you need to avoid singular matrix at grating cutoffs
-# Also, optimiser finds large magnitude, noisy rNeg1 when Qabs = np.inf 
-Qabs = 1e7  # 1e7
-
-
-I0,L,m,c=Parameters()
-grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps=Initial_bigrating()
-
-# Initial twobox grating
-grating = TwoBox(grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, 
-                 gaussian_width, substrate_depth, substrate_eps,
-                 wavelength, angle, Nx, nG, Qabs)
-
-
-## FOM PARAMETERS ##
-goal = 0.1 # Stopping criteria for adaptive sampling in the FOM (float is loss_goal, int is npoints_goal)
-final_speed = 5 # percentage of c  # 20
-return_grad = True # Return FOM and gradient of FOM
-
-
-
-## OPTIMISATION ##
+## LOCAL OPTIMISATION ##
 # Set up NLOPT
 seed = 20240902 # LDS seed
 sampling = 'sobol' # 'sobol' or 'random'
 n_sample_exp = 3
 n_sample = 2**n_sample_exp
 ndof = 11
+wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad = opt_Parameters()
 
-# Parameter bounds
-pitch_min = np.round(1.001*wavelength/D1_ND([final_speed/100,0.]),3) # stay away from the cutoff divergences
-pitch_max = 1.999 
-
-h1_min = 0.01 # h1 = grating depth
-h1_max = 1.5 * pitch_max
-
-box_width_min = 0.
-box_width_max = 1.*pitch_max # single box width must be smaller than pitch
-
-box_centre_dist_min = 0.
-box_centre_dist_max = 0.5*pitch_max # redundant space if > 0.5*pitch
-
-box_eps_min = 1.5**2 # Minimum allowed grating permittivity
-box_eps_max = 3.5**2 # Maximum allowed grating permittivity
-
-gaussian_width_min=0.5*L 
-gaussian_width_max=5*L
-
-substrate_depth_min = h1_min 
-substrate_depth_max = h1_max
-
-substrate_eps_min = box_eps_min 
-substrate_eps_max = box_eps_max
-
-# Stopping criteria
-xtol_rel = 1e-4 # local
-ftol_rel = 1e-8 # local
-num_cores = 32 # number of cores to run parallel optimisation
-maxfev = 5000 # global 1000
-
+## Build grating
+grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps=Initial_bigrating()
+grating = TwoBox(grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, 
+                 gaussian_width, substrate_depth, substrate_eps,
+                 wavelength, angle, Nx, nG, Qabs)
 
 
 # OBJECTIVE FUNCTION ###########################################################################
-param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
-                (box_width_min, box_width_max), (box_width_min, box_width_max),
-                (box_centre_dist_min, box_centre_dist_max),
-                (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-                (gaussian_width_min, gaussian_width_max),
-                (substrate_depth_min, substrate_depth_max), 
-                (substrate_eps_min, substrate_eps_max)]
-
 def objective(params):
     grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = params
     grating.grating_pitch = grating_pitch
@@ -117,7 +63,6 @@ def objective(params):
     grating.substrate_eps = substrate_eps
 
     return FOM_uniform(grating, final_speed, goal, return_grad)
-
 
 
 # RECORDING RESULTS ###########################################################################
@@ -158,13 +103,10 @@ lines_to_file = ["\n\n----------------------------------------------------------
                 , f"GO options       | {GO_line}\n"
                 , "------------------------------------------------------------------------------------------------------------------------------------\n"]
 
-
 ## Writing to file ##
-txt_fname = f'./Data/FOM_4th_bounds2_optimisation_maxfev{maxfev*num_cores}.txt'
+txt_fname = f'./Data/FOM_5th_bounds3_optimisation_maxfev{maxfev*num_cores}.txt'
 with open(txt_fname, "a") as result_file:
     result_file.writelines(lines_to_file)
-
-
 
 ### RUN GLOBAL OPTIMISATION ###########################################################################
 def optimise_partitioned_depth(partition_h1_min, partition_h1_max):
@@ -180,7 +122,7 @@ for p in range(0,num_cores):
 
 
 # Run parallel optimisation
-pkl_fname = f'./Data/FOM_4th_bounds2_optimisation_maxfev{maxfev*num_cores}.pkl'
+pkl_fname = f'./Data/FOM_5th_bounds3_optimisation_maxfev{maxfev*num_cores}.pkl'
 if __name__ == '__main__':
     with Pool(processes=num_cores) as pool:
         # Time checking

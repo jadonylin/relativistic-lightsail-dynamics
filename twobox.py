@@ -414,7 +414,7 @@ class TwoBox:
         return Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength
 
     ## Automatic differentiation (incompatible with optimsation ~ second derivatives)
-    def return_Qs_auto(self):
+    def return_Qs_auto(self, return_Q: bool=True):
         """
         Calculate efficiency factors and their derivatives
         """
@@ -448,7 +448,10 @@ class TwoBox:
         self.angle=input_angle
         self.wavelength=input_wavelength
 
-        return Q1, Q2, PD_angle_Q1, PD_angle_Q2, PD_wavelength_Q1, PD_wavelength_Q2
+        if return_Q:
+            return Q1, Q2, PD_angle_Q1, PD_angle_Q2, PD_wavelength_Q1, PD_wavelength_Q2
+        else:
+            return PD_angle_Q1, PD_angle_Q2, PD_wavelength_Q1, PD_wavelength_Q2
 
     #### 2nd derivative
     def grad2_Q(self, method_one, method_two, param_one, param_two, h_angle, h_wavelength):
@@ -861,8 +864,8 @@ class TwoBox:
         all_pos_array       =   npa.power( npa.maximum( 0., real_unique_1 ) , 2 )
         penalty2            =   all_pos_array[0]  *   all_pos_array[1]  *   all_pos_array[2]  *   all_pos_array[3]
 
-        ## Remove Re(eig)<0 contribution if no restoring behaviour
-        func_imag_array = npa.power( npa.tanh(eigImag) , 2 )
+        ## Remove Re(eig)<0 contribution if no restoring behaviour - now scales
+        func_imag_array = npa.log( 1 + npa.power(eigImag,2) )
         func_imag = func_imag_array[0] * func_imag_array[1] * func_imag_array[2] * func_imag_array[3]
 
         ## Build FoM
@@ -884,7 +887,7 @@ class TwoBox:
             h_wavelength = 10**(-6.5)
             Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs(h_angle, h_wavelength)
         if grad_method=="grad":
-            Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs_auto()
+            Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs_auto(return_Q=True)
         
         w = self.gaussian_width
         w_bar = w/L
@@ -1342,17 +1345,17 @@ class TwoBox:
 
         ## Plot eigs vs wavelength ##
         colorReal=(0.7, 0, 0)
-        ax1.plot(wavelengths/p,Reig1[0]*1e5, markerstyle=marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ax1.plot(wavelengths/p,Reig2[0]*1e5, markerstyle=marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ax1.plot(wavelengths/p,Reig3[0]*1e5, markerstyle=marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ax1.plot(wavelengths/p,Reig4[0]*1e5, markerstyle=marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
+        ax1.plot(wavelengths/p,Reig1[0]*1e5, marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
+        ax1.plot(wavelengths/p,Reig2[0]*1e5, marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
+        ax1.plot(wavelengths/p,Reig3[0]*1e5, marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
+        ax1.plot(wavelengths/p,Reig4[0]*1e5, marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
         ylabel=rf"$\Re(\lambda) \times 10^-5$"
 
         colorImag= 'blue'
-        ax2.plot(wavelengths/p,Ieig1[0], markerstyle=marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
-        ax2.plot(wavelengths/p,Ieig2[0], markerstyle=marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
-        ax2.plot(wavelengths/p,Ieig3[0], markerstyle=marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
-        ax2.plot(wavelengths/p,Ieig4[0], markerstyle=marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
+        ax2.plot(wavelengths/p,Ieig1[0], marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
+        ax2.plot(wavelengths/p,Ieig2[0], marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
+        ax2.plot(wavelengths/p,Ieig3[0], marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
+        ax2.plot(wavelengths/p,Ieig4[0], marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
         ylabel2=rf"$\Im(\lambda)$"
 
         ## Logarithmic

@@ -4,9 +4,6 @@ L=10                # grating width (10 m^2)
 m=1/1000            # mass (1g)
 c=299792458
 
-def Parameters():
-    return I0, L, m, c
-
 def gamma_ND(v):
     """
     Calculate the Lorentz gamma factor with an input non-dimensionalised speed/velocity.
@@ -55,13 +52,68 @@ def D1_ND(v):
     D1 = gamma_ND(v)*(1-vx)
     return D1
 
+## Global Optimisation parameters ##
+wavelength = 1. # Laser wavelength
+angle = 0.
+Nx = 100 # Number of grid points
+nG = 25 # 25 # Number of Fourier components
+# relaxation parameter, should be infinite unless you need to avoid singular matrix at grating cutoffs
+# Also, optimiser finds large magnitude, noisy rNeg1 when Qabs = np.inf 
+Qabs = 1e7  # 1e7
 
-Start="other"
+## FoM parameters ##
+goal = 0.1 # Stopping criteria for adaptive sampling in the FOM (float is loss_goal, int is npoints_goal)
+final_speed = 5 # percentage of c  # 20
+return_grad = True # Return FOM and gradient of FOM
 
+## Global Optimisation bounds ##
+## Parameter bounds
+pitch_min = np.round(1.001*1/D1_ND([final_speed/100,0.]),3) # stay away from the cutoff divergences
+pitch_max = np.round( 2/( 1 + np.sin(20*(np.pi/180)) ), 3)
+
+h1_min = 0.01 # h1 = grating depth
+h1_max = 1.5 * pitch_max
+
+box_width_min = 0.
+box_width_max = 1.*pitch_max # single box width must be smaller than pitch
+
+box_centre_dist_min = 0.
+box_centre_dist_max = 0.5*pitch_max# redundant space if > 0.5*pitch
+
+box_eps_min = 1.5**2 # Minimum allowed grating permittivity
+box_eps_max = 3.5**2 # Maximum allowed grating permittivity
+
+gaussian_width_min=0.5*L 
+gaussian_width_max=5*L
+
+substrate_depth_min = h1_min 
+substrate_depth_max = 1.5 * pitch_max # h1_max
+
+substrate_eps_min = box_eps_min 
+substrate_eps_max = box_eps_max
+
+param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
+            (box_width_min, box_width_max), (box_width_min, box_width_max),
+            (box_centre_dist_min, box_centre_dist_max),
+            (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
+            (gaussian_width_min, gaussian_width_max),
+            (substrate_depth_min, substrate_depth_max), 
+            (substrate_eps_min, substrate_eps_max)]
+
+def Parameters():
+    return I0, L, m, c
+
+## Optimisation parameters
+def opt_Parameters():
+    return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad
+
+def Bounds():
+    return h1_min, h1_max, param_bounds
+
+#######################################################
 ## Initial grating
+Start="middle"
 
-# Ilic: 1.5, 1.8
-# Starting at v=5.39%
 if Start=="Ilic":
     wavelength=1.5 /D1_ND(2/100)
 
@@ -101,10 +153,23 @@ if Start=="other":
     substrate_depth = np.float64(2.9915278797460836)
     substrate_eps   = np.float64(2.3183620304237067)
 
+if Start=="middle":
+    def average(x,y): return (x+y)/2
+    grating_pitch   = average(pitch_min, pitch_max)
+    grating_depth   = average(h1_min, h1_max)
+    box1_width      = average(box_width_min, box_width_max)/2
+    box2_width      = box1_width/2
+    box_centre_dist = average(box_centre_dist_min, box_centre_dist_max)
+    box1_eps        = average(box_eps_min, box_eps_max)
+    box2_eps        = box1_eps
+    gaussian_width  = average(gaussian_width_min, gaussian_width_max)
+    substrate_depth = average(substrate_depth_min, substrate_depth_max)
+    substrate_eps   = average(substrate_eps_min, substrate_eps_max)
+
 def Initial_bigrating():
     return grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps
 
-
+#######################################################
 def gamma(v):
     """
     Calculate the Lorentz gamma factor with an input speed/velocity.
