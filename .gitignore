@@ -4,3 +4,10 @@ Dynamics/Old_integrator.ipynb
 Dynamics/Data/Ilic_start_old.pkl
 Dynamics/Data/LeftData.pkl
 Dynamics/Data/RightData.pkl
+Dynamics/Dynamics_integrator_check.ipynb
+Dynamics/Old_integrator.py
+Dynamics/Dynamics_integrator_check.py
+Dynamics/Integrator_comparison.ipynb
+Dynamics/Lookup_tables_Ilic_start.py
+Dynamics/Data/Ilic_start_new.pkl
+Dynamics/Data/Ilic_Lookup_start.pkl
