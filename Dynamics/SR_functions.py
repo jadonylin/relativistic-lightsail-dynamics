@@ -146,5 +146,5 @@ def Parameters():
 
 ## Optimised grating
 def gaussian_width():
-    w = 2   # replace with optimised value
+    w = 2 * L   # replace with optimised value
     return w
