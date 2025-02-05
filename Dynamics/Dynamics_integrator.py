@@ -5,10 +5,10 @@ c=299792458
 
 from SR_functions import Gamma, Dv, vadd, SinCosTheta, SinCosEpsilon, ABSC, E_eps, erf, Parameters, gaussian_width, Lorentz, norm_squared
 
-klambda = 1000
+klambda = 650
 kdelta = 1000
 ## Load data
-with open(rf'Data/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl', 'rb') as f: 
+with open(rf'Data/Ilic_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl', 'rb') as f: 
     data = pickle.load(f)
 
 Q1 = data['Q1']
@@ -50,6 +50,7 @@ def PD_Q2_lambda_call(delta, lam):
 
 # Laser parameters
 I, L, m, c = Parameters()
+I = 10e9
 w = gaussian_width()
 wavelength = 1
 
@@ -89,9 +90,12 @@ def aM(t,yvec,vL,i):
     g   = Gamma(vL)
     lam = wavelength / D  # incoming wavelength
     try:
-        Q1R = Q1_call(delta,lam);    Q2R =  Q2_call(delta,lam);    
-        Q1L = Q1_call(-delta,lam);   Q2L = -Q2_call(-delta,lam);   
+        # Q1R = Q1_call(delta,lam);    Q2R =  Q2_call(delta,lam);    
+        # Q1L = Q1_call(-delta,lam);   Q2L = -Q2_call(-delta,lam);   
         
+        Q1L = Q1_call(delta,lam);    Q2L =  Q2_call(delta,lam);    
+        Q1R = Q1_call(-delta,lam);   Q2R = -Q2_call(-delta,lam);
+
         dQ1ddeltaR  =  PD_Q1_delta_call(delta,lam);     dQ2ddeltaR  = PD_Q2_delta_call(delta,lam)
         dQ1ddeltaL  = -PD_Q1_delta_call(-delta,lam);    dQ2ddeltaL  = PD_Q2_delta_call(-delta,lam)
 
@@ -193,8 +197,8 @@ def Mstep(h,tn,yn,vL,i):
 ################################
 ## Parameters
 timeLn = 0
-x0=0;   y0=0;       phi0=0            #y0=-0.05*L
-vx0=0;  vy0=1;      omega0=0
+x0=0;   y0=-0.05*L;       phi0=0            #y0=-0.05*L
+vx0=0;  vy0=0;      omega0=0
 Y0=np.array([x0,y0,phi0,vx0,vy0,omega0])
 
 # Maximum runtime
@@ -204,7 +208,7 @@ time_MAX=8.5*60*60
 ## Step size   
 h=1e-4      
 Email_result = False
-runID = 5
+runID = 4
 
 ################################
 # Frame M integration
@@ -257,8 +261,8 @@ timeL_array.append(timeLn)
 
 timeSTART=time.time()
 i=1
-i_STOP = 1694
-vFINAL= 0.05*c
+i_STOP = 116
+vFINAL= 0.027*c
 
 ################################
 # Integration
@@ -364,7 +368,7 @@ data = {'YL': YL, 'phiM': phi_nparray, 'phidot': omega_nparray,
         'eps': eps_nparray, 'epsdot': eps_rate_nparray, 
         'step': h, 'duration (min)':t_end_min, 'i': iFINAL, 'Stopped': STOPPED,
         'Initial': Y0}
-pkl_fname = f'./Data/Dynamics_run{runID}.pkl'
+pkl_fname = f'./Data/Ilic_Dynamics_run{runID}.pkl'
 
 # Save result
 with open(pkl_fname, 'wb') as data_file:
