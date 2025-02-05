@@ -90,11 +90,8 @@ def aM(t,yvec,vL,i):
     g   = Gamma(vL)
     lam = wavelength / D  # incoming wavelength
     try:
-        # Q1R = Q1_call(delta,lam);    Q2R =  Q2_call(delta,lam);    
-        # Q1L = Q1_call(-delta,lam);   Q2L = -Q2_call(-delta,lam);   
-        
-        Q1L = Q1_call(delta,lam);    Q2L =  Q2_call(delta,lam);    
-        Q1R = Q1_call(-delta,lam);   Q2R = -Q2_call(-delta,lam);
+        Q1R = Q1_call(delta,lam);    Q2R =  Q2_call(delta,lam);    
+        Q1L = Q1_call(-delta,lam);   Q2L = -Q2_call(-delta,lam);   
 
         dQ1ddeltaR  =  PD_Q1_delta_call(delta,lam);     dQ2ddeltaR  = PD_Q2_delta_call(delta,lam)
         dQ1ddeltaL  = -PD_Q1_delta_call(-delta,lam);    dQ2ddeltaL  = PD_Q2_delta_call(-delta,lam)
@@ -141,25 +138,25 @@ def aM(t,yvec,vL,i):
 
     ## Forces
     fx=(1/m)*(D**2*I/c) * ( ( Q1R*costheta - Q2R*sintheta )*I0R + ( Q1L*costheta - Q2L*sintheta )*I0L
-                        #    + (vphiM/c)*( ( costheta*( 2*cosphi*Q1R - T1R ) - sintheta*( 2*cosphi*Q2R - T2R ) )*I1R
-                        #                - ( costheta*( 2*cosphi*Q1L - T1L ) - sintheta*( 2*cosphi*Q2L - T2L ) )*I1L
-                        #                + (-( B - sintheta*E )*Q1R + ( A + costheta*E )*Q2R)*I1R
-                        #                - (-( B - sintheta*E )*Q1L + ( A + costheta*E )*Q2L)*I1L
-                           ) #)
+                           + (vphiM/c)*( ( costheta*( 2*cosphi*Q1R - T1R ) - sintheta*( 2*cosphi*Q2R - T2R ) )*I1R
+                                       - ( costheta*( 2*cosphi*Q1L - T1L ) - sintheta*( 2*cosphi*Q2L - T2L ) )*I1L
+                                       + (-( B - sintheta*E )*Q1R + ( A + costheta*E )*Q2R)*I1R
+                                       - (-( B - sintheta*E )*Q1L + ( A + costheta*E )*Q2L)*I1L
+                           ) )
     
     fy=(1/m)*(D**2*I/c) * ( ( Q1R*sintheta + Q2R*costheta )*I0R + ( Q1L*sintheta + Q2L*costheta )*I0L
-                        #    + (vphiM/c)*( ( sintheta*( 2*cosphi*Q1R - T1R ) + costheta*( 2*cosphi*Q2R - T2R ) )*I1R
-                        #                - ( sintheta*( 2*cosphi*Q1L - T1L ) + costheta*( 2*cosphi*Q2L - T2L ) )*I1L
-                        #                + (-( A + costheta*E )*Q1R - ( B - sintheta*E )*Q2R)*I1R
-                        #                - (-( A + costheta*E )*Q1L - ( B - sintheta*E )*Q2L)*I1L
-                           ) #) 
+                           + (vphiM/c)*( ( sintheta*( 2*cosphi*Q1R - T1R ) + costheta*( 2*cosphi*Q2R - T2R ) )*I1R
+                                       - ( sintheta*( 2*cosphi*Q1L - T1L ) + costheta*( 2*cosphi*Q2L - T2L ) )*I1L
+                                       + (-( A + costheta*E )*Q1R - ( B - sintheta*E )*Q2R)*I1R
+                                       - (-( A + costheta*E )*Q1L - ( B - sintheta*E )*Q2L)*I1L
+                           ) ) 
     
     fphi=-(12/(m*L**2))*(D**2*I/c)*( ( Q1R*cosdelta - Q2R*sindelta )*I1R - ( Q1L*cosdelta - Q2L*sindelta )*I1L 
-                        #    + (vphiM/c)*( ( cosdelta*( 2*cosphi*Q1R - T1R ) - sindelta*( 2*cosphi*Q2R - T2R ) )*I2R 
-                        #                + ( cosdelta*( 2*cosphi*Q1L - T1L ) - sindelta*( 2*cosphi*Q2L - T2L ) )*I2L  
-                        #                + (-( C - sindelta*E )*Q1R + ( S + cosdelta*E )*Q2R)*I1R
-                        #                + (-( C - sindelta*E )*Q1L + ( S + cosdelta*E )*Q2L)*I1L
-                           ) #)
+                           + (vphiM/c)*( ( cosdelta*( 2*cosphi*Q1R - T1R ) - sindelta*( 2*cosphi*Q2R - T2R ) )*I2R 
+                                       + ( cosdelta*( 2*cosphi*Q1L - T1L ) - sindelta*( 2*cosphi*Q2L - T2L ) )*I2L  
+                                       + (-( C - sindelta*E )*Q1R + ( S + cosdelta*E )*Q2R)*I1R
+                                       + (-( C - sindelta*E )*Q1L + ( S + cosdelta*E )*Q2L)*I1L
+                           ) )
     
     ## Old forces
     # fx=(1/m)*(D**2*I/c) * ( ( Q1R*costheta - Q2R*sintheta )*I0R + ( Q1L*costheta - Q2L*sintheta )*I0L
@@ -208,7 +205,7 @@ time_MAX=8.5*60*60
 ## Step size   
 h=1e-4      
 Email_result = False
-runID = 4
+runID = 1
 
 ################################
 # Frame M integration
@@ -266,7 +263,7 @@ vFINAL= 0.027*c
 
 ################################
 # Integration
-while (vn[0] < vFINAL) and (i<i_STOP): 
+while (vn[0] < vFINAL):# and (i<i_STOP): 
     timeDIFF=time.time()-timeSTART
     
     if timeDIFF>=time_MAX: # Finished
@@ -279,7 +276,7 @@ while (vn[0] < vFINAL) and (i<i_STOP):
     else:                                  
         ###############################################
         ### Take a step in M and solve dynamics there
-        timeMNew, YNew = Mstep(h,taun,YMn,vn,i)                # t,[x,y,phi,vx,vy,vphi]
+        timeMNew, YNew = Mstep(h,timeMn,YMn,vn,i)                # t,[x,y,phi,vx,vy,vphi]
 
         ## Store new M
         xNew     = YNew[0]
@@ -316,7 +313,7 @@ while (vn[0] < vFINAL) and (i<i_STOP):
         ###############################################
         ### Repeating
         # New M coordinates
-        taun     = zM_NEXT[0]                  
+        timeMn   = zM_NEXT[0]                  
         xM2      = zM_NEXT[1]
         yM2      = zM_NEXT[2]
         phiM2    = phiNew - eps  
@@ -337,7 +334,7 @@ while (vn[0] < vFINAL) and (i<i_STOP):
         vy_array.append(vLNew[1])
 
         #### Saving M data
-        timeM_array.append(taun)
+        timeM_array.append(timeMn)
         tau_array.append(tau_array[i-1] + h)
         
         phi_array.append(phiM2)
@@ -368,7 +365,7 @@ data = {'YL': YL, 'phiM': phi_nparray, 'phidot': omega_nparray,
         'eps': eps_nparray, 'epsdot': eps_rate_nparray, 
         'step': h, 'duration (min)':t_end_min, 'i': iFINAL, 'Stopped': STOPPED,
         'Initial': Y0}
-pkl_fname = f'./Data/Ilic_Dynamics_run{runID}.pkl'
+pkl_fname = f'./Data/Ilic_perhaps_Dynamics_run{runID}.pkl'
 
 # Save result
 with open(pkl_fname, 'wb') as data_file:
