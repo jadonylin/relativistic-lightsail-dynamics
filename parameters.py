@@ -183,7 +183,6 @@ def gamma(v):
     gamma : Lorentz gamma factor
     """
     v = np.linalg.norm(v)
-    c = 3e8 # speed of light in m/s
     gamma = pow(1-v**2/c**2,-0.5)
     return gamma
 
@@ -200,7 +199,6 @@ def D1(v):
     D1 : Doppler factor
     """
     vx = v[0]
-    c = 3e8 # speed of light in m/s
     D1 = gamma(v)*(1-vx/c)
     return D1
 
@@ -217,7 +215,6 @@ def LT(a,v):
     -------
     a_prime : Four-vector a components measured in the moving frame
     """
-    c = 3e8
     gam = gamma(v)
     vx, vy, vz = v
     vnorm = np.linalg.norm(v)
