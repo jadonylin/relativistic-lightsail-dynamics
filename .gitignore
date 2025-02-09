@@ -20,3 +20,5 @@ Optimisation/Data/FOM_3rd_optimisation_maxfev128000.pkl
 Dynamics/Stability_Lookup_tables.py
 __pycache__/twobox.cpython-311.pyc
 Dynamics/__pycache__/SR_functions.cpython-311.pyc
+__pycache__/twobox.cpython-311.pyc
+Dynamics/__pycache__/SR_functions.cpython-311.pyc
