@@ -47,7 +47,7 @@ def FD(grating: TwoBox) -> float:
     grating :           TwoBox instance containing the grating parameters
     """
     
-    return grating.FoM(grad_method = "finite")
+    return grating.FoM(I0, grad_method = "finite")
 
 def FD_params_func(grating, params):
     grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = params
@@ -228,7 +228,7 @@ def global_optimise(objective,
         Lam, h1, w1, w2, bcd, eps1, eps2, w, t, s_eps = params
         grating_check=TwoBox(Lam,h1,w1,w2,bcd,eps1,eps2,w,t,s_eps,
                              1,angle,Nx,nG,Qabs)
-        avg_Reigs=grating_check.average_real_eigs(final_speed,goal,return_eigs=False)
+        avg_Reigs=grating_check.average_real_eigs(final_speed,goal,return_eigs=False, I=I0)
 
         MAX = np.max(avg_Reigs) 
         if MAX ==0:
