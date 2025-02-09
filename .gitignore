@@ -11,3 +11,12 @@ Dynamics/Integrator_comparison.ipynb
 Dynamics/Lookup_tables_Ilic_start.py
 Dynamics/Data/Ilic_start_new.pkl
 Dynamics/Data/Ilic_Lookup_start.pkl
+__pycache__/login.cpython-311.pyc
+/Dynamics/Data
+Dynamics/Dynamics_results_eigenvalue_test.ipynb
+Dynamics/Jacobian_term_compare.ipynb
+Dynamics/Jacobian_terms_test.ipynb
+Optimisation/Data/FOM_3rd_optimisation_maxfev128000.pkl
+Dynamics/Stability_Lookup_tables.py
+__pycache__/twobox.cpython-311.pyc
+Dynamics/__pycache__/SR_functions.cpython-311.pyc
