@@ -1,5 +1,6 @@
 import autograd
 from autograd import numpy as np
+from autograd.scipy.special import erf as autograd_erf
 import scipy
 
 #### All velocities are in m/s (NOT normalised by c)
@@ -135,7 +136,7 @@ def E_eps(v, phi):
     return (g/(g+1)) * ( np.sin(phi)*v[0]/c - np.cos(phi)*v[1]/c )
 
 def erf(x):
-    return autograd.scipy.special.erf(x)
+    return autograd_erf(x)
 
 ## Parameters
 I0 = 0.5 * 10**9      # intensity 
