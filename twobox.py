@@ -823,7 +823,7 @@ class TwoBox:
         ## Outputs
         Calculate the grating single-wavelength figure of merit FD.
         """
-        eigReal, eigImag = self.Eigs(grad_method=grad_method, check_det=True, return_vec=False)
+        eigReal, eigImag = self.Eigs(I0,m,c, grad_method=grad_method, check_det=True, return_vec=False)
 
         def unique_filled(x, filled_value):
             """
@@ -873,9 +873,11 @@ class TwoBox:
 
         return FD
 
-    def Eigs(self, grad_method: str='finite', check_det: bool = False, return_vec: bool = False):
+    def Eigs(self, I, m, c1, grad_method: str='finite', check_det: bool = False, return_vec: bool = False):
         """
         ## Inputs
+        I: intensity
+        grad_method: for Q derivatives
         check_det: FoM is non-differentiable if det(J)=0
         return_vec: Returns eigenvectors when true
         ## Outputs
@@ -915,17 +917,17 @@ class TwoBox:
 
         ####################################
         # y acceleration
-        fy_y= -     D**2 * (I0/(m*c)) * ( Q2R - Q2L) * ( 1 - npa.exp( -1/(2*w_bar**2) ))
-        fy_phi= -   D**2 * (I0/(m*c)) * ( PD_Q2R_angle + PD_Q2L_angle) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
-        fy_vy= -    D**2 * (I0/(m*c)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + PD_Q1R_angle + PD_Q1L_angle ) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
-        fy_vphi=    D**2 * (I0/(m*c)) * ( 2*( Q2R - Q2L ) - D*( PD_Q2R_omega - PD_Q2L_omega ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+        fy_y= -     D**2 * (I/(m*c1)) * ( Q2R - Q2L) * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+        fy_phi= -   D**2 * (I/(m*c1)) * ( PD_Q2R_angle + PD_Q2L_angle) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
+        fy_vy= -    D**2 * (I/(m*c1)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + PD_Q1R_angle + PD_Q1L_angle ) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
+        fy_vphi=    D**2 * (I/(m*c1)) * ( 2*( Q2R - Q2L ) - D*( PD_Q2R_omega - PD_Q2L_omega ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
 
         ####################################
         # phi acceleration
-        fphi_y=     D**2 * (12*I0/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
-        fphi_phi=   D**2 * (12*I0/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
-        fphi_vy=    D**2 * (12*I0/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
-        fphi_vphi= -D**2 * (12*I0/( m*c*L**2)) * ( 2*( Q1R + Q1L ) - D*( PD_Q1R_omega + PD_Q1L_omega ) ) * (w/2)**2 * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
+        fphi_y=     D**2 * (12*I/( m*c1*L**2)) * ( Q1R + Q1L ) * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
+        fphi_phi=   D**2 * (12*I/( m*c1*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+        fphi_vy=    D**2 * (12*I/( m*c1*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
+        fphi_vphi= -D**2 * (12*I/( m*c1*L**2)) * ( 2*( Q1R + Q1L ) - D*( PD_Q1R_omega + PD_Q1L_omega ) ) * (w/2)**2 * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
 
         # Build the Jacobian matrix
         J00=fy_y;   J01=fy_phi;     J02=fy_vy/c;    J03=fy_vphi/c
@@ -961,6 +963,151 @@ class TwoBox:
             return eigReal, eigImag, vec
         else:
             return eigReal, eigImag
+
+    def Linear_info(self, wavelength, I: float=0.5e9):
+        """
+        ## Inputs
+        wavelength
+        I - intensity
+        ## Outputs
+        eff_array, restoring_array, damping_array, Re(eig)_array, Im(eig)_array
+        """
+        input_wavelength = self.wavelength
+        self.wavelength = wavelength
+
+        ####################################
+        ## Call efficiency factors
+        Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs_auto(return_Q=True)
+        eff_array = (Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength)
+
+        ####################################
+        ## Build Jacobian matrix
+        w = self.gaussian_width
+        w_bar = w/L
+
+        lam = self.wavelength 
+
+        ## Convert velocity dependence to wavelength dependence
+        D = 1/lam 
+        g = (npa.power(lam,2) + 1)/(2*lam) 
+
+        ## Convert wavelength derivative to efficiency factor
+        Q1R=Q1; Q2R=Q2; PD_Q1R_angle=PD_Q1_angle;   PD_Q2R_angle=PD_Q2_angle
+        PD_Q1R_omega=(lam/D)*PD_Q1_wavelength;   PD_Q2R_omega=(lam/D)*PD_Q2_wavelength
+
+        ## Symmetry of effiency factors
+        Q1L =   Q1R 
+        Q2L = - Q2R
+
+        PD_Q1L_angle = - PD_Q1R_angle
+        PD_Q2L_angle =   PD_Q2R_angle
+
+        PD_Q1L_omega =   PD_Q1R_omega
+        PD_Q2L_omega = - PD_Q2R_omega
+
+        # y acceleration
+        fy_y= -     D**2 * (I/(m*c)) * ( Q2R - Q2L) * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+        fy_phi= -   D**2 * (I/(m*c)) * ( PD_Q2R_angle + PD_Q2L_angle) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
+        fy_vy= -    D**2 * (I/(m*c)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + PD_Q1R_angle + PD_Q1L_angle ) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
+        fy_vphi=    D**2 * (I/(m*c)) * ( 2*( Q2R - Q2L ) - D*( PD_Q2R_omega - PD_Q2L_omega ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+
+        # phi acceleration
+        fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
+        fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+        fphi_vy=    D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
+        fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * ( 2*( Q1R + Q1L ) - D*( PD_Q1R_omega + PD_Q1L_omega ) ) * (w/2)**2 * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
+
+        ## array
+        rest_array = ( fy_y,fy_phi,  fphi_y,fphi_phi )
+        damp_array = ( fy_vy/c,fy_vphi/c,  fphi_vy/c,fphi_vphi/c )
+
+        # Build the Jacobian matrix
+        J00=fy_y;   J01=fy_phi;     J02=fy_vy/c;    J03=fy_vphi/c
+        J10=fphi_y; J11=fphi_phi;   J12=fphi_vy/c;  J13=fphi_vphi/c
+        J=npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
+
+        # Find the real part of eigenvalues    
+        EIGVALVEC   = npaLA.eig(J)
+        eig         = EIGVALVEC[0]
+        eigReal     = npa.real(eig)
+        eigImag     = npa.imag(eig)
+
+        ## Restore wavelength
+        self.wavelength = input_wavelength
+        return eff_array, rest_array, damp_array, eigReal, eigImag 
+
+    def Linear_info_new(self, wavelength, I: float=0.5e9):
+        """
+        ## Inputs
+        wavelength
+        I - intensity
+        ## Outputs
+        eff_array, restoring_array, damping_array, Re(eig)_array, Im(eig)_array
+        """
+        input_wavelength = self.wavelength
+        self.wavelength = wavelength
+
+        ####################################
+        ## Call efficiency factors
+        Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs_auto(return_Q=True)
+        eff_array = (Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength)
+
+        ####################################
+        ## Build Jacobian matrix
+        w = self.gaussian_width
+        w_bar = w/L
+
+        lam = self.wavelength 
+
+        ## Convert velocity dependence to wavelength dependence
+        D = 1/lam 
+        g = (npa.power(lam,2) + 1)/(2*lam) 
+
+        ## Convert wavelength derivative to efficiency factor
+        Q1R=Q1; Q2R=Q2; PD_Q1R_angle=PD_Q1_angle;   PD_Q2R_angle=PD_Q2_angle
+        PD_Q1R_omega=(lam/D)*PD_Q1_wavelength;   PD_Q2R_omega=(lam/D)*PD_Q2_wavelength
+
+        ## Symmetry of effiency factors
+        Q1L =   Q1R 
+        Q2L = - Q2R
+
+        PD_Q1L_angle = - PD_Q1R_angle
+        PD_Q2L_angle =   PD_Q2R_angle
+
+        PD_Q1L_omega =   PD_Q1R_omega
+        PD_Q2L_omega = - PD_Q2R_omega
+
+        # y acceleration
+        fy_y= -     D**2 * (I/(m*c)) * ( Q2R - Q2L) * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+        fy_phi= -   D**2 * (I/(m*c)) * ( PD_Q2R_angle + PD_Q2L_angle) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
+        fy_vy= -    D**2 * (I/(m*c)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + PD_Q2R_angle + PD_Q2L_angle ) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
+        fy_vphi=    D**2 * (I/(m*c)) * ( 2*( Q2R - Q2L ) - D*( PD_Q2R_omega - PD_Q2L_omega ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+
+        # phi acceleration
+        fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
+        fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+        fphi_vy=    D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
+        fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * ( 2*( Q1R + Q1L ) - D*( PD_Q1R_omega + PD_Q1L_omega ) ) * (w/2)**2 * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
+
+        ## array
+        rest_array = ( fy_y,fy_phi,  fphi_y,fphi_phi )
+        damp_array = ( fy_vy/c,fy_vphi/c,  fphi_vy/c,fphi_vphi/c )
+
+        # Build the Jacobian matrix
+        J00=fy_y;   J01=fy_phi;     J02=fy_vy/c;    J03=fy_vphi/c
+        J10=fphi_y; J11=fphi_phi;   J12=fphi_vy/c;  J13=fphi_vphi/c
+        J=npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
+
+        # Find the real part of eigenvalues    
+        EIGVALVEC   = npaLA.eig(J)
+        eig         = EIGVALVEC[0]
+        eigReal     = npa.real(eig)
+        eigImag     = npa.imag(eig)
+
+        ## Restore wavelength
+        self.wavelength = input_wavelength
+        return eff_array, rest_array, damp_array, eigReal, eigImag 
+
 
     def average_real_eigs(self, final_speed, goal, return_eigs:bool=False):
         """
