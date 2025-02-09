@@ -8,17 +8,16 @@ c=299792458
 from SR_functions import Gamma, Dv, vadd, SinCosTheta, SinCosEpsilon, ABSC, E_eps, erf, Parameters, gaussian_width, Lorentz, norm_squared
 
 ## Ilic
-klambda = 650
-kdelta = 1000
+klambda = 1000
 ## Load data
-with open(rf'Data/Ilic_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl', 'rb') as f: 
+with open(rf'Data/Stability_Lookup_table_lambda_{klambda}.pkl', 'rb') as f: 
     data = pickle.load(f)
 
 ## Optimised
 # klambda = 1000
 # kdelta = 1000
 # ## Load data
-# with open(rf'Data/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl', 'rb') as f: 
+# with open(rf'Data/Stability_Lookup_table_lambda_{klambda}.pkl', 'rb') as f: 
 #     data = pickle.load(f)
 
 Q1 = data['Q1']
@@ -29,31 +28,21 @@ PD_Q1_lambda = data['PD_Q1_lambda']
 PD_Q2_lambda = data['PD_Q2_lambda']
 
 lambda_array = data['lambda array']
-delta_array = data['delta array']
 
 ################################
-# Bilinear interpolation
-interp_Q1           =   RegularGridInterpolator( (lambda_array,delta_array), Q1)
-interp_Q2           =   RegularGridInterpolator( (lambda_array,delta_array), Q2)
-interp_PD_Q1_delta  =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q1_delta)
-interp_PD_Q2_delta  =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q2_delta)
-interp_PD_Q1_lambda =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q1_lambda)
-interp_PD_Q2_lambda =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q2_lambda)
-
-def Q1_call(delta, lam):
-    return interp_Q1( np.array( [lam,delta] ) )[0]
-def Q2_call(delta, lam):
-    return interp_Q2( np.array( [lam,delta] ) )[0]
-
-def PD_Q1_delta_call(delta, lam):
-    return interp_PD_Q1_delta( np.array( [lam,delta] ) )[0]
-def PD_Q2_delta_call(delta, lam):
-    return interp_PD_Q2_delta( np.array( [lam,delta] ) )[0]
-
-def PD_Q1_lambda_call(delta, lam):
-    return interp_PD_Q1_lambda( np.array( [lam,delta] ) )[0]
-def PD_Q2_lambda_call(delta, lam):
-    return interp_PD_Q2_lambda( np.array( [lam,delta] ) )[0]
+## Interpolation
+def Q1_call(lam):
+    return np.interp( lam, lambda_array, Q1)
+def Q2_call(lam):
+    return np.interp( lam, lambda_array, Q2)
+def PD_Q1_delta_call(lam):
+    return np.interp( lam, lambda_array, PD_Q1_delta)
+def PD_Q2_delta_call(lam):
+    return np.interp( lam, lambda_array, PD_Q2_delta)
+def PD_Q1_lambda_call(lam):
+    return np.interp( lam, lambda_array, PD_Q1_lambda)
+def PD_Q2_lambda_call(lam):
+    return np.interp( lam, lambda_array, PD_Q2_lambda)
 
 ################################
 # Force equations
@@ -62,7 +51,7 @@ def PD_Q2_lambda_call(delta, lam):
 I, L, m, c = Parameters()
 I = 10e9
 I_string = "10G"
-w = gaussian_width()
+w = gaussian_width("Second")
 wavelength = 1
 
 
@@ -85,13 +74,8 @@ def aM(t,yvec,vL,i):
     vx = vL[0];       vy = vL[1]
 
     ## Angles
-    sintheta, costheta, theta = SinCosTheta(vL)
-    A, B, S, C = ABSC(vL,phiM)
-    E = E_eps(vL,phiM)
-
+    theta = SinCosTheta(vL)[2]
     delta    = theta - phiM
-    sindelta = np.sin(delta)
-    cosdelta = np.cos(delta)
 
     sinphi   = np.sin(phiM)
     cosphi   = np.cos(phiM)
@@ -100,24 +84,21 @@ def aM(t,yvec,vL,i):
     D   = Dv(vL)
     g   = Gamma(vL)
     lam = wavelength / D  # incoming wavelength
+    w_bar = w/L
+
     try:
-        Q1R = Q1_call(delta,lam);    Q2R =  Q2_call(delta,lam);    
-        Q1L = Q1_call(-delta,lam);   Q2L = -Q2_call(-delta,lam);   
+        Q1R = Q1_call(lam);     Q2R =  Q2_call(lam);    
+        Q1L = Q1R;              Q2L = -Q2R;   
 
-        dQ1ddeltaR  =  PD_Q1_delta_call(delta,lam);     dQ2ddeltaR  = PD_Q2_delta_call(delta,lam)
-        dQ1ddeltaL  = -PD_Q1_delta_call(-delta,lam);    dQ2ddeltaL  = PD_Q2_delta_call(-delta,lam)
+        dQ1ddeltaR  =  PD_Q1_delta_call(lam);       dQ2ddeltaR  = PD_Q2_delta_call(lam)
+        dQ1ddeltaL  = -dQ1ddeltaR;                  dQ2ddeltaL  = dQ2ddeltaR
 
-        dQ1dlambdaR = PD_Q1_lambda_call(delta,lam);     dQ2dlambdaR =  PD_Q2_lambda_call(delta,lam)
-        dQ1dlambdaL = PD_Q1_lambda_call(-delta,lam);    dQ2dlambdaL = -PD_Q2_lambda_call(-delta,lam)
+        dQ1dlambdaR = PD_Q1_lambda_call(lam);       dQ2dlambdaR =  PD_Q2_lambda_call(lam)
+        dQ1dlambdaL = dQ1dlambdaR;                  dQ2dlambdaL = -dQ2dlambdaR
 
-        ## Define T_{pr,j}'
-        T1R = (A/costheta - E) * dQ1ddeltaR + cosphi * lam * dQ1dlambdaR
-        T1L = (A/costheta - E) * dQ1ddeltaL + cosphi * lam *dQ1dlambdaL
-        T2R = (A/costheta - E) * dQ2ddeltaR + cosphi * lam *dQ2dlambdaR
-        T2L = (A/costheta - E) * dQ2ddeltaL + cosphi * lam *dQ2dlambdaL
     except:
         print(rf"Failed on delta'={delta}, lambda'={lam}")
-        print(rf"Data boundaries: delta' in ({delta_array[0]}, {delta_array[-1]}), lambda' in ({lambda_array[0]}, {lambda_array[-1]})")
+        print(rf"Data boundaries: lambda' in ({lambda_array[0]}, {lambda_array[-1]})")
         print(rf"Failed on i={i}, t={t}, v={vL}")
         STOPPED = True
 
@@ -147,44 +128,35 @@ def aM(t,yvec,vL,i):
     I2R = (w/(16*B_int**3))* ( -4*w*(A_int*expMID - XL*expR) + np.sqrt(2*np.pi)*(4*A_int**2 + w**2)* ( erfR - erfMID) )
     I2L = (w/(16*B_int**3))* ( -4*w*(A_int*expMID + XR*expL) - np.sqrt(2*np.pi)*(4*A_int**2 + w**2)* ( erfL - erfMID) )
 
-    ## Forces
-    fx=(1/m)*(D**2*I/c) * ( ( Q1R*costheta - Q2R*sintheta )*I0R + ( Q1L*costheta - Q2L*sintheta )*I0L
-                           + (vphiM/c)*( ( costheta*( 2*cosphi*Q1R - T1R ) - sintheta*( 2*cosphi*Q2R - T2R ) )*I1R
-                                       - ( costheta*( 2*cosphi*Q1L - T1L ) - sintheta*( 2*cosphi*Q2L - T2L ) )*I1L
-                                       + (-( B - sintheta*E )*Q1R + ( A + costheta*E )*Q2R)*I1R
-                                       - (-( B - sintheta*E )*Q1L + ( A + costheta*E )*Q2L)*I1L
-                           ) )
-    
-    fy=(1/m)*(D**2*I/c) * ( ( Q1R*sintheta + Q2R*costheta )*I0R + ( Q1L*sintheta + Q2L*costheta )*I0L
-                           + (vphiM/c)*( ( sintheta*( 2*cosphi*Q1R - T1R ) + costheta*( 2*cosphi*Q2R - T2R ) )*I1R
-                                       - ( sintheta*( 2*cosphi*Q1L - T1L ) + costheta*( 2*cosphi*Q2L - T2L ) )*I1L
-                                       + (-( A + costheta*E )*Q1R - ( B - sintheta*E )*Q2R)*I1R
-                                       - (-( A + costheta*E )*Q1L - ( B - sintheta*E )*Q2L)*I1L
-                           ) ) 
-    
-    fphi=-(12/(m*L**2))*(D**2*I/c)*( ( Q1R*cosdelta - Q2R*sindelta )*I1R - ( Q1L*cosdelta - Q2L*sindelta )*I1L 
-                           + (vphiM/c)*( ( cosdelta*( 2*cosphi*Q1R - T1R ) - sindelta*( 2*cosphi*Q2R - T2R ) )*I2R 
-                                       + ( cosdelta*( 2*cosphi*Q1L - T1L ) - sindelta*( 2*cosphi*Q2L - T2L ) )*I2L  
-                                       + (-( C - sindelta*E )*Q1R + ( S + cosdelta*E )*Q2R)*I1R
-                                       + (-( C - sindelta*E )*Q1L + ( S + cosdelta*E )*Q2L)*I1L
-                           ) )
-    
-    ## Old forces
-    # fx=(1/m)*(D**2*I/c) * ( ( Q1R*costheta - Q2R*sintheta )*I0R + ( Q1L*costheta - Q2L*sintheta )*I0L
-    #                        + cosphi*(vphiM/c)*( ( costheta*( 2*Q1R - lam * dQ1dlambdaR ) - sintheta*( 2*Q2R - lam * dQ2dlambdaR ) )*I1R
-    #                                                  -( costheta*( 2*Q1L - lam * dQ1dlambdaL ) - sintheta*( 2*Q2L - lam * dQ2dlambdaL ) )*I1L
-    #                        ) )
-    
-    # fy=(1/m)*(D**2*I/c) * ( ( Q1R*sintheta + Q2R*costheta )*I0R + ( Q1L*sintheta + Q2L*costheta )*I0L
-    #                        + cosphi*(vphiM/c)*( ( sintheta*( 2*Q1R - lam * dQ1dlambdaR ) + costheta*( 2*Q2R - lam * dQ2dlambdaR ) )*I1R
-    #                                                  -( sintheta*( 2*Q1L - lam * dQ1dlambdaL ) + costheta*( 2*Q2L - lam * dQ2dlambdaL ) )*I1L
-    #                        ) ) 
-    
-    # fphi=-(12/(m*L**2))*(D**2*I/c)*( ( Q1R*cosdelta - Q2R*sindelta )*I1R - ( Q1L*cosdelta - Q2L*sindelta )*I1L 
-    #                        + cosphi*(vphiM/c)*( ( cosdelta*( 2*Q1R - lam * dQ1dlambdaR ) - sindelta*( 2*Q2R - lam * dQ2dlambdaR ) )*I2R 
-    #                                                 + ( cosdelta*( 2*Q1L - lam * dQ1dlambdaL ) - sindelta*( 2*Q2L - lam * dQ2dlambdaL ) )*I2L ) 
-    #                          )
+    # ####################################
+    # # y acceleration
+    # fy_y= -     D**2 * (I/(m*c)) * ( Q2R - Q2L) * ( 1 - np.exp( -1/(2*w_bar**2) ))
+    # fy_phi= -   D**2 * (I/(m*c)) * ( dQ2ddeltaR + dQ2ddeltaL) * (w/2) * np.sqrt( np.pi/2 ) * erf( 1/(w_bar*np.sqrt(2)) )
+    # fy_vy= -    D**2 * (I/(m*c)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + dQ1ddeltaR + dQ1ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * erf( 1/(w_bar*np.sqrt(2)) )
+    # fy_vphi=    D**2 * (I/(m*c)) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
 
+    # ####################################
+    # # phi acceleration
+    # fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+    # fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
+    # fphi_vy=    D**2 * (12*I/( m*c*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
+    # fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+
+    # # Build the Jacobian matrix
+    # J00=fy_y;   J01=fy_phi;     J02=fy_vy/c;    J03=fy_vphi/c
+    # J10=fphi_y; J11=fphi_phi;   J12=fphi_vy/c;  J13=fphi_vphi/c
+
+    ## Forces
+    fx=(1/m)*(D**2*I/c) * ( ( Q1R + delta*dQ1ddeltaR - Q2R*theta )  * I0R + ( Q1L + delta*dQ1ddeltaL - Q2L*theta )   * I0L
+              + (vphiM/c)*(     ( 2*Q1R - lam*dQ1dlambdaR )         * I1R - (   ( 2*Q1L - lam*dQ1dlambdaL ) )        * I1L    ) )
+    # fy   = J00 * yM + J01 * phiM   +    J02 * vyM + J03 * vphiM
+    # fphi = J10 * yM + J11 * phiM   +    J12 * vyM + J13 * vphiM
+    
+    fy=(1/m)*(D**2*I/c) * ( ( Q2R + delta*dQ2ddeltaR + Q1R*theta )  * I0R + ( Q2L + delta*dQ2ddeltaL + Q1L*theta )  * I0L
+              + (vphiM/c)*(     ( 2*Q2R - lam*dQ2dlambdaR )         * I1R - (   ( 2*Q2L - lam*dQ2dlambdaL ) )       * I1L    ) )
+    
+    fphi=-(12/(m*L**2))*(D**2*I/c) * ( ( Q1R + delta*(dQ1ddeltaR - Q2R) )   * I1R - ( Q1L + delta*(dQ1ddeltaL - Q2L) )  * I1L
+                         + (vphiM/c)*( ( 2*Q1R - lam*dQ1dlambdaR )          * I2R + ( ( 2*Q1L - lam*dQ1dlambdaL ) )     * I2L    ) )
     ## Store as d/dtau (Y)=F=[vx,vy,vphi,fy,fy,fphi]
     F=np.array([vxM,vyM,vphiM,fx,fy,fphi])
     
@@ -206,24 +178,30 @@ def Mstep(h,tn,yn,vL,i):
 ## Parameters
 timeLn = 0
 x0 = 0; vx0 = 0
-## Optimised
+## Optimised - 1st
 # y0      = 4.2486056353040757e-07
 # phi0    = 1.6010246979032435e-07
 # vy0     = -1.8065865332066449
 # omega0   = -0.8579876297929967
+## Optimised - 2nd
+y0      = 1.9275382643989657e-07
+phi0    = 2.7028601037633454e-08
+vy0     = -1.9990833152858392
+omega0  = -0.03637191374035675
+
 ## Ilic - 1st
 # y0      = 1.3209052701812962e-07
 # phi0    = -9.729433751759225e-09
 # vy0     = -1.7076261180827965
 # omega0  = -1.0411235013562017
 ## Ilic - 2nd
-y0      = -5.91094362200215e-09
-phi0    = -1.7808159572233788e-08
-vy0     = 1.9987109575113635
-omega0  = 0.06679404481082263
+# y0      = -5.91094362200215e-09
+# phi0    = -1.7808159572233788e-08
+# vy0     = 1.9987109575113635
+# omega0  = 0.06679404481082263
 
-x0=0;   y0=-(0.5/100)*L;       phi0=0            #y0=-0.05*L
-vx0=0;  vy0=0;      omega0=0
+# x0=0;   y0=-(0.5/100)*L;       phi0=0            #y0=-0.05*L
+# vx0=0;  vy0=0;      omega0=0
 
 Y0=np.array([x0,y0,phi0,vx0,vy0,omega0])
 
@@ -233,8 +211,8 @@ time_MAX=8.5*60*60
 
 ## Step size   
 h=1e-4      
-Email_result = True
-runID = 6
+Email_result = False
+runID = 2
 
 ################################
 # Frame M integration
@@ -288,7 +266,7 @@ timeL_array.append(timeLn)
 timeSTART=time.time()
 i=1
 i_STOP = 100
-vFINAL= 0.027*c
+vFINAL= 0.05*c
 
 ################################
 # Integration
@@ -399,7 +377,7 @@ data = {'YL': YL, 'phiM': phi_nparray, 'phidot': omega_nparray,
         'eps': eps_nparray, 'epsdot': eps_rate_nparray, 
         'step': h, 'duration (min)':t_end_min, 'i': iFINAL, 'Stopped': STOPPED,
         'Initial': Y0, 'Intensity': I}
-pkl_fname = f'./Data/Fixed/Dynamics_run{runID}_I{I_string}.pkl'
+pkl_fname = f'./Data/Fixed/Dynamics_Linear_Opt_run{runID}_I{I_string}.pkl'
 
 # Save result
 with open(pkl_fname, 'wb') as data_file:
