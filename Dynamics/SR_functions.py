@@ -1,4 +1,5 @@
-import numpy as np
+import autograd
+from autograd import numpy as np
 import scipy
 
 #### All velocities are in m/s (NOT normalised by c)
@@ -108,9 +109,10 @@ def ABSC(v,phi):
     bx = v[0] / c
     by = v[1] / c
     dot = (bx*cos +g*by*sin)
+    dot2 = (by*cos +g*bx*sin)
     
     A = sintheta * cos/(g*D) - sin/D - (
-        sintheta*dot) + dot/(D*(g+1))- (
+        sintheta*dot) + dot2/(D*(g+1))- (
         g*by*dot/D ) + (
         ((g**2*(g+2))/(D*(g+1)**2))*bx*by*dot  )
     
@@ -133,7 +135,7 @@ def E_eps(v, phi):
     return (g/(g+1)) * ( np.sin(phi)*v[0]/c - np.cos(phi)*v[1]/c )
 
 def erf(x):
-    return scipy.special.erf(x)
+    return autograd.scipy.special.erf(x)
 
 ## Parameters
 I0 = 0.5 * 10**9      # intensity 
@@ -145,6 +147,8 @@ def Parameters():
     return I0, L, m, c
 
 ## Optimised grating
-def gaussian_width():
-    w = 2 * L   # replace with optimised value
-    return w
+def gaussian_width(grating_type):
+    if grating_type=="Ilic":
+        return 2 * L
+    if grating_type=="Second":
+        return 33.916288616522735
