@@ -7,19 +7,19 @@ c=299792458
 
 from SR_functions import Gamma, Dv, vadd, SinCosTheta, SinCosEpsilon, ABSC, E_eps, erf, Parameters, gaussian_width, Lorentz, norm_squared
 
-## Ilic
-klambda = 650
-kdelta = 1000
-## Load data
-with open(rf'Data/Ilic_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl', 'rb') as f: 
-    data = pickle.load(f)
+grating_type = "Ilic"
 
-## Optimised
-# klambda = 1000
-# kdelta = 1000
-# ## Load data
-# with open(rf'Data/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl', 'rb') as f: 
-#     data = pickle.load(f)
+if grating_type == "Ilic":
+    klambda = 650
+    kdelta = 1000
+    pkl_load_name = rf'Data/Ilic_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
+if grating_type == "Second":
+    klambda = 1000
+    kdelta = 1000
+    pkl_load_name = rf'Data/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
+## Load data
+with open(pkl_load_name, 'rb') as f: 
+    data = pickle.load(f)
 
 Q1 = data['Q1']
 Q2 = data['Q2']
@@ -62,7 +62,7 @@ def PD_Q2_lambda_call(delta, lam):
 I, L, m, c = Parameters()
 I = 10e9
 I_string = "10G"
-w = gaussian_width()
+w = gaussian_width(grating_type)
 wavelength = 1
 
 
@@ -112,9 +112,9 @@ def aM(t,yvec,vL,i):
 
         ## Define T_{pr,j}'
         T1R = (A/costheta - E) * dQ1ddeltaR + cosphi * lam * dQ1dlambdaR
-        T1L = (A/costheta - E) * dQ1ddeltaL + cosphi * lam *dQ1dlambdaL
-        T2R = (A/costheta - E) * dQ2ddeltaR + cosphi * lam *dQ2dlambdaR
-        T2L = (A/costheta - E) * dQ2ddeltaL + cosphi * lam *dQ2dlambdaL
+        T1L = (A/costheta - E) * dQ1ddeltaL + cosphi * lam * dQ1dlambdaL
+        T2R = (A/costheta - E) * dQ2ddeltaR + cosphi * lam * dQ2dlambdaR
+        T2L = (A/costheta - E) * dQ2ddeltaL + cosphi * lam * dQ2dlambdaL
     except:
         print(rf"Failed on delta'={delta}, lambda'={lam}")
         print(rf"Data boundaries: delta' in ({delta_array[0]}, {delta_array[-1]}), lambda' in ({lambda_array[0]}, {lambda_array[-1]})")
@@ -168,22 +168,6 @@ def aM(t,yvec,vL,i):
                                        + (-( C - sindelta*E )*Q1R + ( S + cosdelta*E )*Q2R)*I1R
                                        + (-( C - sindelta*E )*Q1L + ( S + cosdelta*E )*Q2L)*I1L
                            ) )
-    
-    ## Old forces
-    # fx=(1/m)*(D**2*I/c) * ( ( Q1R*costheta - Q2R*sintheta )*I0R + ( Q1L*costheta - Q2L*sintheta )*I0L
-    #                        + cosphi*(vphiM/c)*( ( costheta*( 2*Q1R - lam * dQ1dlambdaR ) - sintheta*( 2*Q2R - lam * dQ2dlambdaR ) )*I1R
-    #                                                  -( costheta*( 2*Q1L - lam * dQ1dlambdaL ) - sintheta*( 2*Q2L - lam * dQ2dlambdaL ) )*I1L
-    #                        ) )
-    
-    # fy=(1/m)*(D**2*I/c) * ( ( Q1R*sintheta + Q2R*costheta )*I0R + ( Q1L*sintheta + Q2L*costheta )*I0L
-    #                        + cosphi*(vphiM/c)*( ( sintheta*( 2*Q1R - lam * dQ1dlambdaR ) + costheta*( 2*Q2R - lam * dQ2dlambdaR ) )*I1R
-    #                                                  -( sintheta*( 2*Q1L - lam * dQ1dlambdaL ) + costheta*( 2*Q2L - lam * dQ2dlambdaL ) )*I1L
-    #                        ) ) 
-    
-    # fphi=-(12/(m*L**2))*(D**2*I/c)*( ( Q1R*cosdelta - Q2R*sindelta )*I1R - ( Q1L*cosdelta - Q2L*sindelta )*I1L 
-    #                        + cosphi*(vphiM/c)*( ( cosdelta*( 2*Q1R - lam * dQ1dlambdaR ) - sindelta*( 2*Q2R - lam * dQ2dlambdaR ) )*I2R 
-    #                                                 + ( cosdelta*( 2*Q1L - lam * dQ1dlambdaL ) - sindelta*( 2*Q2L - lam * dQ2dlambdaL ) )*I2L ) 
-    #                          )
 
     ## Store as d/dtau (Y)=F=[vx,vy,vphi,fy,fy,fphi]
     F=np.array([vxM,vyM,vphiM,fx,fy,fphi])
@@ -217,13 +201,13 @@ x0 = 0; vx0 = 0
 # vy0     = -1.7076261180827965
 # omega0  = -1.0411235013562017
 ## Ilic - 2nd
-y0      = -5.91094362200215e-09
-phi0    = -1.7808159572233788e-08
-vy0     = 1.9987109575113635
-omega0  = 0.06679404481082263
+# y0      = -5.91094362200215e-09
+# phi0    = -1.7808159572233788e-08
+# vy0     = 1.9987109575113635
+# omega0  = 0.06679404481082263
 
-x0=0;   y0=-(0.5/100)*L;       phi0=0            #y0=-0.05*L
-vx0=0;  vy0=0;      omega0=0
+x0=0;   y0=-(5/100)*L;      phi0=0            #y0=-0.05*L
+vx0=0;  vy0=0;              omega0=0
 
 Y0=np.array([x0,y0,phi0,vx0,vy0,omega0])
 
@@ -234,7 +218,7 @@ time_MAX=8.5*60*60
 ## Step size   
 h=1e-4      
 Email_result = True
-runID = 6
+runID = 0
 
 ################################
 # Frame M integration
@@ -399,7 +383,7 @@ data = {'YL': YL, 'phiM': phi_nparray, 'phidot': omega_nparray,
         'eps': eps_nparray, 'epsdot': eps_rate_nparray, 
         'step': h, 'duration (min)':t_end_min, 'i': iFINAL, 'Stopped': STOPPED,
         'Initial': Y0, 'Intensity': I}
-pkl_fname = f'./Data/Fixed/Dynamics_run{runID}_I{I_string}.pkl'
+pkl_fname = f'./Data/{grating_type}_Dynamics_run{runID}_I{I_string}.pkl'
 
 # Save result
 with open(pkl_fname, 'wb') as data_file:
