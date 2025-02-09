@@ -818,12 +818,15 @@ class TwoBox:
     ##################
     #### Optimisation functions
 
-    def FoM(self, grad_method: str="finite"):
+    def FoM(self, I:float=1e9, grad_method: str="finite"):
         """
+        ## Inputs
+        I: intensity
+        grad_method: "finite" for optimisation
         ## Outputs
         Calculate the grating single-wavelength figure of merit FD.
         """
-        eigReal, eigImag = self.Eigs(I0,m,c, grad_method=grad_method, check_det=True, return_vec=False)
+        eigReal, eigImag = self.Eigs(I=I, m=m,c1=c, grad_method=grad_method, check_det=True, return_vec=False)
 
         def unique_filled(x, filled_value):
             """
@@ -873,24 +876,27 @@ class TwoBox:
 
         return FD
 
-    def Eigs(self, I, m, c1, grad_method: str='finite', check_det: bool = False, return_vec: bool = False):
+    def Eigs(self, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', check_det: bool = False, return_vec: bool = False):
         """
         ## Inputs
         I: intensity
+        m: mass 
+        c1: speed of light
         grad_method: for Q derivatives
         check_det: FoM is non-differentiable if det(J)=0
         return_vec: Returns eigenvectors when true
         ## Outputs
         Calculate eigenvalues of Jacobian matrix at equilibrium
         """
+        
         if grad_method=='finite':
             # For optimisation, need to use finite differences. ~optimal step size is ...
             h_angle = 10**(-6.5)
             h_wavelength = 10**(-6.5)
-            Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs(h_angle, h_wavelength)
+            Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR = self.return_Qs(h_angle, h_wavelength)
         if grad_method=="grad":
-            Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs_auto(return_Q=True)
-        
+            Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR = self.return_Qs_auto(return_Q=True)
+
         w = self.gaussian_width
         w_bar = w/L
 
@@ -899,39 +905,27 @@ class TwoBox:
         ## Convert velocity dependence to wavelength dependence
         D = 1/lam 
         g = (npa.power(lam,2) + 1)/(2*lam) 
+   
+        ## Symmetry
+        Q1L = Q1R;   Q2L = -Q2R;   
+        dQ1ddeltaL  = -dQ1ddeltaR;    dQ2ddeltaL  = dQ2ddeltaR
+        dQ1dlambdaL = dQ1dlambdaR;    dQ2dlambdaL = -dQ2dlambdaR
 
-        ## Convert wavelength derivative to efficiency factor
-        Q1R=Q1; Q2R=Q2; PD_Q1R_angle=PD_Q1_angle;   PD_Q2R_angle=PD_Q2_angle
-        PD_Q1R_omega=(lam/D)*PD_Q1_wavelength;   PD_Q2R_omega=(lam/D)*PD_Q2_wavelength
-
-        ## Symmetry of effiency factors
-        Q1L =   Q1R 
-        Q2L = - Q2R
-
-        PD_Q1L_angle = - PD_Q1R_angle
-        PD_Q2L_angle =   PD_Q2R_angle
-
-        PD_Q1L_omega =   PD_Q1R_omega
-        PD_Q2L_omega = - PD_Q2R_omega
-
-
-        ####################################
         # y acceleration
-        fy_y= -     D**2 * (I/(m*c1)) * ( Q2R - Q2L) * ( 1 - npa.exp( -1/(2*w_bar**2) ))
-        fy_phi= -   D**2 * (I/(m*c1)) * ( PD_Q2R_angle + PD_Q2L_angle) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
-        fy_vy= -    D**2 * (I/(m*c1)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + PD_Q1R_angle + PD_Q1L_angle ) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
-        fy_vphi=    D**2 * (I/(m*c1)) * ( 2*( Q2R - Q2L ) - D*( PD_Q2R_omega - PD_Q2L_omega ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+        fy_y= -     D**2 * (I/(m*c1)) *  ( Q2R - Q2L ) * ( 1 - np.exp(-1/(2*w_bar**2) ) )
+        fy_phi= -   D**2 * (I/(m*c1)) * ( dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * autograd_erf( 1/(w_bar*np.sqrt(2)) )
+        fy_vy= -    D**2 * (I/(m*c1)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * autograd_erf( 1/(w_bar*np.sqrt(2)) )
+        fy_vphi=    D**2 * (I/(m*c1)) * (1/c) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
 
-        ####################################
         # phi acceleration
-        fphi_y=     D**2 * (12*I/( m*c1*L**2)) * ( Q1R + Q1L ) * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
-        fphi_phi=   D**2 * (12*I/( m*c1*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
-        fphi_vy=    D**2 * (12*I/( m*c1*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
-        fphi_vphi= -D**2 * (12*I/( m*c1*L**2)) * ( 2*( Q1R + Q1L ) - D*( PD_Q1R_omega + PD_Q1L_omega ) ) * (w/2)**2 * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
+        fphi_y=     D**2 * (12*I/( m*c1*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * autograd_erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+        fphi_phi=   D**2 * (12*I/( m*c1*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
+        fphi_vy=    D**2 * (12*I/( m*c1*L**2)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
+        fphi_vphi= -D**2 * (12*I/( m*c1*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * autograd_erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
 
         # Build the Jacobian matrix
-        J00=fy_y;   J01=fy_phi;     J02=fy_vy/c;    J03=fy_vphi/c
-        J10=fphi_y; J11=fphi_phi;   J12=fphi_vy/c;  J13=fphi_vphi/c
+        J00=fy_y;   J01=fy_phi;     J02=fy_vy;    J03=fy_vphi
+        J10=fphi_y; J11=fphi_phi;   J12=fphi_vy;  J13=fphi_vphi
         J=npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
 
         # Debugging during optimisation
@@ -1049,11 +1043,9 @@ class TwoBox:
 
         ####################################
         ## Call efficiency factors
-        Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs_auto(return_Q=True)
-        eff_array = (Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength)
-
-        ####################################
-        ## Build Jacobian matrix
+        Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR = self.return_Qs_auto(return_Q=True)
+        eff_array = (Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR)
+        
         w = self.gaussian_width
         w_bar = w/L
 
@@ -1062,40 +1054,34 @@ class TwoBox:
         ## Convert velocity dependence to wavelength dependence
         D = 1/lam 
         g = (npa.power(lam,2) + 1)/(2*lam) 
+   
+        ## Symmetry
+        Q1L = Q1R;   Q2L = -Q2R;   
+        dQ1ddeltaL  = -dQ1ddeltaR;    dQ2ddeltaL  = dQ2ddeltaR
+        dQ1dlambdaL = dQ1dlambdaR;    dQ2dlambdaL = -dQ2dlambdaR
 
-        ## Convert wavelength derivative to efficiency factor
-        Q1R=Q1; Q2R=Q2; PD_Q1R_angle=PD_Q1_angle;   PD_Q2R_angle=PD_Q2_angle
-        PD_Q1R_omega=(lam/D)*PD_Q1_wavelength;   PD_Q2R_omega=(lam/D)*PD_Q2_wavelength
-
-        ## Symmetry of effiency factors
-        Q1L =   Q1R 
-        Q2L = - Q2R
-
-        PD_Q1L_angle = - PD_Q1R_angle
-        PD_Q2L_angle =   PD_Q2R_angle
-
-        PD_Q1L_omega =   PD_Q1R_omega
-        PD_Q2L_omega = - PD_Q2R_omega
+        w_bar = w / L
 
         # y acceleration
-        fy_y= -     D**2 * (I/(m*c)) * ( Q2R - Q2L) * ( 1 - npa.exp( -1/(2*w_bar**2) ))
-        fy_phi= -   D**2 * (I/(m*c)) * ( PD_Q2R_angle + PD_Q2L_angle) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
-        fy_vy= -    D**2 * (I/(m*c)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + PD_Q2R_angle + PD_Q2L_angle ) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
-        fy_vphi=    D**2 * (I/(m*c)) * ( 2*( Q2R - Q2L ) - D*( PD_Q2R_omega - PD_Q2L_omega ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+        fy_y= -     D**2 * (I/(m*c)) *  ( Q2R - Q2L ) * ( 1 - np.exp(-1/(2*w_bar**2) ) )
+        fy_phi= -   D**2 * (I/(m*c)) * ( dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * autograd_erf( 1/(w_bar*np.sqrt(2)) )
+        fy_vy= -    D**2 * (I/(m*c)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * autograd_erf( 1/(w_bar*np.sqrt(2)) )
+        fy_vphi=    D**2 * (I/(m*c)) * (1/c) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
 
         # phi acceleration
-        fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
-        fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
-        fphi_vy=    D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
-        fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * ( 2*( Q1R + Q1L ) - D*( PD_Q1R_omega + PD_Q1L_omega ) ) * (w/2)**2 * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
+        fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * autograd_erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+        fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
+        fphi_vy=    D**2 * (12*I/( m*c*L**2)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
+        fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * autograd_erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+
 
         ## array
         rest_array = ( fy_y,fy_phi,  fphi_y,fphi_phi )
-        damp_array = ( fy_vy/c,fy_vphi/c,  fphi_vy/c,fphi_vphi/c )
+        damp_array = ( fy_vy,fy_vphi,  fphi_vy,fphi_vphi )
 
         # Build the Jacobian matrix
-        J00=fy_y;   J01=fy_phi;     J02=fy_vy/c;    J03=fy_vphi/c
-        J10=fphi_y; J11=fphi_phi;   J12=fphi_vy/c;  J13=fphi_vphi/c
+        J00=fy_y;   J01=fy_phi;     J02=fy_vy;    J03=fy_vphi
+        J10=fphi_y; J11=fphi_phi;   J12=fphi_vy;  J13=fphi_vphi
         J=npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
 
         # Find the real part of eigenvalues    
@@ -1109,7 +1095,7 @@ class TwoBox:
         return eff_array, rest_array, damp_array, eigReal, eigImag 
 
 
-    def average_real_eigs(self, final_speed, goal, return_eigs:bool=False):
+    def average_real_eigs(self, final_speed, goal, return_eigs:bool=False, I:float=10e9):
         """
         Calculates the average of each real part over the wavelength range (assumes starting wavelength=1)
 
@@ -1117,6 +1103,7 @@ class TwoBox:
         final_speed - percentage speed of light
         goal - integer (number of points) or float (loss goal)
         return_eigs - True to return normalised eigenvalues or False for just averaged eigenvalues
+        I: intensity
         """
         from parameters import D1_ND
         import adaptive as adp
@@ -1130,7 +1117,7 @@ class TwoBox:
 
         def weighted_fun(l):
             self.wavelength = l
-            return PDF_unif*self.Eigs()[0]  # just real part
+            return PDF_unif*self.Eigs(I=I, m=m, c1=c, check_det=False, return_vec=False)[0]  # just real part
 
         # Adaptive sample FD
         FD_learner = adp.Learner1D(weighted_fun, bounds=l_range)
@@ -1291,7 +1278,7 @@ class TwoBox:
         
         return fig, ax
 
-    def show_spectrum(self, angle: float=0., efficiency_quantity: str="PDr", wavelength_range: list=[1., 1.5], num_plot_points: int=200):
+    def show_spectrum(self, angle: float=0., efficiency_quantity: str="PDr", wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9):
         """
         Show grating spectrum for the twobox.
 
@@ -1341,9 +1328,9 @@ class TwoBox:
                 efficiencies[0,idx] = self.PDtNeg1(angle)
 
             elif efficiency_quantity == "FoM":
-                efficiencies[0,idx] = self.FoM()
+                efficiencies[0,idx] = self.FoM(I=I, grad_method="grad")
             elif efficiency_quantity == "eig":
-                real,imag=self.Eigs(grad_method="grad", check_det=False, return_vec=False)
+                real,imag=self.Eigs(I=I, m=m, c1=c, grad_method="grad", check_det=False, return_vec=False)
                 Reig1[0,idx] = real[0]
                 Reig2[0,idx] = real[1]
                 Reig3[0,idx] = real[2]
@@ -1449,7 +1436,7 @@ class TwoBox:
         else:
             return fig, ax
 
-    def show_Eigs(self, marker: str='o', log_1: bool=True, log_2: bool=True, wavelength_range: list=[1., 1.5], num_plot_points: int=200):
+    def show_Eigs(self, marker: str='o', log_1: bool=True, log_2: bool=True, wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9):
         wavelengths = np.linspace(*wavelength_range, num_plot_points)
         init_wavelength = self.wavelength # record user-initialised wavelength
 
@@ -1466,7 +1453,7 @@ class TwoBox:
         for idx, lam in enumerate(wavelengths):
             # Calculate eigs for each order
             self.wavelength = lam
-            real, imag   = self.Eigs(grad_method="grad", check_det=False, return_vec=False)
+            real, imag   = self.Eigs(I=I,m=m,c1=c, grad_method="grad", check_det=False, return_vec=False)
 
             Reig1[0,idx] = real[0]
             Reig2[0,idx] = real[1]
