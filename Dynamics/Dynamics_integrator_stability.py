@@ -7,18 +7,17 @@ c=299792458
 
 from SR_functions import Gamma, Dv, vadd, SinCosTheta, SinCosEpsilon, ABSC, E_eps, erf, Parameters, gaussian_width, Lorentz, norm_squared
 
-## Ilic
-klambda = 1000
-## Load data
-with open(rf'Data/Stability_Lookup_table_lambda_{klambda}.pkl', 'rb') as f: 
-    data = pickle.load(f)
 
-## Optimised
-# klambda = 1000
-# kdelta = 1000
-# ## Load data
-# with open(rf'Data/Stability_Lookup_table_lambda_{klambda}.pkl', 'rb') as f: 
-#     data = pickle.load(f)
+grating_type = "Second"
+klambda = 1000
+
+if grating_type == "Ilic":
+    pkl_load_name = rf'Data/Tables/Ilic_Stability_Lookup_table_lambda_{klambda}.pkl'
+if grating_type == "Second":
+    pkl_load_name = rf'Data/Tables/Stability_Lookup_table_lambda_{klambda}.pkl'
+## Load data
+with open(pkl_load_name, 'rb') as f: 
+    data = pickle.load(f)
 
 Q1 = data['Q1']
 Q2 = data['Q2']
@@ -51,7 +50,7 @@ def PD_Q2_lambda_call(lam):
 I, L, m, c = Parameters()
 I = 10e9
 I_string = "10G"
-w = gaussian_width("Second")
+w = gaussian_width(grating_type)
 wavelength = 1
 
 
@@ -103,7 +102,7 @@ def aM(t,yvec,vL,i):
         STOPPED = True
 
     ## Base factors
-    A_int=yM*       ( 1 + (g**2/(g+1))*(vy**2/c**2) )   + xM*       (g**2/(g+1))*(vx*vy)/c**2 + g*vy*t
+    A_int=yM*       ( 1 + (g**2/(g+1))*(vy**2/c**2) )   + xM*       (g**2/(g+1))*(vx*vy)/c**2 #+ g*vy*t
     B_int=cosphi*   ( 1 + (g**2/(g+1))*(vy**2/c**2) )   + sinphi*   (g**2/(g+1))*(vx*vy)/c**2
 
     expR=np.exp(-2*(( A_int + B_int*(L/2) )**2)/w**2 )
@@ -128,38 +127,37 @@ def aM(t,yvec,vL,i):
     I2R = (w/(16*B_int**3))* ( -4*w*(A_int*expMID - XL*expR) + np.sqrt(2*np.pi)*(4*A_int**2 + w**2)* ( erfR - erfMID) )
     I2L = (w/(16*B_int**3))* ( -4*w*(A_int*expMID + XR*expL) - np.sqrt(2*np.pi)*(4*A_int**2 + w**2)* ( erfL - erfMID) )
 
-    # ####################################
-    # # y acceleration
-    # fy_y= -     D**2 * (I/(m*c)) * ( Q2R - Q2L) * ( 1 - np.exp( -1/(2*w_bar**2) ))
-    # fy_phi= -   D**2 * (I/(m*c)) * ( dQ2ddeltaR + dQ2ddeltaL) * (w/2) * np.sqrt( np.pi/2 ) * erf( 1/(w_bar*np.sqrt(2)) )
-    # fy_vy= -    D**2 * (I/(m*c)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + dQ1ddeltaR + dQ1ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * erf( 1/(w_bar*np.sqrt(2)) )
-    # fy_vphi=    D**2 * (I/(m*c)) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
+    ####################################
+    # y acceleration
+    fy_y= -     D**2 * (I/(m*c)) *  ( Q2R - Q2L ) * ( 1 - np.exp(-1/(2*w_bar**2) ) )
+    fy_phi= -   D**2 * (I/(m*c)) * ( dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * erf( 1/(w_bar*np.sqrt(2)) )
+    fy_vy= -    D**2 * (I/(m*c)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * erf( 1/(w_bar*np.sqrt(2)) )
+    fy_vphi=    D**2 * (I/(m*c)) * (1/c) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
 
-    # ####################################
-    # # phi acceleration
-    # fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
-    # fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
-    # fphi_vy=    D**2 * (12*I/( m*c*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
-    # fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+    # phi acceleration
+    fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+    fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
+    fphi_vy=    D**2 * (12*I/( m*c*L**2)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
+    fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
 
     # # Build the Jacobian matrix
-    # J00=fy_y;   J01=fy_phi;     J02=fy_vy/c;    J03=fy_vphi/c
-    # J10=fphi_y; J11=fphi_phi;   J12=fphi_vy/c;  J13=fphi_vphi/c
+    J00=fy_y;   J01=fy_phi;     J02=fy_vy;    J03=fy_vphi
+    J10=fphi_y; J11=fphi_phi;   J12=fphi_vy;  J13=fphi_vphi
 
     ## Forces
     fx=(1/m)*(D**2*I/c) * ( ( Q1R + delta*dQ1ddeltaR - Q2R*theta )  * I0R + ( Q1L + delta*dQ1ddeltaL - Q2L*theta )   * I0L
               + (vphiM/c)*(     ( 2*Q1R - lam*dQ1dlambdaR )         * I1R - (   ( 2*Q1L - lam*dQ1dlambdaL ) )        * I1L    ) )
-    # fy   = J00 * yM + J01 * phiM   +    J02 * vyM + J03 * vphiM
-    # fphi = J10 * yM + J11 * phiM   +    J12 * vyM + J13 * vphiM
-    
+    # fy   = J00 * yM + J01 * phiM   +    g * J02 * vyM + J03 * vphiM
+    # fphi = J10 * yM + J11 * phiM   +    g * J12 * vyM + J13 * vphiM
+    # ## Linearised forces
     fy=(1/m)*(D**2*I/c) * ( ( Q2R + delta*dQ2ddeltaR + Q1R*theta )  * I0R + ( Q2L + delta*dQ2ddeltaL + Q1L*theta )  * I0L
               + (vphiM/c)*(     ( 2*Q2R - lam*dQ2dlambdaR )         * I1R - (   ( 2*Q2L - lam*dQ2dlambdaL ) )       * I1L    ) )
     
     fphi=-(12/(m*L**2))*(D**2*I/c) * ( ( Q1R + delta*(dQ1ddeltaR - Q2R) )   * I1R - ( Q1L + delta*(dQ1ddeltaL - Q2L) )  * I1L
                          + (vphiM/c)*( ( 2*Q1R - lam*dQ1dlambdaR )          * I2R + ( ( 2*Q1L - lam*dQ1dlambdaL ) )     * I2L    ) )
+
     ## Store as d/dtau (Y)=F=[vx,vy,vphi,fy,fy,fphi]
     F=np.array([vxM,vyM,vphiM,fx,fy,fphi])
-    
     return F
 
 def Mstep(h,tn,yn,vL,i):
@@ -179,26 +177,28 @@ def Mstep(h,tn,yn,vL,i):
 timeLn = 0
 x0 = 0; vx0 = 0
 ## Optimised - 1st
-# y0      = 4.2486056353040757e-07
-# phi0    = 1.6010246979032435e-07
-# vy0     = -1.8065865332066449
-# omega0   = -0.8579876297929967
+y0      = 4.246092324538898e-07
+phi0    = 1.662492890429048e-07
+vy0     = -1.8065865332297213
+omega0  = -0.85798762975541
 ## Optimised - 2nd
-y0      = 1.9275382643989657e-07
-phi0    = 2.7028601037633454e-08
-vy0     = -1.9990833152858392
-omega0  = -0.03637191374035675
+# y0      = 3.590704173892898e-07
+# phi0    = 2.978897761047781e-08
+# vy0     = -1.9990833152857805
+# omega0  = -0.036371913744121846
 
 ## Ilic - 1st
-# y0      = 1.3209052701812962e-07
-# phi0    = -9.729433751759225e-09
-# vy0     = -1.7076261180827965
-# omega0  = -1.0411235013562017
-## Ilic - 2nd
-# y0      = -5.91094362200215e-09
-# phi0    = -1.7808159572233788e-08
-# vy0     = 1.9987109575113635
-# omega0  = 0.06679404481082263
+# y0      = 1.3183489420398592e-07
+# phi0    = -3.858944981371387e-09
+# vy0     = -1.7076261180956787
+# omega0  = -1.0411235013620457
+## Ilic - 2nd 
+# y0      = 5.64330183341613e-08
+# phi0    = 1.9109909983391035e-08
+# vy0     = -1.998710957511268
+# omega0  = -0.06679404481428496
+
+
 
 # x0=0;   y0=-(0.5/100)*L;       phi0=0            #y0=-0.05*L
 # vx0=0;  vy0=0;      omega0=0
@@ -212,7 +212,7 @@ time_MAX=8.5*60*60
 ## Step size   
 h=1e-4      
 Email_result = False
-runID = 2
+runID = 1
 
 ################################
 # Frame M integration
@@ -266,7 +266,7 @@ timeL_array.append(timeLn)
 timeSTART=time.time()
 i=1
 i_STOP = 100
-vFINAL= 0.05*c
+vFINAL= 0.027*c
 
 ################################
 # Integration
@@ -282,13 +282,14 @@ while (vn[0] < vFINAL):# and (i<i_STOP):
 
     else:                                  
         ###############################################
+        timeMNew, YNew = Mstep(h,timeMn,YMn,vn,i)                # t,[x,y,phi,vx,vy,vphi]
         ### Take a step in M and solve dynamics there
-        try:
-            timeMNew, YNew = Mstep(h,timeMn,YMn,vn,i)                # t,[x,y,phi,vx,vy,vphi]
-        except:
-            STOPPED = True
-            print("Force failed: Successfuly stopped early")
-            break
+        # try:
+        #     timeMNew, YNew = Mstep(h,timeMn,YMn,vn,i)                # t,[x,y,phi,vx,vy,vphi]
+        # except:
+        #     STOPPED = True
+        #     print("Force failed: Successfuly stopped early")
+        #     break
 
         ## Store new M
         xNew     = YNew[0]
@@ -377,7 +378,8 @@ data = {'YL': YL, 'phiM': phi_nparray, 'phidot': omega_nparray,
         'eps': eps_nparray, 'epsdot': eps_rate_nparray, 
         'step': h, 'duration (min)':t_end_min, 'i': iFINAL, 'Stopped': STOPPED,
         'Initial': Y0, 'Intensity': I}
-pkl_fname = f'./Data/Fixed/Dynamics_Linear_Opt_run{runID}_I{I_string}.pkl'
+pkl_fname = f'./Data/Linearised/Dynamics_Linear_Opt_run{runID}_I{I_string}.pkl'
+pkl_fname = f'./Data/Linearised/{grating_type}_Dynamics_run{runID}_I{I_string}.pkl'
 
 # Save result
 with open(pkl_fname, 'wb') as data_file:
