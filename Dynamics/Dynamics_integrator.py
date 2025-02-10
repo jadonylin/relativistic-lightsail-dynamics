@@ -7,16 +7,16 @@ c=299792458
 
 from SR_functions import Gamma, Dv, vadd, SinCosTheta, SinCosEpsilon, ABSC, E_eps, erf, Parameters, gaussian_width, Lorentz, norm_squared
 
-grating_type = "Ilic"
+grating_type = "Second"
 
 if grating_type == "Ilic":
     klambda = 650
     kdelta = 1000
-    pkl_load_name = rf'Data/Ilic_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
+    pkl_load_name = rf'Data/Tables/Ilic_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
 if grating_type == "Second":
     klambda = 1000
     kdelta = 1000
-    pkl_load_name = rf'Data/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
+    pkl_load_name = rf'Data/Tables/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
 ## Load data
 with open(pkl_load_name, 'rb') as f: 
     data = pickle.load(f)
@@ -196,25 +196,25 @@ x0 = 0; vx0 = 0
 # vy0     = -1.8065865332297213
 # omega0  = -0.85798762975541
 ## Optimised - 2nd
-# y0      = 3.590704173892898e-07
-# phi0    = 2.978897761047781e-08
-# vy0     = -1.9990833152857805
-# omega0  = -0.036371913744121846
+y0      = 3.590704173892898e-07
+phi0    = 2.978897761047781e-08
+vy0     = -1.9990833152857805
+omega0  = -0.036371913744121846
 
 ## Ilic - 1st
 # y0      = 1.3183489420398592e-07
 # phi0    = -3.858944981371387e-09
 # vy0     = -1.7076261180956787
 # omega0  = -1.0411235013620457
-## Ilic - 2nd (negated)
-# y0      = -5.64330183341613e-08
-# phi0    = -1.9109909983391035e-08
-# vy0     = 1.998710957511268
-# omega0  = 0.06679404481428496
+## Ilic - 2nd 
+# y0      = 5.64330183341613e-08
+# phi0    = 1.9109909983391035e-08
+# vy0     = -1.998710957511268
+# omega0  = -0.06679404481428496
 
 
-x0=0;   y0=-(5/100)*L;      phi0=0            #y0=-0.05*L
-vx0=0;  vy0=0;              omega0=0
+# x0=0;   y0=-(5/100)*L;      phi0=0            #y0=-0.05*L
+# vx0=0;  vy0=0;              omega0=0
 
 Y0=np.array([x0,y0,phi0,vx0,vy0,omega0])
 
@@ -225,7 +225,7 @@ time_MAX=8.5*60*60
 ## Step size   
 h=1e-4      
 Email_result = True
-runID = 0
+runID = 2
 
 ################################
 # Frame M integration
