@@ -1349,7 +1349,7 @@ class TwoBox:
         p = self.grating_pitch
         ax.set_xlim(np.array(wavelength_range)/p) # normalise to grating pitch
         legend_needed = ("r", "t")
-        symlog_needed = ("PDr", "PDt","eig","FoM")
+        symlog_needed = ("PDr", "PDt","eig")
 
         ## Plot efficiency vs wavelength ##
         if efficiency_quantity == "r":
@@ -1479,11 +1479,11 @@ class TwoBox:
 
         ## Plot eigs vs wavelength ##
         colorReal=(0.7, 0, 0)
-        ax1.plot(wavelengths/p,Reig1[0]*1e5, marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ax1.plot(wavelengths/p,Reig2[0]*1e5, marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ax1.plot(wavelengths/p,Reig3[0]*1e5, marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ax1.plot(wavelengths/p,Reig4[0]*1e5, marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ylabel=rf"$\Re(\lambda) \times 10^-5$"
+        ax1.plot(wavelengths/p,Reig1[0], marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
+        ax1.plot(wavelengths/p,Reig2[0], marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
+        ax1.plot(wavelengths/p,Reig3[0], marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
+        ax1.plot(wavelengths/p,Reig4[0], marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
+        ylabel=rf"$\Re(\lambda)$"
 
         colorImag= 'blue'
         ax2.plot(wavelengths/p,Ieig1[0], marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
