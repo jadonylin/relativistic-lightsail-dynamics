@@ -21,3 +21,9 @@ Dynamics/__pycache__/SR_functions.cpython-311.pyc
 Grating_Explore/Wrong wavelength/Ilic_Stability_Diagram_klambda1000_by_kwidth20.pkl
 Grating_Explore/Wrong wavelength/Ilic_Stability_Diagram_klambda2000_by_kwidth1000.pkl
 Grating_Explore/Wrong wavelength/Ilic_Stability_Diagram_klambda2000_by_kwidth10000.pkl
+Grating_Explore/Data/1/Ilic_Stability_Diagram_klambda4000_by_kwidth1000_eigvec.pkl
+/Grating_Explore/Data/1
+Dynamics/Lookup_tables_start.py
+Dynamics/Dynamics_integrator_stability.py
+Dynamics/Dynamics_integrator_stability.py
+Grating_Explore/Data/Ilic_Stability_Diagram_klambda4000_by_kwidth1000.pkl
