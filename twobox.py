@@ -1090,9 +1090,17 @@ class TwoBox:
         eigReal     = npa.real(eig)
         eigImag     = npa.imag(eig)
 
+        # Eigenvectors
+        vec = EIGVALVEC[1]
+        vec1 = vec[:,0]
+        vec2 = vec[:,1]
+        vec3 = vec[:,2]
+        vec4 = vec[:,3]
+        vec_array = (vec1, vec2, vec3, vec4)
+
         ## Restore wavelength
         self.wavelength = input_wavelength
-        return eff_array, rest_array, damp_array, eigReal, eigImag 
+        return eff_array, rest_array, damp_array, eigReal, eigImag , vec_array
 
 
     def average_real_eigs(self, final_speed, goal, return_eigs:bool=False, I:float=10e9):
