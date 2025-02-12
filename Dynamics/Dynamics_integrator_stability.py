@@ -102,7 +102,7 @@ def aM(t,yvec,vL,i):
         STOPPED = True
 
     ## Base factors
-    A_int=yM*       ( 1 + (g**2/(g+1))*(vy**2/c**2) )   + xM*       (g**2/(g+1))*(vx*vy)/c**2 #+ g*vy*t
+    A_int=yM*       ( 1 + (g**2/(g+1))*(vy**2/c**2) )   + xM*       (g**2/(g+1))*(vx*vy)/c**2 + g*vy*t
     B_int=cosphi*   ( 1 + (g**2/(g+1))*(vy**2/c**2) )   + sinphi*   (g**2/(g+1))*(vx*vy)/c**2
 
     expR=np.exp(-2*(( A_int + B_int*(L/2) )**2)/w**2 )
@@ -140,21 +140,30 @@ def aM(t,yvec,vL,i):
     fphi_vy=    D**2 * (12*I/( m*c*L**2)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
     fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
 
-    # # Build the Jacobian matrix
+    k = (xM/c) * (g**2/(g+1)) * (vx/c) + g*t
+    fy_diff = D**2 * (I/(m*c)) * ( Q2R - Q2L ) * - k * ( 1 - np.exp(-1/(2*w_bar**2) ) )
+    fphi_diff = - D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * - k * (  (w/2)*np.sqrt( np.pi/2 )  * erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+    # print("fy_diff:", fy_diff)
+    # print("fphi_diff:", fphi_diff)
+    
+    fy_vy = fy_vy + fy_diff
+    fphi_vy = fphi_vy + fphi_diff
+
+    # Build the Jacobian matrix
     J00=fy_y;   J01=fy_phi;     J02=fy_vy;    J03=fy_vphi
     J10=fphi_y; J11=fphi_phi;   J12=fphi_vy;  J13=fphi_vphi
 
     ## Forces
     fx=(1/m)*(D**2*I/c) * ( ( Q1R + delta*dQ1ddeltaR - Q2R*theta )  * I0R + ( Q1L + delta*dQ1ddeltaL - Q2L*theta )   * I0L
               + (vphiM/c)*(     ( 2*Q1R - lam*dQ1dlambdaR )         * I1R - (   ( 2*Q1L - lam*dQ1dlambdaL ) )        * I1L    ) )
-    # fy   = J00 * yM + J01 * phiM   +    g * J02 * vyM + J03 * vphiM
-    # fphi = J10 * yM + J11 * phiM   +    g * J12 * vyM + J13 * vphiM
+    fy   = J00 * yM + J01 * phiM    + J03 * vphiM  #+    g * J02 * vyM
+    fphi = J10 * yM + J11 * phiM    + J13 * vphiM  #+    g * J12 * vyM
     # ## Linearised forces
-    fy=(1/m)*(D**2*I/c) * ( ( Q2R + delta*dQ2ddeltaR + Q1R*theta )  * I0R + ( Q2L + delta*dQ2ddeltaL + Q1L*theta )  * I0L
-              + (vphiM/c)*(     ( 2*Q2R - lam*dQ2dlambdaR )         * I1R - (   ( 2*Q2L - lam*dQ2dlambdaL ) )       * I1L    ) )
+    # fy=(1/m)*(D**2*I/c) * ( ( Q2R + delta*dQ2ddeltaR + Q1R*theta )  * I0R + ( Q2L + delta*dQ2ddeltaL + Q1L*theta )  * I0L
+    #           + (vphiM/c)*(     ( 2*Q2R - lam*dQ2dlambdaR )         * I1R - (   ( 2*Q2L - lam*dQ2dlambdaL ) )       * I1L    ) )
     
-    fphi=-(12/(m*L**2))*(D**2*I/c) * ( ( Q1R + delta*(dQ1ddeltaR - Q2R) )   * I1R - ( Q1L + delta*(dQ1ddeltaL - Q2L) )  * I1L
-                         + (vphiM/c)*( ( 2*Q1R - lam*dQ1dlambdaR )          * I2R + ( ( 2*Q1L - lam*dQ1dlambdaL ) )     * I2L    ) )
+    # fphi=-(12/(m*L**2))*(D**2*I/c) * ( ( Q1R + delta*(dQ1ddeltaR - Q2R) )   * I1R - ( Q1L + delta*(dQ1ddeltaL - Q2L) )  * I1L
+    #                      + (vphiM/c)*( ( 2*Q1R - lam*dQ1dlambdaR )          * I2R + ( ( 2*Q1L - lam*dQ1dlambdaL ) )     * I2L    ) )
 
     ## Store as d/dtau (Y)=F=[vx,vy,vphi,fy,fy,fphi]
     F=np.array([vxM,vyM,vphiM,fx,fy,fphi])
@@ -212,7 +221,7 @@ time_MAX=8.5*60*60
 ## Step size   
 h=1e-4      
 Email_result = False
-runID = 1
+runID = 10
 
 ################################
 # Frame M integration
