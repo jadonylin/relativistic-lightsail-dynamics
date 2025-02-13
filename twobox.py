@@ -1100,7 +1100,7 @@ class TwoBox:
 
         ## Restore wavelength
         self.wavelength = input_wavelength
-        return eff_array, rest_array, damp_array, eigReal, eigImag , vec_array
+        return eff_array, rest_array, damp_array, eigReal, eigImag , vec
 
 
     def average_real_eigs(self, final_speed, goal, return_eigs:bool=False, I:float=10e9):
