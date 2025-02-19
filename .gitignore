@@ -27,3 +27,4 @@ Dynamics/Lookup_tables_start.py
 Dynamics/Dynamics_integrator_stability.py
 Dynamics/Dynamics_integrator_stability.py
 Grating_Explore/Data/Ilic_Stability_Diagram_klambda4000_by_kwidth1000.pkl
+__pycache__/twobox.cpython-311.pyc
