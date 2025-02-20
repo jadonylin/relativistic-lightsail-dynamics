@@ -20,7 +20,7 @@ from torch import erf as torch_erf
 from torch import linalg as torchLA
 from autograd.scipy.special import erf as autograd_erf
 from autograd.numpy import linalg as npaLA
-
+from agfunc import agfunc
 from parameters import Parameters
 I0, L, m, c = Parameters()
 
@@ -123,6 +123,10 @@ def softmax_torch(sigma,p):
     e_x = torch.exp(sigma*(p - torch.max(p)))
     return e_x/torch.sum(e_x)
 
+
+
+
+
 class TwoBox:
     def __init__(self, grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, 
                  gaussian_width, substrate_depth, substrate_eps, 
@@ -179,15 +183,18 @@ class TwoBox:
         self.RCWA_engine = RCWA_engine
         if self.RCWA_engine == 'GRCWA':
             self.init_RCWA()
+            self.npa=agfunc('autograd')
+
         elif self.RCWA_engine == 'TORCWA':
             self.init_TORCWA()
-  
+            self.npa=agfunc('torch')
+
     def build_grating(self):
         """
         Build the grating permittivity grid as array of permittivities. 
 
         Does not account for boundary permittivities in the finite grid, so is not autograd-
-        differentiable. 
+        differentiable. Not suitable for torcwa either
         """
 
         Lam = self.grating_pitch
@@ -197,7 +204,7 @@ class TwoBox:
         x1 = w1/2 + 0.02*Lam # box1 centre location (offset to avoid left box left edge clipping)    
         x2 = x1 + bcd # box2 centre location
         
-        x = npa.linspace(0,Lam,self.Nx)
+        x = self.npa.linspace(0,Lam,self.Nx)
         idx_in_box1 = abs(x - x1) <= w1/2
         idx_in_box2 = abs(x - x2) <= w2/2
         
@@ -213,11 +220,11 @@ class TwoBox:
                 grating.append(1)
         
         if self.invert_unit_cell:
-            self.grating_grid = npa.array(grating)[::-1]
+            self.grating_grid = self.npa.array(grating)[::-1]
         else:
-            self.grating_grid = npa.array(grating)
+            self.grating_grid = self.npa.array(grating)
 
-        return npa.array(grating)
+        return self.npa.array(grating)
 
     def build_grating_gradable(self, sigma: float=100.):
         """
@@ -250,7 +257,7 @@ class TwoBox:
         boxes_midpoint = (x1 + w1/2 + x2 - w2/2)/2
 
         dx = Lam/self.Nx # grid spacing
-        grid_left_boundaries = npa.linspace(0,Lam-dx,self.Nx) # does not include x = Lam boundary
+        grid_left_boundaries = self.npa.linspace(0,Lam-dx,self.Nx) # does not include x = Lam boundary
         # In this formulation, grid numbers 0, 1, ..., Nx-1 refer to the left boundaries (consistent with x position from 0 to 1*pitch)
         box1_left_boundary = x1-w1/2
         box2_right_boundary = x2+w2/2
@@ -258,27 +265,27 @@ class TwoBox:
         # Build grating without using index assignment to ensure gradable
         grating = [] 
         for grid_left_boundary in grid_left_boundaries:
-            grid_in_box1 = w1/2 - npa.abs(grid_left_boundary-x1)
+            grid_in_box1 = w1/2 - self.npa.abs(grid_left_boundary-x1)
             
             grid_left_of_box1 = box1_left_boundary - grid_left_boundary
-            grid_in_box2 = w2/2 - npa.abs(grid_left_boundary-x2)
-            grid_between_boxes = box_separation/2 - npa.abs(grid_left_boundary - boxes_midpoint)
+            grid_in_box2 = w2/2 - self.npa.abs(grid_left_boundary-x2)
+            grid_between_boxes = box_separation/2 - self.npa.abs(grid_left_boundary - boxes_midpoint)
             grid_right_of_box2 = grid_left_boundary - box2_right_boundary 
 
-            conditions = npa.array([grid_in_box1, grid_in_box2, grid_left_of_box1, grid_between_boxes, grid_right_of_box2])
-            returns = npa.array([eb1, eb2, 1, 1, 1])
+            conditions = self.npa.array([grid_in_box1, grid_in_box2, grid_left_of_box1, grid_between_boxes, grid_right_of_box2])
+            returns = self.npa.array([eb1, eb2, 1, 1, 1])
             
             probs = softmax(sigma,conditions)
-            eps = npa.sum(probs*returns)
+            eps = self.npa.sum(probs*returns)
 
             grating.append(eps)
 
         if self.invert_unit_cell:
-            self.grating_grid = npa.array(grating)[::-1]
+            self.grating_grid = self.npa.array(grating)[::-1]
         else:
-            self.grating_grid = npa.array(grating)
+            self.grating_grid = self.npa.array(grating)
 
-        return npa.array(grating)
+        return self.npa.array(grating)
 
 
     def init_RCWA(self):
@@ -352,8 +359,8 @@ class TwoBox:
             # IMPORTANT: have to use append method to a list rather than index assignment
             # Else, autograd will throw a TypeError with float() argument being an ArrayBox
             for order in RT_orders:
-                Rs.append(npa.sum(R_byorder[Fourier_orders[:,0]==order]))
-                Ts.append(npa.sum(T_byorder[Fourier_orders[:,0]==order]))
+                Rs.append(self.npa.sum(R_byorder[Fourier_orders[:,0]==order]))
+                Ts.append(self.npa.sum(T_byorder[Fourier_orders[:,0]==order]))
         elif self.RCWA_engine == 'TORCWA':
             # TODO: check return arrays are of same type, size and ordering as GRCWA
             self.init_TORCWA()
@@ -374,18 +381,13 @@ class TwoBox:
             """
             Calculates diffraction angles
             """
-            if self.RCWA_engine == 'GRCWA':
-                test=(npa.sin(self.angle)+m*self.wavelength/self.grating_pitch)
-            elif self.RCWA_engine == 'TORCWA':
-                test=(torch.sin(self.angle)+m*self.wavelength/self.grating_pitch)
+            test=(self.sin(self.angle)+m*self.wavelength/self.grating_pitch)
 
             if abs(test)>=1:
                 delta_m="no_diffraction_order"
             else:
-                if self.RCWA_engine == 'GRCWA':
-                    delta_m=npa.arcsin(test)
-                elif self.RCWA_engine == 'TORCWA':
-                    delta_m=torch.asin(test)
+                delta_m=self.arcsin(test)
+                
             return delta_m
         Q1=0
         Q2=0
@@ -399,20 +401,12 @@ class TwoBox:
                 Q1 = Q1 + 0
                 Q2 = Q2 + 0
             else:
-                if self.RCWA_engine == 'GRCWA':
-                    Q1 = Q1+ r[m]*(1+npa.cos(self.angle+delta_m))+t[m]*(1-npa.cos(delta_m-self.angle))
-                    Q2 = Q2+ r[m]*npa.sin(self.angle+delta_m)+t[m]*npa.sin(delta_m-self.angle)
-                elif self.RCWA_engine == 'TORCWA':
-                    Q1 = Q1+ r[m]*(1+torch.cos(self.angle+delta_m))+t[m]*(1-torch.cos(delta_m-self.angle))
-                    Q2 = Q2+ r[m]*torch.sin(self.angle+delta_m)+t[m]*torch.sin(delta_m-self.angle)
-        if self.RCWA_engine == 'GRCWA':            
-            Q1 =  npa.cos(self.angle)*Q1
-            Q2 = -npa.cos(self.angle)*Q2
-            return npa.array( [Q1, Q2] )
-        elif self.RCWA_engine == 'TORCWA':
-            Q1 =  torch.cos(self.angle)*Q1
-            Q2 = -torch.cos(self.angle)*Q2
-            return torch.tensor( [Q1, Q2] )
+                Q1 = Q1+ r[m]*(1+self.cos(self.angle+delta_m))+t[m]*(1-self.cos(delta_m-self.angle))
+                Q2 = Q2+ r[m]*self.sin(self.angle+delta_m)+t[m]*self.sin(delta_m-self.angle)
+                elif self.RCWA_engine == 'TORCWA':        
+            Q1 =  self.cos(self.angle)*Q1
+            Q2 = -self.cos(self.angle)*Q2
+            return self.array( [Q1, Q2] )
     ##################
     #### 1st derivatives
 
@@ -491,12 +485,9 @@ class TwoBox:
             self.wavelength = wavelength
             return self.Q()
 
-        if self.RCWA_engine == 'GRCWA':
-            PD_both_Q = jacobian(Q_both, argnum=1)
-            params =npa.array([ input_angle, input_wavelength] )
-        elif self.RCWA_engine == 'TORCWA':
-            PD_both_Q = jacobian_torch(Q_both, argnum=1)
-            params =torch.tensor([ input_angle, input_wavelength] )
+
+        PD_both_Q = self.jacobian(Q_both, argnum=1)
+        params =self.array([ input_angle, input_wavelength] )
         PD_both_Q_ = PD_both_Q(self, params)
 
         PD_angle_Q1 = PD_both_Q_[0][0]
@@ -586,7 +577,7 @@ class TwoBox:
                 self.angle = angle
                 self.wavelength = wavelength
 
-                return npa.array( [PD_Q1, PD_Q2] )
+                return self.npa.array( [PD_Q1, PD_Q2] )
 
             if method_one=="grad":
                 def Q_params(angle, wavelength):
@@ -594,10 +585,8 @@ class TwoBox:
                     self.wavelength = wavelength
                     return self.Q()
                 
-                if self.RCWA_engine == 'GRCWA':
-                    PD = jacobian(Q_params, argnum = var)
-                elif self.RCWA_engine == 'TORCWA':
-                    PD = jacobian_torch(Q_params, argnum = var)
+
+                PD = self.npa.jacobian(Q_params, argnum = var)
                 PD_value = PD(angle, wavelength)
 
                 self.angle = angle
@@ -650,7 +639,7 @@ class TwoBox:
                 PD_Q1 = (Q1_forwards - Q1_back) / (2 * h)
                 PD_Q2 = (Q2_forwards - Q2_back) / (2 * h)
 
-                return npa.array( [PD_Q1, PD_Q2] )
+                return self.array( [PD_Q1, PD_Q2] )
 
             if method_two == "grad":
                 restore()
@@ -658,10 +647,8 @@ class TwoBox:
                 def fun(angle, wavelength):
                     return first(angle, wavelength, method_one)
                 
-                if self.RCWA_engine == 'GRCWA':
-                    PD2 = jacobian(fun, argnum = var)
-                elif self.RCWA_engine == 'TORCWA':
-                    PD2 = jacobian_torch(fun, argnum = var)
+                
+                PD2 = self.jacobian(fun, argnum = var)
                 PD2_value = PD2(input_angle, input_wavelength)
                 restore()
                 return PD2_value
@@ -743,7 +730,7 @@ class TwoBox:
                 PD_Q1 = (Q1_forwards - Q1_back) / (2 * h)
                 PD_Q2 = (Q2_forwards - Q2_back) / (2 * h)
 
-                return npa.array( [PD_Q1, PD_Q2] )
+                return self.npa.array( [PD_Q1, PD_Q2] )
 
             if method_one=="grad":
                 restore( angle, wavelength )
@@ -806,7 +793,7 @@ class TwoBox:
                 PD_Q1 = (Q1_forwards - Q1_back) / (2 * h)
                 PD_Q2 = (Q2_forwards - Q2_back) / (2 * h)
 
-                return npa.array( [PD_Q1, PD_Q2] )
+                return self.npa.array( [PD_Q1, PD_Q2] )
 
             if method_two == "grad":
                 restore( angle2, wavelength2 )
@@ -867,7 +854,7 @@ class TwoBox:
                 PD_Q1 = (Q1_forwards - Q1_back) / (2 * h)
                 PD_Q2 = (Q2_forwards - Q2_back) / (2 * h)
 
-                return npa.array( [PD_Q1, PD_Q2] )
+                return self.npa.array( [PD_Q1, PD_Q2] )
 
             if method_three == "grad":
                 restore( input_angle, input_wavelength)
@@ -907,61 +894,39 @@ class TwoBox:
             Unique contents of x, with remaining items filled by filled_value
             """
             # Sort to ensure differentiability
-            if self.RCWA_engine == 'GRCWA':
-                sorted_x = npa.sort(x.flatten())
-                unique_values = sorted_x[np.concatenate(([True], npa.diff(sorted_x) != 0))]
-
-            elif self.RCWA_engine == 'TORCWA':
-                sorted_x = torch.sort(x.flatten())[0]
-                unique_values = sorted_x[np.concatenate(([True], torch.diff(sorted_x) != 0))]
+            sorted_x = self.npa.sort(x.flatten())
+            unique_values = sorted_x[np.npa.concatenate(([True], self.diff(sorted_x) != 0))]
             
             
             # Append filled_value as needed
             k = len(unique_values)
-            if self.RCWA_engine == 'GRCWA':         
-                for i in range(4-k):
-                    unique_values=npa.append(unique_values,filled_value)
-            elif self.RCWA_engine == 'TORCWA':
-                for i in range(4-k):
-                    unique_values=torch.cat((unique_values,torch.tensor([filled_value])))
+            for i in range(4-k):
+                unique_values=self.npa.append(unique_values,filled_value)
                 
             return unique_values
     
         ## Reward all Re(eig) being negative
         eig_real_unique     =   unique_filled( eigReal, -1 )
-        if self.RCWA_engine == 'GRCWA':
-            eig_real_neg_unique =   npa.minimum( 0., eig_real_unique )
-            func_real_neg_array =   npa.power( eig_real_neg_unique , 2 )
-        elif self.RCWA_engine == 'TORCWA':
-            eig_real_neg_unique =   torch.minimum( 0., eig_real_unique )
-            func_real_neg_array =   torch.power( eig_real_neg_unique , 2 )    
+        eig_real_neg_unique =   self.npa.minimum( 0., eig_real_unique )
+        func_real_neg_array =   self.npa.power( eig_real_neg_unique , 2 )
         func_real_neg       =   func_real_neg_array[0]  *   func_real_neg_array[1]  *   func_real_neg_array[2]  *   func_real_neg_array[3]
 
         ## Penalise mixed positive and negative Re(eig)
         real_unique_0       =   unique_filled( eigReal, 0. )
-        if self.RCWA_engine == 'GRCWA':        
-            neg_array           =   npa.power( npa.minimum(0., real_unique_0) , 2 )
-            pos_array           =   npa.power( npa.maximum(0., real_unique_0) , 2 )
-        elif self.RCWA_engine == 'TORCWA':
-            neg_array           =   torch.power( torch.minimum(0., real_unique_0) , 2 )
-            pos_array           =   torch.power( torch.maximum(0., real_unique_0) , 2 )
+        neg_array           =   self.npa.power( self.npa.minimum(0., real_unique_0) , 2 )
+        pos_array           =   self.npa.power( self.npa.maximum(0., real_unique_0) , 2 )
+        
         neg_sum             =   neg_array[0] + neg_array[1] + neg_array[2] + neg_array[3]
         pos_sum             =   pos_array[0] + pos_array[1] + pos_array[2] + pos_array[3]
         penalty             =   neg_sum * pos_sum
 
         ## All positive
         real_unique_1       =   unique_filled( eigReal, 1 )
-        if self.RCWA_engine == 'GRCWA':        
-            all_pos_array       =   npa.power( npa.maximum( 0., real_unique_1 ) , 2 )
-        elif self.RCWA_engine == 'TORCWA':  
-            all_pos_array       =   torch.power( torch.maximum( 0., real_unique_1 ) , 2 )
+        all_pos_array       =   self.npa.power( self.npa.maximum( 0., real_unique_1 ) , 2 )
         penalty2            =   all_pos_array[0]  *   all_pos_array[1]  *   all_pos_array[2]  *   all_pos_array[3]
 
         ## Remove Re(eig)<0 contribution if no restoring behaviour - now scales
-        if self.RCWA_engine == 'GRCWA':
-            func_imag_array = npa.log( 1 + npa.power(eigImag,2) )
-        elif self.RCWA_engine == 'TORCWA':
-            func_imag_array = torch.log( 1 + torch.power(eigImag,2) )
+        func_imag_array = self.npa.log( 1 + self.npa.power(eigImag,2) )
         func_imag = func_imag_array[0] * func_imag_array[1] * func_imag_array[2] * func_imag_array[3]
 
         ## Build FoM
@@ -998,10 +963,7 @@ class TwoBox:
 
         ## Convert velocity dependence to wavelength dependence
         D = 1/lam 
-        if self.RCWA_engine == 'GRCWA':
-            g = (npa.power(lam,2) + 1)/(2*lam) 
-        elif self.RCWA_engine == 'TORCWA': 
-            g = (torch.power(lam,2) + 1)/(2*lam)
+        g = (self.npa.power(lam,2) + 1)/(2*lam) 
    
         ## Symmetry
         Q1L = Q1R;   Q2L = -Q2R;   
@@ -1011,41 +973,25 @@ class TwoBox:
         if self.RCWA_engine == 'GRCWA':            
             # y acceleration
             fy_y= -     D**2 * (I/(m*c1)) *  ( Q2R - Q2L ) * ( 1 - np.exp(-1/(2*w_bar**2) ) )
-            fy_phi= -   D**2 * (I/(m*c1)) * ( dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * autograd_erf( 1/(w_bar*np.sqrt(2)) )
-            fy_vy= -    D**2 * (I/(m*c1)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * autograd_erf( 1/(w_bar*np.sqrt(2)) )
+            fy_phi= -   D**2 * (I/(m*c1)) * ( dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
+            fy_vy= -    D**2 * (I/(m*c1)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
             fy_vphi=    D**2 * (I/(m*c1)) * (1/c) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
 
             # phi acceleration
-            fphi_y=     D**2 * (12*I/( m*c1*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * autograd_erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+            fphi_y=     D**2 * (12*I/( m*c1*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
             fphi_phi=   D**2 * (12*I/( m*c1*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
             fphi_vy=    D**2 * (12*I/( m*c1*L**2)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
-            fphi_vphi= -D**2 * (12*I/( m*c1*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * autograd_erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+            fphi_vphi= -D**2 * (12*I/( m*c1*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
 
             # Build the Jacobian matrix
             J00=fy_y;   J01=fy_phi;     J02=fy_vy;    J03=fy_vphi
             J10=fphi_y; J11=fphi_phi;   J12=fphi_vy;  J13=fphi_vphi
-            J=npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
-        elif self.RCWA_engine == 'TORCWA':
-            # y acceleration
-            fy_y= -     D**2 * (I/(m*c1)) *  ( Q2R - Q2L ) * ( 1 - torch.exp(-1/(2*w_bar**2) ) )
-            fy_phi= -   D**2 * (I/(m*c1)) * ( dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * torch.sqrt( np.pi/2 ) * torch_erf( 1/(w_bar*torch.sqrt(2)) )
-            fy_vy= -    D**2 * (I/(m*c1)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * torch.sqrt( np.pi/2 ) * torch_erf( 1/(w_bar*torch.sqrt(2)) )
-            fy_vphi=    D**2 * (I/(m*c1)) * (1/c) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - torch.exp( -1/(2*w_bar**2) ))
-
-            # phi acceleration
-            fphi_y=     D**2 * (12*I/( m*c1*L**2)) * ( Q1R + Q1L ) * (  (w/2)*torch.sqrt( np.pi/2 )  * torch_erf( 1/(w_bar*torch.sqrt(2)))  - (L/2)* torch.exp( -1/(2*w_bar**2) )  ) 
-            fphi_phi=   D**2 * (12*I/( m*c1*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - torch.exp( -1/(2*w_bar**2) ))
-            fphi_vy=    D**2 * (12*I/( m*c1*L**2)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( d
-            fphi_vphi= -D**2 * (12*I/( m*c1*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*torch.sqrt( np.pi/2 )  * torch_erf( 1/(w_bar*torch.sqrt(2)))  - (L/2)* torch.exp( -1/(2*w_bar**2) )  )
-
-            # Build the Jacobian matrix
-            J00=fy_y;   J01=fy_phi;     J02=fy_vy;    J03=fy_vphi
-            J10=fphi_y; J11=fphi_phi;   J12=fphi_vy;  J13=fphi_vphi
-            J=torch.tensor([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
+            J=self.npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
+        
 
         # Debugging during optimisation
         if check_det:
-            if npaLA.det(J)==0:
+            if self.npa.det(J)==0:
                 print("Grating parameters:")
                 print(self.grating_pitch)
                 print(self.grating_depth)
@@ -1063,13 +1009,10 @@ class TwoBox:
 
         # Find the real part of eigenvalues    
         # TODO: check torch eigenvectors and eigenvalues have same structure
-        if self.RCWA_engine == 'GRCWA':
-            EIGVALVEC   = npaLA.eig(J)
-        elif self.RCWA_engine == 'TORCWA':
-            EIGVALVEC   = torch.eig(J, eigenvectors=True)
+        EIGVALVEC   = self.npa.eig(J)
         eig         = EIGVALVEC[0]
-        eigReal     = npa.real(eig)
-        eigImag     = npa.imag(eig)
+        eigReal     = self.npa.real(eig)
+        eigImag     = self.npa.imag(eig)
 
         if return_vec:
             vec = EIGVALVEC[1]
@@ -1102,7 +1045,7 @@ class TwoBox:
 
         ## Convert velocity dependence to wavelength dependence
         D = 1/lam 
-        g = (npa.power(lam,2) + 1)/(2*lam) 
+        g = (self.npa.power(lam,2) + 1)/(2*lam) 
 
         ## Convert wavelength derivative to efficiency factor
         Q1R=Q1; Q2R=Q2; PD_Q1R_angle=PD_Q1_angle;   PD_Q2R_angle=PD_Q2_angle
@@ -1120,28 +1063,16 @@ class TwoBox:
 
         if self.rcwa_engine == 'GRCWA':
             # y acceleration
-            fy_y= -     D**2 * (I/(m*c)) * ( Q2R - Q2L) * ( 1 - npa.exp( -1/(2*w_bar**2) ))
-            fy_phi= -   D**2 * (I/(m*c)) * ( PD_Q2R_angle + PD_Q2L_angle) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
-            fy_vy= -    D**2 * (I/(m*c)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + PD_Q1R_angle + PD_Q1L_angle ) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
-            fy_vphi=    D**2 * (I/(m*c)) * ( 2*( Q2R - Q2L ) - D*( PD_Q2R_omega - PD_Q2L_omega ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+            fy_y= -     D**2 * (I/(m*c)) * ( Q2R - Q2L) * ( 1 - self.npa.exp( -1/(2*w_bar**2) ))
+            fy_phi= -   D**2 * (I/(m*c)) * ( PD_Q2R_angle + PD_Q2L_angle) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
+            fy_vy= -    D**2 * (I/(m*c)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + PD_Q1R_angle + PD_Q1L_angle ) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
+            fy_vphi=    D**2 * (I/(m*c)) * ( 2*( Q2R - Q2L ) - D*( PD_Q2R_omega - PD_Q2L_omega ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
 
             # phi acceleration
-            fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
-            fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
-            fphi_vy=    D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
-            fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * ( 2*( Q1R + Q1L ) - D*( PD_Q1R_omega + PD_Q1L_omega ) ) * (w/2)**2 * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
-        elif self.rcwa_engine == 'TORCWA':
-            # y acceleration
-            fy_y= -     D**2 * (I/(m*c)) * ( Q2R - Q2L) * ( 1 - torch.exp( -1/(2*w_bar**2) ))
-            fy_phi= -   D**2 * (I/(m*c)) * ( PD_Q2R_angle + PD_Q2L_angle) * (w/2) * torch.sqrt( np.pi/2 ) * torch_erf( 1/(w_bar*torch.sqrt(2)) )
-            fy_vy= -    D**2 * (I/(m*c)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + PD_Q1R_angle + PD_Q1L_angle ) * (w/2) * torch.sqrt( np.pi/2 ) * torch_erf( 1/(w_bar*torch.sqrt(2)) )
-            fy_vphi=    D**2 * (I/(m*c)) * ( 2*( Q2R - Q2L ) - D*( PD_Q2R_omega - PD_Q2L_omega ) ) * (w/2)**2 * ( 1 - torch.exp( -1/(2*w_bar**2) ))
-
-            # phi acceleration
-            fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*torch.sqrt( np.pi/2 )  * torch_erf( 1/(w_bar*torch.sqrt(2)))  - (L/2)* torch.exp( -1/(2*w_bar**2) )  )
-            fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - torch.exp( -1/(2*w_bar**2) ))
-            fphi_vy=    D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - torch.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
-            fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * ( 2*( Q1R + Q1L ) - D*( PD_Q1R_omega + PD_Q1L_omega ) ) * (w/2)**2 * (  (w/2)*torch.sqrt( np.pi/2 )  * torch_erf( 1/(w_bar*torch.sqrt(2)))  - (L/2)* torch.exp( -1/(2*w_bar**2) )  )
+            fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+            fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
+            fphi_vy=    D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
+            fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * ( 2*( Q1R + Q1L ) - D*( PD_Q1R_omega + PD_Q1L_omega ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
 
         ## array
         rest_array = ( fy_y,fy_phi,  fphi_y,fphi_phi )
@@ -1150,21 +1081,16 @@ class TwoBox:
         # Build the Jacobian matrix
         J00=fy_y;   J01=fy_phi;     J02=fy_vy/c;    J03=fy_vphi/c
         J10=fphi_y; J11=fphi_phi;   J12=fphi_vy/c;  J13=fphi_vphi/c
-        if self.rcwa_engine == 'GRCWA':
-            J=npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
-        elif self.rcwa_engine == 'TORCWA':
-            J=torch.tensor([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
+        J=self.npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
 
         # Find the real part of eigenvalues    
          # TODO: check torch eigenvectors and eigenvalues have same structure
-        if self.RCWA_engine == 'GRCWA':
-            EIGVALVEC   = npaLA.eig(J)
-        elif self.RCWA_engine == 'TORCWA':
-            EIGVALVEC   = torch.eig(J, eigenvectors=True)
+
+        EIGVALVEC   = self.npa.eig(J)
         
         eig         = EIGVALVEC[0]
-        eigReal     = npa.real(eig)
-        eigImag     = npa.imag(eig)
+        eigReal     = self.npa.real(eig)
+        eigImag     = self.npa.imag(eig)
 
         ## Restore wavelength
         self.wavelength = input_wavelength
@@ -1194,7 +1120,7 @@ class TwoBox:
 
         ## Convert velocity dependence to wavelength dependence
         D = 1/lam 
-        g = (npa.power(lam,2) + 1)/(2*lam) 
+        g = (self.npa.power(lam,2) + 1)/(2*lam) 
    
         ## Symmetry
         Q1L = Q1R;   Q2L = -Q2R;   
@@ -1205,15 +1131,15 @@ class TwoBox:
 
         # y acceleration
         fy_y= -     D**2 * (I/(m*c)) *  ( Q2R - Q2L ) * ( 1 - np.exp(-1/(2*w_bar**2) ) )
-        fy_phi= -   D**2 * (I/(m*c)) * ( dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * autograd_erf( 1/(w_bar*np.sqrt(2)) )
-        fy_vy= -    D**2 * (I/(m*c)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * autograd_erf( 1/(w_bar*np.sqrt(2)) )
+        fy_phi= -   D**2 * (I/(m*c)) * ( dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
+        fy_vy= -    D**2 * (I/(m*c)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
         fy_vphi=    D**2 * (I/(m*c)) * (1/c) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
 
         # phi acceleration
-        fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * autograd_erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+        fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
         fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
         fphi_vy=    D**2 * (12*I/( m*c*L**2)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
-        fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * autograd_erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+        fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
 
 
         ## array
@@ -1223,13 +1149,13 @@ class TwoBox:
         # Build the Jacobian matrix
         J00=fy_y;   J01=fy_phi;     J02=fy_vy;    J03=fy_vphi
         J10=fphi_y; J11=fphi_phi;   J12=fphi_vy;  J13=fphi_vphi
-        J=npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
+        J=self.npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
 
         # Find the real part of eigenvalues    
-        EIGVALVEC   = npaLA.eig(J)
+        EIGVALVEC   = self.npa.eig(J)
         eig         = EIGVALVEC[0]
-        eigReal     = npa.real(eig)
-        eigImag     = npa.imag(eig)
+        eigReal     = self.npa.real(eig)
+        eigImag     = self.npa.imag(eig)
 
         # Eigenvectors
         vec = EIGVALVEC[1]
@@ -1300,7 +1226,7 @@ class TwoBox:
 
     ##################
     #### Plotting
-
+    # TODO: adapt all plotting routines to  to Torcwa
     def calculate_y_fields(self, height):
         """
         Return Ey on the grid at a fixed height
@@ -1866,8 +1792,9 @@ class TwoBox:
         fig.set_size_inches(fig_width, fig_height)
         
         return fig, axs
-
-def init_TORCWA(self):
+    
+# TORCWA methods
+    def init_TORCWA(self):
         """
         Initialise the TORCWA solver
         """
@@ -1909,25 +1836,25 @@ def init_TORCWA(self):
         self.RCWA = sim
         
 
-def build_grating_torcwa(self):
-    """
-    Build the grating for the TORCWA solver using the twobox parameters
-    no care taken for autograd, assuming torcwa/torch will handle this
-    """
-    # layers
-    dy=1e-4
-    L = [self.grating_pitch, dy]                    
-    Lam = self.grating_pitch
-    w1 = self.box1_width
-    w2 = self.box2_width
-    bcd = self.box_centre_dist
-    x1 = w1/2 + 0.02*Lam # box1 centre location (offset to avoid left box left edge clipping)    
-    x2 = x1 + bcd # box2 centre location    
-    eb1 = self.box1_eps
-    eb2 = self.box2_eps
-    box1_bool = torcwa.rcwa_geo.rectangle(Wx=w1,Wy=L[1],Cx=x1,Cy=L[1]/2.) # width, heigh, centerx, centery
-    box2_bool = torcwa.rcwa_geo.rectangle(Wx=w2,Wy=L[1],Cx=x2,Cy=L[1]/2.) # width, heigh, centerx, centery
-    layer0_bool=torcwa.rcwa_geo.union(box1_bool,box2_bool)
-    layer0_eps =eb1*box1_bool+eb2*box2_bool + (1.-layer0_bool)
-    self.grating_grid = layer0_eps
-    return layer0_eps
+    def build_grating_torcwa(self):
+        """
+        Build the grating for the TORCWA solver using the twobox parameters
+        no care taken for autograd, assuming torcwa/torch will handle this
+        """
+        # layers
+        dy=1e-4
+        L = [self.grating_pitch, dy]                    
+        Lam = self.grating_pitch
+        w1 = self.box1_width
+        w2 = self.box2_width
+        bcd = self.box_centre_dist
+        x1 = w1/2 + 0.02*Lam # box1 centre location (offset to avoid left box left edge clipping)    
+        x2 = x1 + bcd # box2 centre location    
+        eb1 = self.box1_eps
+        eb2 = self.box2_eps
+        box1_bool = torcwa.rcwa_geo.rectangle(Wx=w1,Wy=L[1],Cx=x1,Cy=L[1]/2.) # width, heigh, centerx, centery
+        box2_bool = torcwa.rcwa_geo.rectangle(Wx=w2,Wy=L[1],Cx=x2,Cy=L[1]/2.) # width, heigh, centerx, centery
+        layer0_bool=torcwa.rcwa_geo.union(box1_bool,box2_bool)
+        layer0_eps =eb1*box1_bool+eb2*box2_bool + (1.-layer0_bool)
+        self.grating_grid = layer0_eps
+        return layer0_eps
