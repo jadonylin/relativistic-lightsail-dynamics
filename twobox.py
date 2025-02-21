@@ -12,10 +12,6 @@ Adapted from https://github.com/jadonylin/lightsail-damping
 """
 
 # IMPORTS ###########################################################################################################################################################################
-import autograd.numpy as npa
-from autograd import grad, jacobian
-from torch.autograd import grad as grad_torch
-from torch.autograd import jacobian as jacobian_torch
 from torch import erf as torch_erf
 from torch import linalg as torchLA
 from autograd.scipy.special import erf as autograd_erf
@@ -114,24 +110,13 @@ class MinorSymLogLocator(Locator):
 
 
 
-# Smoothing if conditionals for backpropagation
-def softmax(sigma,p):
-    e_x = npa.exp(sigma*(p - npa.max(p)))
-    return e_x/npa.sum(e_x)
-
-def softmax_torch(sigma,p):
-    e_x = torch.exp(sigma*(p - torch.max(p)))
-    return e_x/torch.sum(e_x)
-
-
-
 
 
 class TwoBox:
     def __init__(self, grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, 
                  gaussian_width, substrate_depth, substrate_eps, 
                  wavelength: float=1., angle: float=0.,
-                 Nx: float=1000, nG: int=25, Qabs: float=np.inf,RCWA_engine='GRCWA') -> None:
+                 Nx: float=1000, nG: int=25, Qabs: float=np.inf,RCWA_engine='GRCWA',torcwa_edge_sharpness=1000) -> None:
         """
         Initialise twobox grating, excitation and hyperparameters.
 
@@ -173,6 +158,7 @@ class TwoBox:
         self.Ny = 1
         self.nG = nG
         self.Qabs = Qabs
+        self.torcwa_edge_sharpness=torcwa_edge_sharpness
 
 
         self.invert_unit_cell = False
@@ -182,12 +168,14 @@ class TwoBox:
         
         self.RCWA_engine = RCWA_engine
         if self.RCWA_engine == 'GRCWA':
-            self.init_RCWA()
             self.npa=agfunc('autograd')
+            self.init_RCWA()
 
-        elif self.RCWA_engine == 'TORCWA':
-            self.init_TORCWA()
+        elif self.RCWA_engine == 'TORCWA':            
             self.npa=agfunc('torch')
+            self.init_TORCWA()
+        else:
+            raise ValueError("Invalid RCWA engine. Choose 'GRCWA' or 'TORCWA'.")
 
     def build_grating(self):
         """
@@ -275,7 +263,7 @@ class TwoBox:
             conditions = self.npa.array([grid_in_box1, grid_in_box2, grid_left_of_box1, grid_between_boxes, grid_right_of_box2])
             returns = self.npa.array([eb1, eb2, 1, 1, 1])
             
-            probs = softmax(sigma,conditions)
+            probs = self.npa.softmax(sigma,conditions)
             eps = self.npa.sum(probs*returns)
 
             grating.append(eps)
@@ -362,12 +350,11 @@ class TwoBox:
                 Rs.append(self.npa.sum(R_byorder[Fourier_orders[:,0]==order]))
                 Ts.append(self.npa.sum(T_byorder[Fourier_orders[:,0]==order]))
         elif self.RCWA_engine == 'TORCWA':
-            # TODO: check return arrays are of same type, size and ordering as GRCWA
             self.init_TORCWA()
             RT_orders = [-1,0,1]
             orders=np.array([[j,0] for j in RT_orders])
-            Rs = self.RCWA.S_parameters(orders=orders,direction='forward',port='reflection',polarization='xx',ref_order=[0,0],power_norm=True)
-            Ts = self.RCWA.S_parameters(orders=orders,direction='forward',port='transmission',polarization='xx',ref_order=[0,0],power_norm=True)
+            Rs = np.abs(np.power(self.RCWA.S_parameters(orders=orders,direction='forward',port='reflection',polarization='yy',ref_order=[0,0],power_norm=True).cpu().numpy(),2))
+            Ts = np.abs(np.power(self.RCWA.S_parameters(orders=orders,direction='forward',port='transmission',polarization='yy',ref_order=[0,0],power_norm=True).cpu().numpy(),2))
     
         return Rs,Ts
     
@@ -381,12 +368,12 @@ class TwoBox:
             """
             Calculates diffraction angles
             """
-            test=(self.sin(self.angle)+m*self.wavelength/self.grating_pitch)
+            test=(self.npa.sin(self.angle)+m*self.wavelength/self.grating_pitch)
 
             if abs(test)>=1:
                 delta_m="no_diffraction_order"
             else:
-                delta_m=self.arcsin(test)
+                delta_m=self.npa.arcsin(test)
                 
             return delta_m
         Q1=0
@@ -401,12 +388,9 @@ class TwoBox:
                 Q1 = Q1 + 0
                 Q2 = Q2 + 0
             else:
-                Q1 = Q1+ r[m]*(1+self.cos(self.angle+delta_m))+t[m]*(1-self.cos(delta_m-self.angle))
-                Q2 = Q2+ r[m]*self.sin(self.angle+delta_m)+t[m]*self.sin(delta_m-self.angle)
-                elif self.RCWA_engine == 'TORCWA':        
-            Q1 =  self.cos(self.angle)*Q1
-            Q2 = -self.cos(self.angle)*Q2
-            return self.array( [Q1, Q2] )
+                Q1 = Q1+ r[m]*(1+self.npa.cos(self.angle+delta_m))+t[m]*(1-self.npa.cos(delta_m-self.angle))
+                Q2 = Q2+ r[m]*self.npa.sin(self.angle+delta_m)+t[m]*self.npa.sin(delta_m-self.angle)
+            return self.npa.array( [Q1, Q2] )
     ##################
     #### 1st derivatives
 
@@ -486,8 +470,8 @@ class TwoBox:
             return self.Q()
 
 
-        PD_both_Q = self.jacobian(Q_both, argnum=1)
-        params =self.array([ input_angle, input_wavelength] )
+        PD_both_Q = self.npa.jacobian(Q_both, argnum=1)
+        params =self.npa.array([ input_angle, input_wavelength] )
         PD_both_Q_ = PD_both_Q(self, params)
 
         PD_angle_Q1 = PD_both_Q_[0][0]
@@ -739,7 +723,7 @@ class TwoBox:
                     self.wavelength = wavelength
                     return self.Q()
                 
-                PD = jacobian(Q_params, argnum = var)
+                PD = self.npa.jacobian(Q_params, argnum = var)
                 PD_value = PD(angle, wavelength)
 
                 restore( angle, wavelength )
@@ -801,7 +785,7 @@ class TwoBox:
                 def fun(angle2, wavelength2):
                     return first(angle2, wavelength2, method_one)
                 
-                PD2 = jacobian(fun, argnum = var)
+                PD2 = self.npa.jacobian(fun, argnum = var)
                 PD2_value = PD2(angle2, wavelength2)
                 
                 restore( angle2, wavelength2 )
@@ -862,7 +846,7 @@ class TwoBox:
                 def fun(angle, wavelength):
                     return second(angle, wavelength, method_two)
                 
-                PD3 = jacobian(fun, argnum = var)
+                PD3 = self.npa.jacobian(fun, argnum = var)
                 PD3_value = PD3(input_angle, input_wavelength)
                 
                 restore( input_angle, input_wavelength)
@@ -1096,7 +1080,6 @@ class TwoBox:
         self.wavelength = input_wavelength
         return eff_array, rest_array, damp_array, eigReal, eigImag 
 
-# 20/02/2025 7:05pm continue torcwa porting from here
     def Linear_info_new(self, wavelength, I: float=0.5e9):
         """
         ## Inputs
@@ -1226,7 +1209,6 @@ class TwoBox:
 
     ##################
     #### Plotting
-    # TODO: adapt all plotting routines to  to Torcwa
     def calculate_y_fields(self, height):
         """
         Return Ey on the grid at a fixed height
@@ -1234,13 +1216,20 @@ class TwoBox:
         Parameters
         ----------
         height :   Height to calculate field
+        TODO: check TORCWA returns same orientation/order as GRCWA
         """
-        self.init_RCWA()
-        fields = self.RCWA.Solve_FieldOnGrid(1,height)
-        Efield = fields[0]
-        Ey = np.transpose(Efield[1])
+        if self.RCWA_engine == 'GRCWA':
+            self.init_RCWA()
+            fields = self.RCWA.Solve_FieldOnGrid(1,height)
+            Efield = fields[0]
+            Ey = np.transpose(Efield[1])
+        elif self.RCWA_engine == 'TORCWA':
+            self.init_TORCWA()
+            self.RCWA.source_planewave(amplitude=[1.,0.],direction='forward')
+            z=self.npa.array([height])
+            [Ex, Ey, Ez], [Hx, Hy, Hz] = self.RCWA.field_xz(torcwa.rcwa_geo.x,z,0)
         return Ey
-    
+ # TODO: adapt all plotting routines below   to Torcwa   
     def show_permittivity(self, show_analytic_box: bool=False):
         """
         Show permittivity profile for the twobox.
@@ -1252,17 +1241,25 @@ class TwoBox:
         ----------
         show_analytic_box :   Show analytic boxes overlaid onto boundary-permittivity-accounted-for boxes
         """
-        self.init_RCWA()
-
         x0 = np.linspace(0,self.grating_pitch,self.Nx, endpoint=False)
     
-        eps_array = self.RCWA.Return_eps(which_layer=1,Nx=self.Nx,Ny=self.Ny,component='xx')
+        if self.RCWA_engine == 'TORCWA':
+            self.init_TORCWA() 
+            #Torcwa does not need flipping this array - check x axis conventions?           
+            eps_array=self.RCWA.return_layer(0,self.Nx,1)[0].cpu().numpy()
+                
+        elif self.RCWA_engine == 'GRCWA':
+            self.init_RCWA()
+            eps_array = self.RCWA.Return_eps(which_layer=1,Nx=self.Nx,Ny=self.Ny,component='xx')
+            # flip to match ordering of desired eps vs grid number - 
+            eps_array = np.flip(eps_array)
+            
+            
         eps_array_real = eps_array.real
 
-        # Show actual eps vs grid number and flip to match ordering of desired eps vs grid number 
+        # Show actual eps vs grid number 
         grids = np.arange(0, self.Nx, 1)
-        eps_array_real = np.flip(eps_array_real)
-
+       
 
         ## Plot ##
         fig, axs = plt.subplots(2, 1, figsize=(6,10), sharex=True)
@@ -1274,7 +1271,7 @@ class TwoBox:
 
         axs[1].plot(grids,eps_array_real)
         axs[1].set(xlabel="Grid no.", ylabel=r"$\varepsilon$")
-        axs[1].set_title(f"GRCWA permittivity profile. nG = {self.nG}, grid points = {self.Nx}")
+        axs[1].set_title(f"{self.RCWA_engine} permittivity profile. nG = {self.nG}, grid points = {self.Nx}")
 
         if show_analytic_box:
             init_Nx = self.Nx
@@ -1295,6 +1292,7 @@ class TwoBox:
         ----------
         theta_max       :   Plot angles up to theta_max (degrees)
         num_plot_points :   Number of points to plot
+        NOTE: unchaned for Torcwa as no GRCWA/autograd used
         """
         ### Setup ###
         init_angle = self.angle # record user-initialised angle
@@ -1308,7 +1306,7 @@ class TwoBox:
         for idx, theta in enumerate(inc_angles):
             # Calculate efficiencies for each order
             self.angle = theta
-            Rs,Ts = self.RT()
+            Rs,Ts = self.eff()
             efficiencies[:3,idx] = Rs
             efficiencies[3:,idx] = Ts
         self.angle = init_angle # reset user-initialised angle
@@ -1335,7 +1333,7 @@ class TwoBox:
         ax.plot(inc_angles, eff_sum, color=(0, 0.7, 0), linestyle='-', label=r"$\Sigma (r_i + t_i)$", lw = LINE_WIDTH) 
 
         # Axis labels
-        ax.set(title=rf"$\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda$, $h_1' = {self.grating_depth/self.wavelength:.3f}\lambda$"
+        ax.set(title=rf"{self.RCWA_engine} $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda$, $h_1' = {self.grating_depth/self.wavelength:.3f}\lambda$"
             , xlabel="Incident angle (°)"
             , ylabel="Efficiency")
 
@@ -1611,6 +1609,7 @@ class TwoBox:
         efficiency_quantity :   Which efficiency quantity you want spectrum for ("r" - reflection, "PDr" - reflection angular derivative, "t" - transmission, "PDr" - transmission angular derivative)
         depth_range         :   Depth range to plot spectrum (normalised to wavelength)
         num_plot_points     :   Number of points to plot
+        NOTE: unchaned for Torcwa as no GRCWA/autograd used
         """
         ### Setup ###
         allowed_quantities = ("r", "t", "PDr", "PDt")
@@ -1714,6 +1713,7 @@ class TwoBox:
         heights          :   Heights to calculate fields (not normalised)
         fill_style       :   Field plot shading style
         show_eps_profile :   Overlay epsilon profile onto fields 
+        NOTE: unchaned for Torcwa as no GRCWA/autograd used
         """
         ## CALCULATE FIELDS ##
         Eys = np.zeros((len(heights), self.Nx), dtype=np.complex128) # need complex to assign complex Ey to Eys
@@ -1798,6 +1798,8 @@ class TwoBox:
         """
         Initialise the TORCWA solver
         """
+        # empty GPU cache to avoid memory issues
+        # torch.cuda.empty_cache()
         # Grating
         # To simulate a 1D grating, take a small periodicity in the y-direction. 
         # The grating is in the x-direction.
@@ -1805,7 +1807,7 @@ class TwoBox:
         L1 = [1.,0]
         L2 = [0,dy] 
 
-        freq = 1/self.wavelength # freq = 1/wavelength when c = 1
+        freq = self.npa.array(1/self.wavelength,dtype=geo_dtype,device=device) # freq = 1/wavelength when c = 1
         freqcmp = freq*(1+1j/2/self.Qabs)
 
         # Incoming wave
@@ -1820,17 +1822,17 @@ class TwoBox:
         torcwa.rcwa_geo.Lx = L[0]
         torcwa.rcwa_geo.Ly = L[1]
         torcwa.rcwa_geo.nx = self.Nx
-        torcwa.rcwa_geo.ny = np.min(self.Ny,2) # 2 minimum for 2d simulation displaying
+        torcwa.rcwa_geo.ny = 2 # np.min(self.Ny,2) # 2 minimum for 2d simulation displaying ? 
         torcwa.rcwa_geo.grid()
-        torcwa.rcwa_geo.edge_sharpness = 1000.
-        sim = torcwa.rcwa(freq=1/lamb0,order=[self.nG,2],L=L,dtype=sim_dtype,device=device)
-        sim.set_incident_angle(inc_ang=theta,azi_ang=phi)
-        
+        torcwa.rcwa_geo.edge_sharpness = self.torcwa_edge_sharpness
+        sim = torcwa.rcwa(freq=freq,order=[self.nG,0],L=L,dtype=sim_dtype,device=device)
+       
         ## CREATE LAYERS ##
-        eps_vacuum = 1.0        
-        sim.add_input_layer(eps=eps_vacuum)
+        eps_vacuum = 1        
+        sim.add_input_layer(eps=eps_vacuum) # input and output layers are eps=mu=1 by default, so this line not needed
+        sim.set_incident_angle(inc_ang=theta,azi_ang=phi)     # for some reason throws an error in solve_global_smatrix if this line is before defining input layer   
         self.build_grating_torcwa()
-        sim.add_layer(thickness=self.grating_depth,eps=self.grating_grid)
+        sim.add_layer(thickness=self.grating_depth,eps=self.grating_grid_torcwa)
         sim.add_layer(thickness=self.substrate_depth,eps=self.substrate_eps)
         sim.solve_global_smatrix()
         self.RCWA = sim
@@ -1856,5 +1858,7 @@ class TwoBox:
         box2_bool = torcwa.rcwa_geo.rectangle(Wx=w2,Wy=L[1],Cx=x2,Cy=L[1]/2.) # width, heigh, centerx, centery
         layer0_bool=torcwa.rcwa_geo.union(box1_bool,box2_bool)
         layer0_eps =eb1*box1_bool+eb2*box2_bool + (1.-layer0_bool)
-        self.grating_grid = layer0_eps
+        self.grating_grid_torcwa = layer0_eps
+        self.grating_grid = layer0_eps.cpu().numpy()
+        
         return layer0_eps

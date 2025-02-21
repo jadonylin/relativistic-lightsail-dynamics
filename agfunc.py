@@ -1,12 +1,14 @@
 import autograd.numpy as npa
 from autograd import grad, jacobian
 from torch.autograd import grad as grad_torch
-from torch.autograd import jacobian as jacobian_torch
+from torch.autograd.functional import jacobian as jacobian_torch
 from torch import erf as torch_erf
 from torch import linalg as torchLA
 from autograd.scipy.special import erf as autograd_erf
 from autograd.numpy import linalg as npaLA
 import torch
+# Smoothing if conditionals for backpropagation
+
 
 class agfunc:
     """ wrapper class for autograd and torch functions """
@@ -24,7 +26,7 @@ class agfunc:
             self.exp = npa.exp
             self.sum = npa.sum
             self.abs = npa.abs
-            self.softmax = softmax
+            self.softmax = self._softmax
             self.linspace=npa.linspace
             self.minimum=npa.minimum
             self.sort=npa.sort
@@ -49,7 +51,7 @@ class agfunc:
             self.exp=torch.exp
             self.sum=torch.sum
             self.abs=torch.abs
-            self.softmax = softmax_torch
+            self.softmax = self._softmax_torch
             self.linspace=torch.linspace
             self.minimum=torch.minimum
             self.sort=lambda x: torch.sort(x)[0]
@@ -61,3 +63,10 @@ class agfunc:
             self.log=torch.log
             self.eig=lambda x: torch.eig(x,eigenvectors=True)
             self.det=torch.det
+    def _softmax(self,sigma,p):
+        e_x = npa.exp(sigma*(p - npa.max(p)))
+        return e_x/npa.sum(e_x)
+
+    def _softmax_torch(self,sigma,p):
+        e_x = torch.exp(sigma*(p - torch.max(p)))
+        return e_x/torch.sum(e_x)
