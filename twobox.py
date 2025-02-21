@@ -172,6 +172,8 @@ class TwoBox:
             self.init_RCWA()
 
         elif self.RCWA_engine == 'TORCWA':            
+            if Nx<nG*2:
+                raise ValueError("Nx must be at least 2*nG for TORCWA")
             self.npa=agfunc('torch')
             self.init_TORCWA()
         else:
