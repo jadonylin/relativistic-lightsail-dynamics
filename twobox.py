@@ -829,7 +829,7 @@ class TwoBox:
             
             # Sort array to ensure differentiability
             sorted_x = npa.sort(x.flatten())
-            unique_values = sorted_x[np.concatenate(([True], npa.diff(sorted_x) != 0))]
+            unique_values = sorted_x[npa.concatenate(([True], npa.diff(sorted_x) != 0))]
 
             # Append filled_value as needed
             k = len(unique_values)
@@ -842,6 +842,7 @@ class TwoBox:
         eig_real_unique     =   unique_filled(eigReal, -1)
         eig_real_neg_unique =   npa.minimum(0., eig_real_unique)
         func_real_neg_array =   npa.power(eig_real_neg_unique, 2)
+        # func_real_neg       = func_real_neg_array[0] * func_real_neg_array[1] * func_real_neg_array[2] * func_real_neg_array[3]
         func_real_neg       =   npa.prod(func_real_neg_array)
 
         # Penalise mixed positive and negative Re(eig)
@@ -861,7 +862,8 @@ class TwoBox:
         func_imag           =   npa.prod(func_imag_array)
 
 
-        FD = func_real_neg * func_imag - penalty - penalty2
+        # FD = func_real_neg * func_imag - penalty - penalty2
+        FD = func_real_neg
         return FD
 
 

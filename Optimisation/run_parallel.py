@@ -36,12 +36,9 @@ from parameters import Initial_bigrating, opt_Parameters, Bounds
 from twobox import TwoBox
 
 
-Email_result = True
-
-
 # Global optimisation parameters
 num_cores = 2  # number of cores to run parallel optimisation
-maxfev = 10  # global 1000
+maxfev = 2  # global 1000
 h1_min, h1_max, param_bounds = Bounds()
 
 
@@ -185,3 +182,6 @@ if __name__ == '__main__':
         except:  # TODO: Catch specific exceptions
             print("Couldn't save data")
             print(data)
+
+# /opt/homebrew/anaconda3/envs/py12/lib/python3.12/site-packages/autograd/numpy/numpy_vjps.py:314: RuntimeWarning: invalid value encountered in divide
+#   return g_repeated / x
