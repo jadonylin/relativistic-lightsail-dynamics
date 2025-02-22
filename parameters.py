@@ -7,14 +7,6 @@ the Lorentz gamma factor and Doppler factor.
 import numpy as np
 import scipy
 
-I0 = 0.5 * 10**9  # laser intensity (might need to be halved)
-L = 10  # grating width (metres in 2D model)
-m = 1/1000            # mass (grams)
-c = scipy.constants.c
-
-def Parameters():
-    return I0, L, m, c
-
 
 def gamma_ND(v):
     """
@@ -67,6 +59,13 @@ def D1_ND(v):
 
 
 ## Global Optimisation parameters ##
+# Mission parameters
+I0 = 0.5 * 10**9  # laser intensity (might need to be halved)
+L = 10  # grating width (metres in 2D model)
+m = 1/1000  # mass (grams)
+c = scipy.constants.c
+
+
 wavelength = 1.  # Laser wavelength
 angle = 0.
 Nx = 100  # Number of grid points for RCWA simulation
@@ -119,7 +118,9 @@ param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max),
             (substrate_eps_min, substrate_eps_max)]
 
 
-## Optimisation parameters
+def Parameters():
+    return I0, L, m, c
+
 def opt_Parameters():
     return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad
 
@@ -172,4 +173,4 @@ if Start == "middle":
 
 
 def Initial_bigrating():
-    return grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps
+    return [grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps]

@@ -334,7 +334,7 @@ class TwoBox:
             if abs(sin_delta_m)>=1:
                 delta_m = "no_diffraction_order"
             else:
-                delta_m = npa.arcsin(test)
+                delta_m = npa.arcsin(sin_delta_m)
             return delta_m
         Q1 = 0
         Q2 = 0
@@ -848,7 +848,7 @@ class TwoBox:
         real_unique_0       =   unique_filled(eigReal, 0.)
         neg_array           =   npa.power(npa.minimum(0.,real_unique_0), 2)
         pos_array           =   npa.power(npa.maximum(0.,real_unique_0), 2)
-        penalty             =   np.sum(neg_array) * np.sum(pos_array)
+        penalty             =   npa.sum(neg_array) * npa.sum(pos_array)
 
         # Penalise all positive Re(eig)
         real_unique_1       =   unique_filled(eigReal, 1)
@@ -910,17 +910,17 @@ class TwoBox:
         # y acceleration terms
         # NOTE: derivatives with respect to lambda differ from derivatives with respect to frequency offset, the latter
         # being presented in Liam's thesis
-        fy_y    = - D**2 * I/(m*c1) * (Q2R - Q2L) * (1 - np.exp(-1/(2*w_bar**2)))
-        fy_phi  = - D**2 * I/(m*c1) * (dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * autograd_erf(1/(w_bar*np.sqrt(2)))
-        fy_vy   = - D**2 * I/(m*c1) * 1/c * (D+1)/(D*(g+1)) * (Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * autograd_erf(1/(w_bar*np.sqrt(2)))
-        fy_vphi =   D**2 * I/(m*c1) * 1/c * (2*(Q2R - Q2L) - lam*(dQ2dlambdaR - dQ2dlambdaL)) * (w/2)**2 * (1 - np.exp(-1/(2*w_bar**2)))
+        fy_y    = - D**2 * I/(m*c1) * (Q2R - Q2L) * (1 - npa.exp(-1/(2*w_bar**2)))
+        fy_phi  = - D**2 * I/(m*c1) * (dQ2ddeltaR + dQ2ddeltaL) * w/2 * npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2)))
+        fy_vy   = - D**2 * I/(m*c1) * 1/c * (D+1)/(D*(g+1)) * (Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL) * w/2 * npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2)))
+        fy_vphi =   D**2 * I/(m*c1) * 1/c * (2*(Q2R - Q2L) - lam*(dQ2dlambdaR - dQ2dlambdaL)) * (w/2)**2 * (1 - npa.exp(-1/(2*w_bar**2)))
 
         # phi acceleration terms
         # TODO: generalise for non-flat-geometry moments of inertia
-        fphi_y    =  D**2 * 12*I/(m*c1*L**2) * (Q1R + Q1L) * (w/2*np.sqrt(np.pi/2) * autograd_erf(1/(w_bar*np.sqrt(2))) - L/2*np.exp(-1/(2*w_bar**2))) 
-        fphi_phi  =  D**2 * 12*I/(m*c1*L**2) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - np.exp(-1/(2*w_bar**2)))
-        fphi_vy   =  D**2 * 12*I/(m*c1*L**2) * 1/c * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - np.exp(-1/(2*w_bar**2)))
-        fphi_vphi = -D**2 * 12*I/(m*c1*L**2) * 1/c * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*np.sqrt(np.pi/2) * autograd_erf(1/(w_bar*np.sqrt(2))) - L/2*np.exp(-1/(2*w_bar**2))) 
+        fphi_y    =  D**2 * 12*I/(m*c1*L**2) * (Q1R + Q1L) * (w/2*npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2))) - L/2*npa.exp(-1/(2*w_bar**2))) 
+        fphi_phi  =  D**2 * 12*I/(m*c1*L**2) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - npa.exp(-1/(2*w_bar**2)))
+        fphi_vy   =  D**2 * 12*I/(m*c1*L**2) * 1/c * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - npa.exp(-1/(2*w_bar**2)))
+        fphi_vphi = -D**2 * 12*I/(m*c1*L**2) * 1/c * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2))) - L/2*npa.exp(-1/(2*w_bar**2))) 
 
         # Build the Jacobian matrix
         J00 = fy_y;   J01 = fy_phi;   J02 = fy_vy;   J03 = fy_vphi

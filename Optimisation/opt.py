@@ -24,19 +24,14 @@ os.environ["NUMEXPR_NUM_THREADS"] = "1"
 
 import random
 
-import scipy
-
 import sys
 sys.path.append("../")
 
 import traceback
 
-from typing import Callable
-
-import parameters
-from parameters import Parameters, D1_ND, Initial_bigrating
+from parameters import Parameters, D1_ND, Initial_bigrating, opt_Parameters
 I0, L, m, c = Parameters()
-from run_parallel import final_speed, goal, angle, Nx, nG, Qabs
+_, angle, Nx, nG, Qabs, goal, final_speed, _ = opt_Parameters()
 from twobox import TwoBox
 
 
@@ -162,7 +157,7 @@ def FOM_uniform(grating: TwoBox, final_speed: float=20., goal: float=0.1, return
         return FOM
 
 
-def global_optimise(objective: function, 
+def global_optimise(objective, 
                     sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxfev: int=32000,
                     xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[]):
     """
@@ -281,6 +276,13 @@ def global_optimise(objective: function,
     global_opt.set_lower_bounds(lb)
     global_opt.set_upper_bounds(ub)
 
+
+    opt_params = global_opt.optimize(init)
+    optimum = objective(opt_params)[0]
+    print("Success on starting bounds: ", param_bounds[1])
+    is_optimum = True
+
+    return (optimum, opt_params, is_optimum)
 
     try:
         opt_params = global_opt.optimize(init)
