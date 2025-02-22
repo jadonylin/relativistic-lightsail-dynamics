@@ -275,6 +275,11 @@ def global_optimise(objective,
     global_opt.set_upper_bounds(ub)
 
     import traceback
+    opt_params = global_opt.optimize(init)
+    optimum = objective(opt_params)[0]
+    print("Success on starting bounds: ", param_bounds[1])
+    is_optimum = True
+    return (optimum, opt_params, is_optimum)    
 
     try:
         opt_params = global_opt.optimize(init)

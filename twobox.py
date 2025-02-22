@@ -912,16 +912,16 @@ class TwoBox:
         dQ1dlambdaL = dQ1dlambdaR;    dQ2dlambdaL = -dQ2dlambdaR
 
         # y acceleration
-        fy_y= -     D**2 * (I/(m*c1)) *  ( Q2R - Q2L ) * ( 1 - np.exp(-1/(2*w_bar**2) ) )
-        fy_phi= -   D**2 * (I/(m*c1)) * ( dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * autograd_erf( 1/(w_bar*np.sqrt(2)) )
-        fy_vy= -    D**2 * (I/(m*c1)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * autograd_erf( 1/(w_bar*np.sqrt(2)) )
-        fy_vphi=    D**2 * (I/(m*c1)) * (1/c) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
+        fy_y= -     D**2 * (I/(m*c1)) *  ( Q2R - Q2L ) * ( 1 - npa.exp(-1/(2*w_bar**2) ) )
+        fy_phi= -   D**2 * (I/(m*c1)) * ( dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
+        fy_vy= -    D**2 * (I/(m*c1)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * npa.sqrt( npa.pi/2 ) * autograd_erf( 1/(w_bar*npa.sqrt(2)) )
+        fy_vphi=    D**2 * (I/(m*c1)) * (1/c) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
 
         # phi acceleration
-        fphi_y=     D**2 * (12*I/( m*c1*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * autograd_erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
-        fphi_phi=   D**2 * (12*I/( m*c1*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
-        fphi_vy=    D**2 * (12*I/( m*c1*L**2)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
-        fphi_vphi= -D**2 * (12*I/( m*c1*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * autograd_erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+        fphi_y=     D**2 * (12*I/( m*c1*L**2)) * ( Q1R + Q1L ) * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
+        fphi_phi=   D**2 * (12*I/( m*c1*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+        fphi_vy=    D**2 * (12*I/( m*c1*L**2)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - npa.exp( -1/(2*w_bar**2) ))
+        fphi_vphi= -D**2 * (12*I/( m*c1*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*npa.sqrt( npa.pi/2 )  * autograd_erf( 1/(w_bar*npa.sqrt(2)))  - (L/2)* npa.exp( -1/(2*w_bar**2) )  ) 
 
         # Build the Jacobian matrix
         J00=fy_y;   J01=fy_phi;     J02=fy_vy;    J03=fy_vphi
