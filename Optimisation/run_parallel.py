@@ -182,6 +182,3 @@ if __name__ == '__main__':
         except:  # TODO: Catch specific exceptions
             print("Couldn't save data")
             print(data)
-
-# /opt/homebrew/anaconda3/envs/py12/lib/python3.12/site-packages/autograd/numpy/numpy_vjps.py:314: RuntimeWarning: invalid value encountered in divide
-#   return g_repeated / x

@@ -2,6 +2,11 @@
 A class to create and simulate a TwoBox grating, storing all grating parameters and hyperparameters.
 
 Contains plotting methods to show: grating permittivity profile, spectra, fields and angle dependence.
+
+TODO: Move functions containing intensity, speed of light and mass to a separate module. These functions
+rely on parameters that are not relevant to the grating simulation and should be kept separate. This module
+should only contain bigrating simulation functions, enabling the user to easily implement their own figures
+of merit in a separate module without worrying about the grating simulation.
 """
 
 # IMPORTS ###########################################################################################################################################################################
@@ -204,6 +209,9 @@ class TwoBox:
 
         Builds box1 as far to the left in the unit cell as possible then fits box2 afterwards. This ensures 
         that large boxes (relative to the grating pitch) can fit inside the unit cell.
+
+        TODO: handle the case where the boxes are too large to fit in the unit cell. Shouldn't necessarily
+        throw an error because the optimiser may sometimes step into this region before stepping out.
 
         Parameters
         sigma :   Softmax inverse temperature, i.e. inverse smoothing factor. Smaller means smoother grating.
@@ -411,8 +419,8 @@ class TwoBox:
             self.wavelength = wavelength
             return self.Q()
 
-        Q_jacobian = jacobian(Q_both)(params)
         params = npa.array([input_angle, input_wavelength])
+        Q_jacobian = jacobian(Q_both)(params)
 
         PD_Q1_angle = Q_jacobian[0][0]
         PD_Q2_angle = Q_jacobian[1][0]
@@ -839,31 +847,40 @@ class TwoBox:
             return unique_values
     
         # Reward all Re(eig) being negative
+        # NOTE: In the following penalty and reward terms, all operations must be done element-wise to avoid 
+        #       "RuntimeWarning: invalid value encountered in divide" during optimisation
+        # TODO: Determine why we can't use npa functions here
+
+        # Reward all Re(eig) being negative
         eig_real_unique     =   unique_filled(eigReal, -1)
         eig_real_neg_unique =   npa.minimum(0., eig_real_unique)
         func_real_neg_array =   npa.power(eig_real_neg_unique, 2)
-        # func_real_neg       = func_real_neg_array[0] * func_real_neg_array[1] * func_real_neg_array[2] * func_real_neg_array[3]
-        func_real_neg       =   npa.prod(func_real_neg_array)
+        func_real_neg       =   func_real_neg_array[0] * func_real_neg_array[1] * func_real_neg_array[2] * func_real_neg_array[3]
+        # func_real_neg       =   npa.prod(func_real_neg_array)  
 
         # Penalise mixed positive and negative Re(eig)
         real_unique_0       =   unique_filled(eigReal, 0.)
         neg_array           =   npa.power(npa.minimum(0.,real_unique_0), 2)
         pos_array           =   npa.power(npa.maximum(0.,real_unique_0), 2)
-        penalty             =   npa.sum(neg_array) * npa.sum(pos_array)
+        # penalty             =   npa.sum(neg_array) * npa.sum(pos_array)
+        neg_sum             =   neg_array[0] + neg_array[1] + neg_array[2] + neg_array[3]
+        pos_sum             =   pos_array[0] + pos_array[1] + pos_array[2] + pos_array[3]
+        penalty             =   neg_sum * pos_sum
 
         # Penalise all positive Re(eig)
         real_unique_1       =   unique_filled(eigReal, 1)
         all_pos_array       =   npa.power(npa.maximum(0.,real_unique_1), 2)
-        penalty2            =   npa.prod(all_pos_array)
+        penalty2            =   all_pos_array[0] * all_pos_array[1] * all_pos_array[2] * all_pos_array[3]
+        # penalty2            =   npa.prod(all_pos_array)
 
         # Remove Re(eig)<0 contribution if no restoring behaviour
         # log(1+x^2) chosen as a smooth approximation to the Heaviside step function
         func_imag_array     =   npa.log(1 + npa.power(eigImag,2))
-        func_imag           =   npa.prod(func_imag_array)
+        func_imag           =   func_imag_array[0] * func_imag_array[1] * func_imag_array[2] * func_imag_array[3]
+        # func_imag           =   npa.prod(func_imag_array)
 
 
-        # FD = func_real_neg * func_imag - penalty - penalty2
-        FD = func_real_neg
+        FD = func_real_neg * func_imag - penalty - penalty2
         return FD
 
 
@@ -1427,13 +1444,12 @@ class TwoBox:
         init_wavelength = self.wavelength  # record user-initialised wavelength
 
         ## CALCULATE EIGS ##
-        eigvals = np.zeros((4,num_plot_points), dtype=np.float64)
+        eigvals = np.zeros((4,num_plot_points), dtype=np.complex128)
         
         for idx, lam in enumerate(wavelengths):
             # Calculate eigs for each order
             self.wavelength = lam
-            real, imag   = self.Eigs(I=I,m=m,c1=c, grad_method="grad", check_det=False, return_vec=False)
-
+            real, imag = self.Eigs(I=I,m=m,c1=c, grad_method="grad", check_det=False, return_vec=False)
             eigvals[:,idx] = real + 1j*imag
             
         self.wavelength = init_wavelength # restore user-initialised wavelength
