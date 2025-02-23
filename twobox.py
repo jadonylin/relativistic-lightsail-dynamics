@@ -1128,8 +1128,7 @@ class TwoBox:
 
     def average_real_eigs(self, final_speed, goal, return_eigs:bool=False, I:float=10e9):
         """
-        TODO: this function should be moved to opt.py because it relies on a finite wavelength range
-        rather than a fixed wavelength
+        TODO: this function should be moved to opt.py because it depends on final sail velocity
 
         Calculates the average of each Re(eig) over the wavelength range. 
         
