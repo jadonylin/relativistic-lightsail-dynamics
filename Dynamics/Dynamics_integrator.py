@@ -6,7 +6,6 @@ import numpy as np
 
 import pickle
 
-import scipy
 from scipy.interpolate import RegularGridInterpolator
 
 import sys
@@ -165,7 +164,7 @@ def aM(t,yvec,vL,i):
     I2L = w/(16*B_int**3) * (  4*w*(A_int*expMID - XR*expL) - np.sqrt(2*np.pi)*(4*A_int**2 + w**2)*(erfL - erfMID) )
 
     # Forces
-    fx = (1/m)*(D**2*I/c) 
+    fx = ((1/m)*(D**2*I/c)
             * ( (Q1R*costheta - Q2R*sintheta)*I0R + (Q1L*costheta - Q2L*sintheta)*I0L
                 + (vphiM/c)
                     * ( (costheta*(2*cosphi*Q1R - T1R) - sintheta*(2*cosphi*Q2R - T2R))*I1R
@@ -174,8 +173,9 @@ def aM(t,yvec,vL,i):
                         - (-(B - sintheta*E)*Q1L + (A + costheta*E)*Q2L)*I1L
                     ) 
             )
+    )
     
-    fy = (1/m)*(D**2*I/c) 
+    fy = ((1/m)*(D**2*I/c)
             * ( (Q1R*sintheta + Q2R*costheta)*I0R + (Q1L*sintheta + Q2L*costheta)*I0L
                 + (vphiM/c)
                     * ( (sintheta*(2*cosphi*Q1R - T1R) + costheta*(2*cosphi*Q2R - T2R))*I1R
@@ -183,9 +183,10 @@ def aM(t,yvec,vL,i):
                         + (-(A + costheta*E)*Q1R - (B - sintheta*E)*Q2R)*I1R
                         - (-(A + costheta*E)*Q1L - (B - sintheta*E)*Q2L)*I1L
                     ) 
-            ) 
+            )
+    ) 
     
-    fphi = -(12/(m*L**2))*(D**2*I/c)
+    fphi = (-(12/(m*L**2))*(D**2*I/c) 
             * ( (Q1R*cosdelta - Q2R*sindelta)*I1R - (Q1L*cosdelta - Q2L*sindelta)*I1L 
                 + (vphiM/c)
                     * ( (cosdelta*(2*cosphi*Q1R - T1R) - sindelta*(2*cosphi*Q2R - T2R))*I2R 
@@ -194,6 +195,7 @@ def aM(t,yvec,vL,i):
                         + (-(C - sindelta*E)*Q1L + (S + cosdelta*E)*Q2L)*I2L
                     ) 
             )
+    )
 
 
     F = np.array([vxM,vyM,vphiM,fx,fy,fphi])
@@ -215,10 +217,10 @@ def Mstep(h,tn,yn,vL,i):
     return tNew,yNew
 
 
-################################
-## Parameters
+## Optimisation parameters and initial conditions ##
 timeLn = 0
-x0 = 0; vx0 = 0
+x0 = 0
+vx0 = 0
 
 ## Optimised - 1st
 # y0      = 4.246092324538898e-07
@@ -226,10 +228,10 @@ x0 = 0; vx0 = 0
 # vy0     = -1.8065865332297213
 # omega0  = -0.85798762975541
 ## Optimised - 2nd
-y0      = 3.590704173892898e-07
-phi0    = 2.978897761047781e-08
-vy0     = -1.9990833152857805
-omega0  = -0.036371913744121846
+y0     = 3.590704173892898e-07
+phi0   = 2.978897761047781e-08
+vy0    = -1.9990833152857805
+omega0 = -0.036371913744121846
 
 ## Ilic - 1st
 # y0      = 1.3183489420398592e-07
@@ -248,15 +250,14 @@ omega0  = -0.036371913744121846
 
 Y0 = np.array([x0,y0,phi0,vx0,vy0,omega0])
 
-# Maximum runtime
-time_MAX = 8.5*60*60   
+time_MAX = 8.5*60*60  # Maximum runtime (seconds)
+ 
+h = 1e-4   # Step size  
+runID = 2  # Added to the output data filename
 
-## Step size   
-h = 1e-4      
-runID = 2
 
 ################################
-# Frame M integration
+## Integration ##
 x_array = []
 y_array = []
 vx_array = []
@@ -266,32 +267,31 @@ timeM_array = []
 tau_array = []
 timeL_array = []
 
-## Storing angles in frame M
+# Angles are stored in frame M
 phi_array = []
 omega_array = []
 
-## Frame Rotation angle
+# Frame Wigner-rotation angle
 eps_array = []
 eps_rate_array = []
 
-## Checking whether took too long
+# Flag if the optimisation took too long
 STOPPED = False
 
+
 vn = np.array([vx0, vy0])
-z0 = np.array([timeLn, x0, y0])           
+z0 = np.array([timeLn, x0, y0])  # Four-position of the sail (without the third spatial component)           
 
-# Initial space (and time) in frame M
-zM0     = Lorentz(vn,z0)
-timeMn  = zM0[0]
-x0M     = zM0[1]
-y0M     = zM0[2]
+# Initial four-position in frame M
+zM0    = Lorentz(vn,z0)
+timeMn, x0M, y0M = zM0
 
-## Initial Y in frame M
+# Initial state vectors
 YMn = np.array([x0M, y0M, phi0, 0, 0, omega0])            
 YL0 = np.array([x0, y0, vx0, vy0])       
 taun = 0
 
-#### Storing Initial values
+
 x_array.append(x0)
 y_array.append(y0)
 vx_array.append(vx0)
@@ -304,60 +304,61 @@ timeM_array.append(timeMn)
 tau_array.append(taun)
 timeL_array.append(timeLn)
 
-timeSTART=time.time()
-i=1
-i_STOP = 100
-vFINAL= 0.027*c
+timeSTART = time.time()
+i = 1
+i_STOP = 100  # for debugging
+vFINAL = 0.027*c
 
-################################
-# Integration
-while (vn[0] < vFINAL):# and (i<i_STOP): 
-    timeDIFF=time.time()-timeSTART
+
+while (vn[0] < vFINAL):
+    """
+    The main loop of the comoving integrator. Information is passed between frames L, Mn and Mn+1.
+
+    The loop:
+        Sail starts in M_n and accelerates into state n+1 via M-frame forces. This updates position, angle and velocities.
+        
+        The n+1 information is sent back to L, then into a new frame M_{n+1} defined by relativistic addition of the M_n velocity 
+        (in L) and the new small velocity due to M-frame forces (over the time step Delta tau).
     
-    if timeDIFF>=time_MAX: # Finished
+        Rotation information is transferred from M_n to M_{n+1} purely via Wigner rotation.
+    """
+    
+    timeDIFF = time.time() - timeSTART
+    
+    if timeDIFF >= time_MAX: # Finished
         STOPPED = True
         print("Stopped yay :)")
         break
+    
     if STOPPED:
         break    
-
     else:                                  
-        ###############################################
-        ### Take a step in M and solve dynamics there
+        # Take a step in M and evolve state there
         try:
-            timeMNew, YNew = Mstep(h,timeMn,YMn,vn,i)                # t,[x,y,phi,vx,vy,vphi]
-        except:
+            timeMNew, YNew = Mstep(h,timeMn,YMn,vn,i) 
+        except:  # TODO: catch specific exception
             STOPPED = True
-            print("Force failed: Successfuly stopped early")
+            print("Force failed: Successfully stopped early")
             break
 
-        ## Store new M
+        # Store new M
         xNew     = YNew[0]
         yNew     = YNew[1]
         phiNew   = YNew[2]
-        uxNew    = YNew[3]
+        uxNew    = YNew[3]  
         uyNew    = YNew[4]
         omegaNew = YNew[5]
 
-        ###############################################
-        ### Convert position variables to frame L
+        # Convert time and position variables to frame L using inverse Lorentz transformation
+        zNew  = np.array([timeMNew,xNew,yNew]) 
+        uNew  = np.array([uxNew,uyNew])  # Velocity induced by the M-frame forces over small time step
+        zLNew = Lorentz(-vn,zNew)
 
-        # Inverse Lorentz to store time, position variables in frame L
-        zNew     = np.array([timeMNew,xNew,yNew])         # [t,x,y]
-        uNew     = np.array([uxNew,uyNew])            # [ux, uy]
-        zLNew    = Lorentz(-vn,zNew)               # [t,x,y]
-
-        ###############################################
-        #### Defining new M+1 frame as boost from L
-        
-        ## Velocity addition to find new incoming velocity
-        vLNew    = vadd(vn,uNew)
-        ## Boost from L
-        zM_NEXT  = Lorentz(vLNew,zLNew)   # Won't be at origin anymore due to forces
-        ## Velocity
-        vM_NEXT  = np.array([0,0])          # New velocity is 0 since boosted into frame 
-        ## Frame Rotation angle
-        eps      = SinCosEpsilon(vn,uNew)[2]
+        # Defining new M_{n+1} frame as a boost from L
+        vLNew   = vadd(vn,uNew)  # Uses relativistic velocity addition
+        zM_NEXT = Lorentz(vLNew,zLNew)  # Won't be at the origin anymore due to forces
+        vM_NEXT = np.array([0,0])  # New velocity is 0 since we've just boosted into the new frame 
+        eps     = SinCosEpsilon(vn,uNew)[2]  # Wigner rotation angle
         if i==1:
             eps_rate = (eps - 0)/h
         else:    
