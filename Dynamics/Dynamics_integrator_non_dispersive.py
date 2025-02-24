@@ -153,8 +153,8 @@ def aM(t,yvec,vL,i):
     fphi=-(12/(m*L**2))*(D**2*I/c)*( ( Q1R*cosdelta - Q2R*sindelta )*I1R - ( Q1L*cosdelta - Q2L*sindelta )*I1L 
                            + (vphiM/c)*( ( cosdelta*( 2*cosphi*Q1R - T1R ) - sindelta*( 2*cosphi*Q2R - T2R ) )*I2R 
                                        + ( cosdelta*( 2*cosphi*Q1L - T1L ) - sindelta*( 2*cosphi*Q2L - T2L ) )*I2L  
-                                       + (-( C - sindelta*E )*Q1R + ( S + cosdelta*E )*Q2R)*I1R
-                                       + (-( C - sindelta*E )*Q1L + ( S + cosdelta*E )*Q2L)*I1L
+                                       + (-( C - sindelta*E )*Q1R + ( S + cosdelta*E )*Q2R)*I2R
+                                       + (-( C - sindelta*E )*Q1L + ( S + cosdelta*E )*Q2L)*I2L
                            ) )
 
     ## Store as d/dtau (Y)=F=[vx,vy,vphi,fy,fy,fphi]
