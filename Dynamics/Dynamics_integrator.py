@@ -1,12 +1,23 @@
+"""
+A script for simulating the dynamics of a twobox grating, calculated using a comoving integrator.
+"""
+
 import numpy as np
-from scipy.interpolate import RegularGridInterpolator
+
 import pickle
+
+import scipy
+from scipy.interpolate import RegularGridInterpolator
+
 import sys
 sys.path.append("../")
-c=299792458
+
+import time
 
 from SR_functions import Gamma, Dv, vadd, SinCosTheta, SinCosEpsilon, ABSC, E_eps, erf, Parameters, gaussian_width, Lorentz, norm_squared
 
+
+# The efficiency factors are too expensive to calculate in real time, so pre-calculated tables are used.
 grating_type = "Second"
 
 if grating_type == "Ilic":
@@ -17,9 +28,11 @@ if grating_type == "Second":
     klambda = 1000
     kdelta = 1000
     pkl_load_name = rf'Data/Tables/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
-## Load data
+
+
 with open(pkl_load_name, 'rb') as f: 
     data = pickle.load(f)
+
 
 Q1 = data['Q1']
 Q2 = data['Q2']
@@ -27,18 +40,16 @@ PD_Q1_delta = data['PD_Q1_delta']
 PD_Q2_delta = data['PD_Q2_delta']
 PD_Q1_lambda = data['PD_Q1_lambda']
 PD_Q2_lambda = data['PD_Q2_lambda']
-
 lambda_array = data['lambda array']
 delta_array = data['delta array']
 
-################################
-# Bilinear interpolation
 interp_Q1           =   RegularGridInterpolator( (lambda_array,delta_array), Q1)
 interp_Q2           =   RegularGridInterpolator( (lambda_array,delta_array), Q2)
 interp_PD_Q1_delta  =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q1_delta)
 interp_PD_Q2_delta  =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q2_delta)
 interp_PD_Q1_lambda =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q1_lambda)
 interp_PD_Q2_lambda =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q2_lambda)
+
 
 def Q1_call(delta, lam):
     return interp_Q1( np.array( [lam,delta] ) )[0]
@@ -55,10 +66,7 @@ def PD_Q1_lambda_call(delta, lam):
 def PD_Q2_lambda_call(delta, lam):
     return interp_PD_Q2_lambda( np.array( [lam,delta] ) )[0]
 
-################################
-# Force equations
 
-# Laser parameters
 I, L, m, c = Parameters()
 I = 10e9
 I_string = "10G"
@@ -68,27 +76,35 @@ wavelength = 1
 
 def aM(t,yvec,vL,i):
     """
-    ## Inputs
-    t: Frame Mn time
-    yvec: Frame Mn - [x, y, phi, vx, vy, vphi]
-    vL: Frame L - [vx, vy]
-    i: input step (for troubleshooting)
-    ## Outputs
-    Returns the vector d/dtau(yvec):\n
-    [vx,vy,vphi,fx,fy,fphi]
+    Calculate the lightsail state-vector acceleration using the frame M forces. Implements acceleration
+    equations derived in the paper.
+
+
+    Parameters
+    ----------
+    t    : Time measured in Frame Mn
+    yvec : State vector measured in Frame Mn - [x, y, phi, vx, vy, vphi].
+    vL   : Velocity of Frame Mn relative to Frame L - [vx, vy]
+    i    : Input step (for troubleshooting)
+    
+    Returns
+    -------
+    [vx,vy,vphi,fx,fy,fphi] :   The derivative of the state vector with respect to the sail's proper time
     """
-    ## Y state vectors
+    
+    # State vector information. Is transferred from Mn to L to Mn+1
+    # All lengths and velocities are dimensional.
     xM  = yvec[0];     yM = yvec[1];    phiM = yvec[2]
     vxM = yvec[3];    vyM = yvec[4];   vphiM = yvec[5]
 
-    ## Velocity in L
     vx = vL[0];       vy = vL[1]
 
-    ## Angles
+    # Convenience factors in the equations of motion
     sintheta, costheta, theta = SinCosTheta(vL)
     A, B, S, C = ABSC(vL,phiM)
     E = E_eps(vL,phiM)
 
+    # Rotation information. Is transferred from Mn directly to Mn+1
     delta    = theta - phiM
     sindelta = np.sin(delta)
     cosdelta = np.cos(delta)
@@ -96,10 +112,11 @@ def aM(t,yvec,vL,i):
     sinphi   = np.sin(phiM)
     cosphi   = np.cos(phiM)
 
-    ## Find  M wavelength
+
     D   = Dv(vL)
     g   = Gamma(vL)
-    lam = wavelength / D  # incoming wavelength
+    lam = wavelength / D  # Incident wavelength in Frame Mn
+    
     try:
         Q1R = Q1_call(delta,lam);    Q2R =  Q2_call(delta,lam);    
         Q1L = Q1_call(-delta,lam);   Q2L = -Q2_call(-delta,lam);   
@@ -110,86 +127,99 @@ def aM(t,yvec,vL,i):
         dQ1dlambdaR = PD_Q1_lambda_call(delta,lam);     dQ2dlambdaR =  PD_Q2_lambda_call(delta,lam)
         dQ1dlambdaL = PD_Q1_lambda_call(-delta,lam);    dQ2dlambdaL = -PD_Q2_lambda_call(-delta,lam)
 
-        ## Define T_{pr,j}'
+        # Define T_{pr,j}' as angular correction terms, containing the Q1 and Q2 dispersion derivatives
         T1R = (A/costheta - E) * dQ1ddeltaR + cosphi * lam * dQ1dlambdaR
         T1L = (A/costheta - E) * dQ1ddeltaL + cosphi * lam * dQ1dlambdaL
         T2R = (A/costheta - E) * dQ2ddeltaR + cosphi * lam * dQ2dlambdaR
         T2L = (A/costheta - E) * dQ2ddeltaL + cosphi * lam * dQ2dlambdaL
-    except:
+    except:  # TODO: catch specific exception
         print(rf"Failed on delta'={delta}, lambda'={lam}")
         print(rf"Data boundaries: delta' in ({delta_array[0]}, {delta_array[-1]}), lambda' in ({lambda_array[0]}, {lambda_array[-1]})")
         print(rf"Failed on i={i}, t={t}, v={vL}")
         STOPPED = True
 
-    ## Base factors
-    A_int=yM*       ( 1 + (g**2/(g+1))*(vy**2/c**2) )   + xM*       (g**2/(g+1))*(vx*vy)/c**2 + g*vy*t
-    B_int=cosphi*   ( 1 + (g**2/(g+1))*(vy**2/c**2) )   + sinphi*   (g**2/(g+1))*(vx*vy)/c**2
+    # Transformed Gaussian intensity distribution from Frame L to Frame Mn
+    A_int = yM     * (1 + g**2/(g+1)*vy**2/c**2) + xM     * g**2/(g+1)*vx*vy/c**2 + g*vy*t
+    B_int = cosphi * (1 + g**2/(g+1)*vy**2/c**2) + sinphi * g**2/(g+1)*vx*vy/c**2
 
-    expR=np.exp(-2*(( A_int + B_int*(L/2) )**2)/w**2 )
-    expL=np.exp(-2*(( A_int - B_int*(L/2) )**2)/w**2 )
-    
-    erfR=erf( (np.sqrt(2)/w)*( A_int + B_int*(L/2) ) )
-    erfL=erf( (np.sqrt(2)/w)*( A_int - B_int*(L/2) ) )
-    
-    expMID=np.exp(-2*(A_int**2)/w**2 )
-    erfMID=erf( (np.sqrt(2)/w)*A_int )
-    
-    XR=A_int + B_int*(L/2)
-    XL=A_int - B_int*(L/2)
+    XR = A_int + B_int*L/2
+    XL = A_int - B_int*L/2
 
-    ## Integrals
-    I0R =  (w/(2*B_int))*np.sqrt(np.pi/2)* ( erfR - erfMID )
-    I0L = -(w/(2*B_int))*np.sqrt(np.pi/2)* ( erfL - erfMID )
+    expR = np.exp(-2/w**2 * XR**2)
+    expL = np.exp(-2/w**2 * XL**2)
     
-    I1R = (w/(4*B_int**2))* ( w*( expMID - expR ) - np.sqrt(2*np.pi)*A_int*( erfR - erfMID ) )
-    I1L = (w/(4*B_int**2))* ( w*( expMID - expL ) - np.sqrt(2*np.pi)*A_int*( erfL - erfMID ) )
+    erfR = erf(np.sqrt(2)/w*XR)
+    erfL = erf(np.sqrt(2)/w*XL)
     
-    I2R = (w/(16*B_int**3))* ( -4*w*(A_int*expMID - XL*expR) + np.sqrt(2*np.pi)*(4*A_int**2 + w**2)* ( erfR - erfMID) )
-    I2L = (w/(16*B_int**3))* (  4*w*(A_int*expMID - XR*expL) - np.sqrt(2*np.pi)*(4*A_int**2 + w**2)* ( erfL - erfMID) )
+    expMID = np.exp(-2*A_int**2/w**2)
+    erfMID = erf(np.sqrt(2)/w*A_int)
 
-    ## Forces
-    fx=(1/m)*(D**2*I/c) * ( ( Q1R*costheta - Q2R*sintheta )*I0R + ( Q1L*costheta - Q2L*sintheta )*I0L
-                           + (vphiM/c)*( ( costheta*( 2*cosphi*Q1R - T1R ) - sintheta*( 2*cosphi*Q2R - T2R ) )*I1R
-                                       - ( costheta*( 2*cosphi*Q1L - T1L ) - sintheta*( 2*cosphi*Q2L - T2L ) )*I1L
-                                       + (-( B - sintheta*E )*Q1R + ( A + costheta*E )*Q2R)*I1R
-                                       - (-( B - sintheta*E )*Q1L + ( A + costheta*E )*Q2L)*I1L
-                           ) )
+    # Integrated moments of intensity
+    I0R =  w/(2*B_int) * np.sqrt(np.pi/2) * (erfR - erfMID)
+    I0L = -w/(2*B_int) * np.sqrt(np.pi/2) * (erfL - erfMID)
     
-    fy=(1/m)*(D**2*I/c) * ( ( Q1R*sintheta + Q2R*costheta )*I0R + ( Q1L*sintheta + Q2L*costheta )*I0L
-                           + (vphiM/c)*( ( sintheta*( 2*cosphi*Q1R - T1R ) + costheta*( 2*cosphi*Q2R - T2R ) )*I1R
-                                       - ( sintheta*( 2*cosphi*Q1L - T1L ) + costheta*( 2*cosphi*Q2L - T2L ) )*I1L
-                                       + (-( A + costheta*E )*Q1R - ( B - sintheta*E )*Q2R)*I1R
-                                       - (-( A + costheta*E )*Q1L - ( B - sintheta*E )*Q2L)*I1L
-                           ) ) 
+    I1R = w/(4*B_int**2) * ( w*(expMID - expR) - np.sqrt(2*np.pi)*A_int*(erfR - erfMID) )
+    I1L = w/(4*B_int**2) * ( w*(expMID - expL) - np.sqrt(2*np.pi)*A_int*(erfL - erfMID) )
     
-    fphi=-(12/(m*L**2))*(D**2*I/c)*( ( Q1R*cosdelta - Q2R*sindelta )*I1R - ( Q1L*cosdelta - Q2L*sindelta )*I1L 
-                           + (vphiM/c)*( ( cosdelta*( 2*cosphi*Q1R - T1R ) - sindelta*( 2*cosphi*Q2R - T2R ) )*I2R 
-                                       + ( cosdelta*( 2*cosphi*Q1L - T1L ) - sindelta*( 2*cosphi*Q2L - T2L ) )*I2L  
-                                       + (-( C - sindelta*E )*Q1R + ( S + cosdelta*E )*Q2R)*I1R
-                                       + (-( C - sindelta*E )*Q1L + ( S + cosdelta*E )*Q2L)*I1L
-                           ) )
+    I2R = w/(16*B_int**3) * ( -4*w*(A_int*expMID - XL*expR) + np.sqrt(2*np.pi)*(4*A_int**2 + w**2)*(erfR - erfMID) )
+    I2L = w/(16*B_int**3) * (  4*w*(A_int*expMID - XR*expL) - np.sqrt(2*np.pi)*(4*A_int**2 + w**2)*(erfL - erfMID) )
 
-    ## Store as d/dtau (Y)=F=[vx,vy,vphi,fy,fy,fphi]
-    F=np.array([vxM,vyM,vphiM,fx,fy,fphi])
+    # Forces
+    fx = (1/m)*(D**2*I/c) 
+            * ( (Q1R*costheta - Q2R*sintheta)*I0R + (Q1L*costheta - Q2L*sintheta)*I0L
+                + (vphiM/c)
+                    * ( (costheta*(2*cosphi*Q1R - T1R) - sintheta*(2*cosphi*Q2R - T2R))*I1R
+                        - (costheta*(2*cosphi*Q1L - T1L) - sintheta*(2*cosphi*Q2L - T2L))*I1L
+                        + (-(B - sintheta*E)*Q1R + (A + costheta*E)*Q2R)*I1R
+                        - (-(B - sintheta*E)*Q1L + (A + costheta*E)*Q2L)*I1L
+                    ) 
+            )
+    
+    fy = (1/m)*(D**2*I/c) 
+            * ( (Q1R*sintheta + Q2R*costheta)*I0R + (Q1L*sintheta + Q2L*costheta)*I0L
+                + (vphiM/c)
+                    * ( (sintheta*(2*cosphi*Q1R - T1R) + costheta*(2*cosphi*Q2R - T2R))*I1R
+                        - (sintheta*(2*cosphi*Q1L - T1L) + costheta*(2*cosphi*Q2L - T2L))*I1L
+                        + (-(A + costheta*E)*Q1R - (B - sintheta*E)*Q2R)*I1R
+                        - (-(A + costheta*E)*Q1L - (B - sintheta*E)*Q2L)*I1L
+                    ) 
+            ) 
+    
+    fphi = -(12/(m*L**2))*(D**2*I/c)
+            * ( (Q1R*cosdelta - Q2R*sindelta)*I1R - (Q1L*cosdelta - Q2L*sindelta)*I1L 
+                + (vphiM/c)
+                    * ( (cosdelta*(2*cosphi*Q1R - T1R) - sindelta*(2*cosphi*Q2R - T2R))*I2R 
+                        + (cosdelta*(2*cosphi*Q1L - T1L) - sindelta*(2*cosphi*Q2L - T2L))*I2L  
+                        + (-(C - sindelta*E)*Q1R + (S + cosdelta*E)*Q2R)*I2R
+                        + (-(C - sindelta*E)*Q1L + (S + cosdelta*E)*Q2L)*I2L
+                    ) 
+            )
 
+
+    F = np.array([vxM,vyM,vphiM,fx,fy,fphi])
+    
     return F
 
+
 def Mstep(h,tn,yn,vL,i):
+    """Step in the direction of the acceleration vector aM in frame Mn using fourth-order Runge-Kutta."""
 
-    k1=h*aM(tn       , yn        , vL,i)
-    k2=h*aM(tn+0.5*h , yn+0.5*k1 , vL,i)
-    k3=h*aM(tn+0.5*h , yn+0.5*k2 , vL,i)
-    k4=h*aM(tn+h     , yn+k3     , vL,i)
+    k1 = h*aM(tn      , yn       , vL, i)
+    k2 = h*aM(tn+0.5*h, yn+0.5*k1, vL, i)
+    k3 = h*aM(tn+0.5*h, yn+0.5*k2, vL, i)
+    k4 = h*aM(tn+h    , yn+k3    , vL, i)
 
-    yNew=yn+(1/6)*(k1 + 2*k2 + 2*k3 + k4)
-    tNew=tn+h
+    yNew = yn + 1/6*(k1 + 2*k2 + 2*k3 + k4)
+    tNew = tn + h
 
     return tNew,yNew
+
 
 ################################
 ## Parameters
 timeLn = 0
 x0 = 0; vx0 = 0
+
 ## Optimised - 1st
 # y0      = 4.246092324538898e-07
 # phi0    = 1.662492890429048e-07
@@ -216,15 +246,13 @@ omega0  = -0.036371913744121846
 # x0=0;   y0=-(5/100)*L;      phi0=0            #y0=-0.05*L
 # vx0=0;  vy0=0;              omega0=0
 
-Y0=np.array([x0,y0,phi0,vx0,vy0,omega0])
+Y0 = np.array([x0,y0,phi0,vx0,vy0,omega0])
 
 # Maximum runtime
-import time
-time_MAX=8.5*60*60   
+time_MAX = 8.5*60*60   
 
 ## Step size   
-h=1e-4      
-Email_result = True
+h = 1e-4      
 runID = 2
 
 ################################
@@ -395,42 +423,3 @@ pkl_fname = f'./Data/{grating_type}_Dynamics_run{runID}_I{I_string}.pkl'
 # Save result
 with open(pkl_fname, 'wb') as data_file:
     pickle.dump(data, data_file)
-
-## Send email to notify end of code
-if Email_result:
-    # Import the following modules
-    from email.mime.text import MIMEText 
-    from email.mime.multipart import MIMEMultipart 
-    import smtplib 
-    from login import email_address, password, from_address, to
-
-
-    smtp = smtplib.SMTP('smtp.gmail.com', 587) 
-    smtp.ehlo() 
-    smtp.starttls() 
-
-    # Login with your email and password 
-    smtp.login(email_address,password)
-
-    def message(subject="Python Notification", 
-                text="", img=None, 
-                attachment=None): 
-        # build message contents 
-        msg = MIMEMultipart() 
-        # Add Subject 
-        msg['Subject'] = subject 
-        # Add text contents 
-        msg.attach(MIMEText(text)) 
-        return msg 
-
-    # Call the message function 
-    msg = message(subject=rf"Linux: your code has finished in {t_end_sec} seconds, or {t_end_min} minutes, or {t_end_hours} hours!" ,
-                  text=rf"Did it stop early? {STOPPED}",img=None, 
-                  attachment=None) 
-
-    # Provide some data to the sendmail function! 
-    smtp.sendmail(from_addr=from_address, to_addrs=to, msg=msg.as_string()) 
-
-    # Finally, don't forget to close the connection 
-    smtp.quit()
-
