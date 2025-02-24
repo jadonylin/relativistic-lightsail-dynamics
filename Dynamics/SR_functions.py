@@ -1,10 +1,21 @@
+"""
+A module containing functions for special relativity calculations. Several standard special relativity
+functions are included, such as the Lorentz transformation, Doppler shift and relativistic velocity addition. 
+The module also includes lesser-known relativistic aberration and Wigner rotation functions.
+
+
+This module also implements functions for convenience factors that appear in the equations of motion
+of symmetric lightsails, labelled A, B, C, S and E.
+
+TODO: move Parameters out of this module (redundant)
+"""
+
 import autograd
 from autograd import numpy as np
 from autograd.scipy.special import erf as autograd_erf
 import scipy
 
 #### All velocities are in m/s (NOT normalised by c)
-c = 299792458
 
 def norm_squared(v):
     """
@@ -138,11 +149,12 @@ def E_eps(v, phi):
 def erf(x):
     return autograd_erf(x)
 
+
 ## Parameters
 I0 = 0.5 * 10**9      # intensity 
 L = 10                # grating width (10 m^2)
 m = 1/1000            # mass (1g)
-c = 299792458
+c = scipy.constants.c
 
 def Parameters():
     return I0, L, m, c

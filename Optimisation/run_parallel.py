@@ -7,6 +7,8 @@ How to run:
     Set the hyperparameters for the global and local optimisation in this module
     
     Set the number of computer cores to use in parallel during optimisation
+
+    Set the maximum number of function evaluations (for optimisation) per core
 """
 
 # IMPORTS ################################################################################################################################################
