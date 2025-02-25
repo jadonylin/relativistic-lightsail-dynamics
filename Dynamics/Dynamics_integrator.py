@@ -364,30 +364,28 @@ while (vn[0] < vFINAL):
         else:    
             eps_rate = (eps - eps_array[i-2])/h
         
-        ###############################################
-        ### Repeating
-        # New M coordinates
-        timeMn   = zM_NEXT[0]                  
-        xM2      = zM_NEXT[1]
-        yM2      = zM_NEXT[2]
-        phiM2    = phiNew - eps  
-        vxM2     = 0
-        vyM2     = 0
-        omegaM2  = omegaNew - eps_rate                
+
+        # Updating state vector and M-frame velocity
+        timeMn  = zM_NEXT[0]
+        xM2     = zM_NEXT[1]
+        yM2     = zM_NEXT[2]
+        phiM2   = phiNew - eps  
+        vxM2    = 0
+        vyM2    = 0
+        omegaM2 = omegaNew - eps_rate
 
         YMn = np.array([xM2,yM2,phiM2,vxM2,vyM2,omegaM2])
         vn = vLNew
 
-        ###############################################
-        ### Saving L data
+
+        # Saving L data
         timeL_array.append(zLNew[0])
-        
         x_array.append(zLNew[1])
         y_array.append(zLNew[2])
         vx_array.append(vLNew[0])
         vy_array.append(vLNew[1])
 
-        #### Saving M data
+        # Saving M data
         timeM_array.append(timeMn)
         tau_array.append(tau_array[i-1] + h)
         
@@ -397,27 +395,27 @@ while (vn[0] < vFINAL):
         eps_array.append(eps)
         eps_rate_array.append(eps_rate)
     
-    iFINAL=i
-    i+=1
+    iFINAL = i
+    i += 1
 
 t_end = timeDIFF
 t_end_sec = round(t_end)
 t_end_min = round(t_end/60)
 t_end_hours = round(t_end/60**2)
 
-YL                  = np.array( [x_array, y_array, vx_array, vy_array] )
-phi_nparray         = np.array(phi_array)
-omega_nparray       = np.array(omega_array)
-timeM_nparray       = np.array(timeM_array)
-tau_nparray         = np.array(tau_array)
-timeL_nparray       = np.array(timeL_array)
-eps_nparray         = np.array(eps_array)
-eps_rate_nparray    = np.array(eps_rate_array)
+YL               = np.array( [x_array, y_array, vx_array, vy_array] )
+phi_nparray      = np.array(phi_array)
+omega_nparray    = np.array(omega_array)
+timeM_nparray    = np.array(timeM_array)
+tau_nparray      = np.array(tau_array)
+timeL_nparray    = np.array(timeL_array)
+eps_nparray      = np.array(eps_array)
+eps_rate_nparray = np.array(eps_rate_array)
 
-data = {'YL': YL, 'phiM': phi_nparray, 'phidot': omega_nparray, 
+data = {'YL': YL, 'phiM': phi_nparray, 'phidot': omega_nparray,
         'timeM': timeM_nparray, 'tau': tau_nparray, 'timeL': timeL_nparray, 
         'eps': eps_nparray, 'epsdot': eps_rate_nparray, 
-        'step': h, 'duration (min)':t_end_min, 'i': iFINAL, 'Stopped': STOPPED,
+        'step': h, 'duration (min)': t_end_min, 'i': iFINAL, 'Stopped': STOPPED,
         'Initial': Y0, 'Intensity': I}
 pkl_fname = f'./Data/{grating_type}_Dynamics_run{runID}_I{I_string}.pkl'
 
