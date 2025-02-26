@@ -137,7 +137,7 @@ for i in range(k_lambda):
     dQ1ddeltaL  = -dQ1ddeltaR;    dQ2ddeltaL  = dQ2ddeltaR
     dQ1dlambdaL = dQ1dlambdaR;    dQ2dlambdaL = -dQ2dlambdaR
 
-    # Calculate width-independent terms
+    # Calculate width-independent terms for minor time save
     ky_y      = -D**2 * I/(m*c) * (Q2R - Q2L) 
     ky_phi    = -D**2 * I/(m*c) * (dQ2ddeltaR + dQ2ddeltaL)
     muy_y     = -D**2 * I/(m*c) * 1/c * (D+1)/(D*(g+1)) * (Q1R + Q1L + dQ2ddeltaR + dQ2ddeltaL) 
@@ -161,8 +161,7 @@ for i in range(k_lambda):
         kphi_y_w    = kphi_y    * (w/2*np.sqrt(np.pi/2) * erf(1/(w_bar*np.sqrt(2))) - L/2*np.exp(-1/(2*w_bar**2)))  
         kphi_phi_w  = kphi_phi  * (w/2)**2 * (1 - np.exp(-1/(2*w_bar**2)))
         muphi_y_w   = muphi_y   * (w/2)**2 * (1 - np.exp(-1/(2*w_bar**2)))
-        muphi_phi_w = muphi_phi * (w/2)**2 * (w/2)**2 * (w/2*np.sqrt(np.pi/2) * erf(1/(w_bar*np.sqrt(2))) - L/2*np.exp(-1/(2*w_bar**2))) 
-
+        muphi_phi_w = muphi_phi * (w/2)**2 * (w/2*np.sqrt(np.pi/2) * erf(1/(w_bar*np.sqrt(2))) - L/2*np.exp(-1/(2*w_bar**2))) 
 
         ky_y_array[i,j]      = ky_y_w
         ky_phi_array[i,j]    = ky_phi_w
@@ -172,7 +171,6 @@ for i in range(k_lambda):
         kphi_phi_array[i,j]  = kphi_phi_w
         muphi_y_array[i,j]   = muphi_y_w
         muphi_phi_array[i,j] = muphi_phi_w
-
 
         J00 = ky_y_w;   J01 = ky_phi_w;   J02 = muy_y_w;   J03 = muy_phi_w
         J10 = kphi_y_w; J11 = kphi_phi_w; J12 = muphi_y_w; J13 = muphi_phi_w
@@ -210,28 +208,15 @@ for i in range(k_lambda):
 
         # Determine the regions of 2D space that have a different number of negative real part eigenvalues
         # and negative imaginary part eigenvalues. This is used to colour the stability diagram.
-        # The regions are denoted by the following values:
-        if sum(n>=0 for n in EIGreal) == 0:  # all negative
-            real_regions[i,j] = 0.1
-        elif sum(n>=0 for n in EIGreal) == 1:  # one positive (or zero)
-            real_regions[i,j] = 0.2
-        elif sum(n>=0 for n in EIGreal) == 2:  # two positive (or zero), two negative
-            real_regions[i,j] = 0.3 
-        elif sum(n>=0 for n in EIGreal) == 3:  # three positive (or zero), one negative
-            real_regions[i,j] = 0.4
-        elif sum(n>=0 for n in EIGreal) == 4:  # all positive (or zero)
-            real_regions[i,j] == 0.5
-
-        if sum(n>=0 for n in EIGimag) == 0:
-            imag_regions[i,j] == 0.1 
-        elif sum(n>=0 for n in EIGimag) == 1:
-            imag_regions[i,j] == 0.2 
-        elif sum(n>=0 for n in EIGimag) == 2:
-            imag_regions[i,j] == 0.3
-        elif sum(n>=0 for n in EIGimag) == 3:
-            imag_regions[i,j] == 0.4
-        elif sum(n>=0 for n in EIGimag) == 4:
-            imag_regions[i,j] == 0.5
+        # The regions are denoted by (arbitrary) values 0.1 to 0.5 (inclusive), corresponding to the 
+        # following values:
+        # 0.1 - all negative real part eigenvalues
+        # 0.2 - one positive (or zero) real part eigenvalue
+        # 0.3 - two positive (or zero) real part eigenvalues, two negative real part eigenvalues
+        # 0.4 - three positive (or zero) real part eigenvalues, one negative real part eigenvalue
+        # 0.5 - all positive (or zero) real part eigenvalues
+        real_regions[i,j] = sum(n>=0 for n in EIGreal)/10 + 0.1
+        imag_regions[i,j] = sum(n>=0 for n in EIGimag)/10 + 0.1
 
 
 timeDIFF = time.time() - timeSTART
