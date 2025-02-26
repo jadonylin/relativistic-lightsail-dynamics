@@ -411,7 +411,6 @@ class TwoBox:
         
         Q1,Q2 = self.Q()
 
-        ####################################
 
         def Q_both(params):
             angle, wavelength = params
@@ -858,6 +857,12 @@ class TwoBox:
         func_real_neg       =   func_real_neg_array[0] * func_real_neg_array[1] * func_real_neg_array[2] * func_real_neg_array[3]
         # func_real_neg       =   npa.prod(func_real_neg_array)  
 
+        # Remove Re(eig)<0 contribution if no restoring behaviour
+        # log(1+x^2) chosen as a smooth approximation to the Heaviside step function
+        func_imag_array     =   npa.log(1 + npa.power(eigImag,2))
+        func_imag           =   func_imag_array[0] * func_imag_array[1] * func_imag_array[2] * func_imag_array[3]
+        # func_imag           =   npa.prod(func_imag_array)
+
         # Penalise mixed positive and negative Re(eig)
         real_unique_0       =   unique_filled(eigReal, 0.)
         neg_array           =   npa.power(npa.minimum(0.,real_unique_0), 2)
@@ -872,12 +877,6 @@ class TwoBox:
         all_pos_array       =   npa.power(npa.maximum(0.,real_unique_1), 2)
         penalty2            =   all_pos_array[0] * all_pos_array[1] * all_pos_array[2] * all_pos_array[3]
         # penalty2            =   npa.prod(all_pos_array)
-
-        # Remove Re(eig)<0 contribution if no restoring behaviour
-        # log(1+x^2) chosen as a smooth approximation to the Heaviside step function
-        func_imag_array     =   npa.log(1 + npa.power(eigImag,2))
-        func_imag           =   func_imag_array[0] * func_imag_array[1] * func_imag_array[2] * func_imag_array[3]
-        # func_imag           =   npa.prod(func_imag_array)
 
 
         FD = func_real_neg * func_imag - penalty - penalty2
@@ -931,15 +930,15 @@ class TwoBox:
         # being presented in Liam's thesis
         fy_y    = - D**2 * I/(m*c1) * (Q2R - Q2L) * (1 - npa.exp(-1/(2*w_bar**2)))
         fy_phi  = - D**2 * I/(m*c1) * (dQ2ddeltaR + dQ2ddeltaL) * w/2 * npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2)))
-        fy_vy   = - D**2 * I/(m*c1) * 1/c * (D+1)/(D*(g+1)) * (Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL) * w/2 * npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2)))
-        fy_vphi =   D**2 * I/(m*c1) * 1/c * (2*(Q2R - Q2L) - lam*(dQ2dlambdaR - dQ2dlambdaL)) * (w/2)**2 * (1 - npa.exp(-1/(2*w_bar**2)))
+        fy_vy   = - D**2 * I/(m*c1) * 1/c1 * (D+1)/(D*(g+1)) * (Q1R + Q1L + dQ2ddeltaR + dQ2ddeltaL) * w/2 * npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2)))
+        fy_vphi =   D**2 * I/(m*c1) * 1/c1 * (2*(Q2R - Q2L) - lam*(dQ2dlambdaR - dQ2dlambdaL)) * (w/2)**2 * (1 - npa.exp(-1/(2*w_bar**2)))
 
         # phi acceleration terms
         # TODO: generalise for non-flat-geometry moments of inertia
         fphi_y    =  D**2 * 12*I/(m*c1*L**2) * (Q1R + Q1L) * (w/2*npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2))) - L/2*npa.exp(-1/(2*w_bar**2))) 
         fphi_phi  =  D**2 * 12*I/(m*c1*L**2) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - npa.exp(-1/(2*w_bar**2)))
-        fphi_vy   =  D**2 * 12*I/(m*c1*L**2) * 1/c * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - npa.exp(-1/(2*w_bar**2)))
-        fphi_vphi = -D**2 * 12*I/(m*c1*L**2) * 1/c * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2))) - L/2*npa.exp(-1/(2*w_bar**2))) 
+        fphi_vy   =  D**2 * 12*I/(m*c1*L**2) * 1/c1 * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - npa.exp(-1/(2*w_bar**2)))
+        fphi_vphi = -D**2 * 12*I/(m*c1*L**2) * 1/c1 * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2))) - L/2*npa.exp(-1/(2*w_bar**2))) 
 
         # Build the Jacobian matrix
         J00 = fy_y;   J01 = fy_phi;   J02 = fy_vy;   J03 = fy_vphi
