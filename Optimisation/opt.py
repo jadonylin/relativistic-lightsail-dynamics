@@ -117,16 +117,16 @@ def FOM_uniform(grating: TwoBox, final_speed: float=20., goal: float=0.1, return
         """
         
         # Need to copy the following immutable parameters to pass to FD_grad, otherwise get UFuncTypeError
-        grating_pitch = grating.grating_pitch
-        grating_depth = grating.grating_depth
-        box1_width = grating.box1_width
-        box2_width = grating.box2_width
+        grating_pitch   = grating.grating_pitch
+        grating_depth   = grating.grating_depth
+        box1_width      = grating.box1_width
+        box2_width      = grating.box2_width
         box_centre_dist = grating.box_centre_dist
-        box1_eps = grating.box1_eps
-        box2_eps = grating.box2_eps
-        gaussian_width=grating.gaussian_width
+        box1_eps        = grating.box1_eps
+        box2_eps        = grating.box2_eps
+        gaussian_width  = grating.gaussian_width
         substrate_depth = grating.substrate_depth
-        substrate_eps = grating.substrate_eps
+        substrate_eps   = grating.substrate_eps
 
         params = [grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps,
                   gaussian_width, substrate_depth, substrate_eps]
