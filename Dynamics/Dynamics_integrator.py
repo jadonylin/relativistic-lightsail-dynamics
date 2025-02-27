@@ -13,7 +13,7 @@ sys.path.append("../")
 
 import time
 
-from SR_functions import Gamma, Dv, vadd, SinCosTheta, SinCosEpsilon, ABSC, E_eps, erf, Parameters, gaussian_width, Lorentz, norm_squared
+from specrel import Gamma, Dv, vadd, SinCosTheta, SinCosEpsilon, ABSC, E_eps, erf, Parameters, gaussian_width, Lorentz, norm_squared
 
 
 # The efficiency factors are too expensive to calculate in real time, so pre-calculated tables are used.

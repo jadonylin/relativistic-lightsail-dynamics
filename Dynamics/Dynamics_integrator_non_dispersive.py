@@ -8,7 +8,7 @@ import sys
 sys.path.append("../")
 c=299792458
 
-from SR_functions import Gamma, Dv, vadd, SinCosTheta, SinCosEpsilon, ABSC, E_eps, erf, Parameters, gaussian_width, Lorentz
+from specrel import Gamma, Dv, vadd, SinCosTheta, SinCosEpsilon, ABSC, E_eps, erf, Parameters, gaussian_width, Lorentz
 
 grating_type = "Second"
 pkl_load_name = rf"./Data/Tables/{grating_type}_Lookup_table_angle.pkl"

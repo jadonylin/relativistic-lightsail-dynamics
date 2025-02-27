@@ -13,7 +13,7 @@ sys.path.append("../")
 
 import time
 
-from Dynamics.SR_functions import Parameters, erf
+from Dynamics.specrel import Parameters, erf
 from twobox import TwoBox
 from parameters import D1_ND
 
