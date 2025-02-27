@@ -883,9 +883,10 @@ class TwoBox:
         return FD
 
 
-    def Eigs(self, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', check_det: bool = False, return_vec: bool = False):
+    def sail_stiffness(self, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', out="tr"):
         """
-        Calculate eigenvalues of Jacobian matrix at equilibrium
+        Calculate stiffness coefficients/Jacobian coefficients for a symmetric lightsail at equilibrium. Here, symmetric 
+        means symmetric with respect to reflections about the laser-beam axis (when the CoM lies on the laser-beam axis).
 
         Parameters
         ----------
@@ -893,13 +894,13 @@ class TwoBox:
         m           :   Spacecraft mass (sail membrane + payload)
         c1          :   speed of light  # TODO: why is this a parameter?
         grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
-        check_det   :   If true, check if Jacobian determinant is zero. If Jacobian is zero, print the twobox parameters
-        return_vec  :   If true, return eigenvectors as well as eigenvalues
-        
+        out         :   Output format 
+                        "tr" for translation coefficients first, then rotation coefficients. Use when outputting to Jacobian.
+                        "rd" for restoring coefficients first, then damping coefficients
         
         Returns
         -------
-        FD :   Figure of merit
+        The eight stiffness coefficients for the lightsail at equilibrium.
         """
         
         if grad_method == 'finite':
@@ -921,10 +922,10 @@ class TwoBox:
         g = (npa.power(lam,2) + 1)/(2*lam)  # Lorentz factor
    
         # Lightsail reflection-symmetry conditions
-        Q1L = Q1R;   Q2L = -Q2R;   
-        dQ1ddeltaL  = -dQ1ddeltaR;    dQ2ddeltaL  = dQ2ddeltaR
-        dQ1dlambdaL = dQ1dlambdaR;    dQ2dlambdaL = -dQ2dlambdaR
-
+        Q1L = Q1R                ; Q2L = -Q2R;   
+        dQ1ddeltaL  = -dQ1ddeltaR; dQ2ddeltaL  = dQ2ddeltaR
+        dQ1dlambdaL = dQ1dlambdaR; dQ2dlambdaL = -dQ2dlambdaR        
+        
         # y acceleration terms
         # NOTE: derivatives with respect to lambda differ from derivatives with respect to frequency offset, the latter
         # being presented in Liam's thesis
@@ -940,28 +941,38 @@ class TwoBox:
         fphi_vy   =  D**2 * 12*I/(m*c1*L**2) * 1/c1 * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - npa.exp(-1/(2*w_bar**2)))
         fphi_vphi = -D**2 * 12*I/(m*c1*L**2) * 1/c1 * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2))) - L/2*npa.exp(-1/(2*w_bar**2))) 
 
+        match out:
+            case "tr":
+                return npa.array([fy_y, fy_phi, fy_vy, fy_vphi, fphi_y, fphi_phi, fphi_vy, fphi_vphi])
+            case "rd":
+                return npa.array([fy_y, fy_phi, fphi_y, fphi_phi, fy_vy, fy_vphi, fphi_vy, fphi_vphi])
+            case _:
+                raise ValueError("Invalid output format. Must be 'tr' or 'rd'.")
+    
+
+    def Eigs(self, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', check_det: bool = False, return_vec: bool = False):
+        """
+        Calculate eigendecomposition of Jacobian matrix at equilibrium
+
+        Parameters
+        ----------
+        I           :   Laser intensity
+        m           :   Spacecraft mass (sail membrane + payload)
+        c1          :   speed of light  # TODO: why is this a parameter?
+        grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+        return_vec  :   If true, return eigenvectors as well as eigenvalues
+        
+        Returns
+        -------
+        eigReal :   Real part of Jacobian eigenvalues
+        eigImag :   Imaginary part of Jacobian eigenvalues
+        eigvecs :   Eigenvectors of Jacobian matrix
+        """
+
+        stiffnesses = self.sail_stiffness(I,m,c1,grad_method='finite',out="tr")
+
         # Build the Jacobian matrix
-        J00 = fy_y;   J01 = fy_phi;   J02 = fy_vy;   J03 = fy_vphi
-        J10 = fphi_y; J11 = fphi_phi; J12 = fphi_vy; J13 = fphi_vphi
-        J = npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
-
-        # For debugging non-differentiable gratings during optimisation
-        if check_det:
-            if npaLA.det(J)==0:
-                print("Grating parameters:")
-                print(self.grating_pitch)
-                print(self.grating_depth)
-                print(self.box1_width)
-                print(self.box2_width)
-                print(self.box_centre_dist)
-                print(self.box1_eps)
-                print(self.box2_eps)
-                print(self.gaussian_width)
-                print(self.substrate_depth)
-                print(self.substrate_eps)
-
-                print("lam: ", lam)
-                print("\n")
+        J = npa.array([[0,0,1,0],[0,0,0,1],[*stiffnesses[:4]],[*stiffnesses[4:]]])
 
         # Find the real part of eigenvalues    
         eigvalvec   = npaLA.eig(J)
@@ -975,79 +986,51 @@ class TwoBox:
         else:
             return eigReal, eigImag
 
+
     def lsa_info(self, wavelength, I: float=0.5e9):
         """
-        TODO: update function documentation
+        Calculate quantities relevant to linear stability analysis (LSA) of the twobox dynamics. Also calculates
+        the radiation pressure cross sections and their derivatives.
+        
+        TODO: Remove wavelength parameter and use self.wavelength instead
+        TODO: why do the returns need to be tuples?
 
-        ## Inputs
-        wavelength
-        I - intensity
-        ## Outputs
-        eff_array, restoring_array, damping_array, Re(eig)_array, Im(eig)_array
+        Parameters
+        ----------
+        wavelength :   Wavelength of incident light
+        I          :   Incident light intensity
+        
+        Returns
+        -------
+        efficiencies :   Radiation pressure cross sections and their derivatives  
+        rest_coeffs  :   Restoring force/torque coefficients
+        damp_coeffs  :   Damping force/torque coefficients
+        eigReal      :   Real component of eigenvalues
+        eigImag      :   Imaginary component of eigenvalues
         """
+
         input_wavelength = self.wavelength
         self.wavelength = wavelength
 
-        ####################################
-        ## Call efficiency factors
-        Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR = self.return_Qs_auto(return_Q=True)
-        eff_array = (Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR)
+
+        efficiencies = tuple(self.return_Qs_auto(return_Q=True))
+
         
-        w = self.gaussian_width
-        w_bar = w/L
-
-        lam = self.wavelength 
-
-        ## Convert velocity dependence to wavelength dependence
-        D = 1/lam 
-        g = (npa.power(lam,2) + 1)/(2*lam) 
-   
-        ## Symmetry
-        Q1L = Q1R;   Q2L = -Q2R;   
-        dQ1ddeltaL  = -dQ1ddeltaR;    dQ2ddeltaL  = dQ2ddeltaR
-        dQ1dlambdaL = dQ1dlambdaR;    dQ2dlambdaL = -dQ2dlambdaR
-
-        w_bar = w / L
-
-        # y acceleration
-        fy_y= -     D**2 * (I/(m*c)) *  ( Q2R - Q2L ) * ( 1 - np.exp(-1/(2*w_bar**2) ) )
-        fy_phi= -   D**2 * (I/(m*c)) * ( dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * autograd_erf( 1/(w_bar*np.sqrt(2)) )
-        fy_vy= -    D**2 * (I/(m*c)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * autograd_erf( 1/(w_bar*np.sqrt(2)) )
-        fy_vphi=    D**2 * (I/(m*c)) * (1/c) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
-
-        # phi acceleration
-        fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * autograd_erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
-        fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
-        fphi_vy=    D**2 * (12*I/( m*c*L**2)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
-        fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * autograd_erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+        stiffnesses = self.sail_stiffness(I,m,c,grad_method='grad',out="rd")        
+        rest_coeffs = tuple([*stiffnesses[:4]])  
+        damp_coeffs = tuple([*stiffnesses[4:]])
 
 
-        ## array
-        rest_array = ( fy_y,fy_phi,  fphi_y,fphi_phi )
-        damp_array = ( fy_vy,fy_vphi,  fphi_vy,fphi_vphi )
+        J = npa.array([[0,0,1,0],[0,0,0,1],[*stiffnesses[:4]],[*stiffnesses[4:]]])
 
-        # Build the Jacobian matrix
-        J00=fy_y;   J01=fy_phi;     J02=fy_vy;    J03=fy_vphi
-        J10=fphi_y; J11=fphi_phi;   J12=fphi_vy;  J13=fphi_vphi
-        J=npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
+        eigvalvec        = npaLA.eig(J)
+        eigvals, eigvecs = eigvalvec[0]
+        eigReal          = npa.real(eigvals)
+        eigImag          = npa.imag(eigvals)
 
-        # Find the real part of eigenvalues    
-        eigvalvec   = npaLA.eig(J)
-        eig         = eigvalvec[0]
-        eigReal     = npa.real(eig)
-        eigImag     = npa.imag(eig)
 
-        # Eigenvectors
-        vec = eigvalvec[1]
-        vec1 = vec[:,0]
-        vec2 = vec[:,1]
-        vec3 = vec[:,2]
-        vec4 = vec[:,3]
-        vec_array = (vec1, vec2, vec3, vec4)
-
-        ## Restore wavelength
         self.wavelength = input_wavelength
-        return eff_array, rest_array, damp_array, eigReal, eigImag , vec
+        return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs
 
 
     def average_real_eigs(self, final_speed, goal, return_eigs:bool=False, I:float=10e9):
