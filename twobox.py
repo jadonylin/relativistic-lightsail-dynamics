@@ -845,7 +845,6 @@ class TwoBox:
 
             return unique_values
     
-        # Reward all Re(eig) being negative
         # NOTE: In the following penalty and reward terms, all operations must be done element-wise to avoid 
         #       "RuntimeWarning: invalid value encountered in divide" during optimisation
         # TODO: Determine why we can't use npa functions here
@@ -856,6 +855,7 @@ class TwoBox:
         func_real_neg_array =   npa.power(eig_real_neg_unique, 2)
         func_real_neg       =   func_real_neg_array[0] * func_real_neg_array[1] * func_real_neg_array[2] * func_real_neg_array[3]
         # func_real_neg       =   npa.prod(func_real_neg_array)  
+        # func_real_neg       =   npa.max(-eig_real_unique)
 
         # Remove Re(eig)<0 contribution if no restoring behaviour
         # log(1+x^2) chosen as a smooth approximation to the Heaviside step function
