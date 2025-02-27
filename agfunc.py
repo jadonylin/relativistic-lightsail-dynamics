@@ -1,14 +1,37 @@
 import autograd.numpy as npa
 from autograd import grad, jacobian
 from torch.autograd import grad as grad_torch
-from torch.autograd.functional import jacobian as jacobian_torch
+# from torch.autograd.functional import jacobian as jacobian_torch_raw
 from torch import erf as torch_erf
 from torch import linalg as torchLA
 from autograd.scipy.special import erf as autograd_erf
 from autograd.numpy import linalg as npaLA
 import torch
+import functools
 # Smoothing if conditionals for backpropagation
+def jacobian_torch(f,argnum=0):
+    return torch.func.jacrev(f,argnums=argnum)
+def grad_torch(f,argnum=0):
+    return lambda x: grad_torch_value(f,x,argnum)
+    # return torch.func.grad(f,argnums=argnum)
+# def grad_torch_value(f,x,argnum=0):
+#     ya=f(x)
+#     if ya.dim()>0:
+#         y=ya[argnum]
+#     else:
+#         y=ya
+#     y.retain_grad()
+#     y.backward()
+#     return x.grad
+def grad_torch_value(f,x,argnum=0):
+     a=f(x)
+     return torch.autograd.grad(a,x,create_graph=True, materialize_grads=True) # materialize_grads=True to avoid returning None when functino does not depend on x  - added during debugging of PDtNeg1 but may not be needed? 
 
+@functools.wraps(torch.tensor)
+def torch_tensor_with_grad(*args, **kwargs):
+    # Force requires_grad to be True (overriding any passed value)
+    kwargs['requires_grad'] = True
+    return torch.tensor(*args, **kwargs)
 
 class agfunc:
     """ wrapper class for autograd and torch functions """
@@ -38,13 +61,14 @@ class agfunc:
             self.log=npa.log
             self.eig=npaLA.eig
             self.det=npaLA.det
+            self.grad=grad
 
         elif lib=="torch":
             self.sqrt = torch.sqrt
             self.erf = torch_erf
             self.norm=torchLA.norm
             self.jacobian = jacobian_torch
-            self.array = torch.tensor
+            self.array = torch_tensor_with_grad
             self.sin=torch.sin
             self.cos=torch.cos
             self.arcsin=torch.asin
@@ -63,6 +87,7 @@ class agfunc:
             self.log=torch.log
             self.eig=lambda x: torch.eig(x,eigenvectors=True)
             self.det=torch.det
+            self.grad=grad_torch
     def _softmax(self,sigma,p):
         e_x = npa.exp(sigma*(p - npa.max(p)))
         return e_x/npa.sum(e_x)

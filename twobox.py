@@ -29,8 +29,12 @@ grcwa.set_backend('autograd')
 # If GPU support TF32 tensor core, the matmul operation is faster than FP32 but with less precision.
 # If you need accurate operation, you have to disable the flag below.
 torch.backends.cuda.matmul.allow_tf32 = False
-sim_dtype = torch.complex64
-geo_dtype = torch.float32
+# sim_dtype = torch.complex64
+# geo_dtype = torch.float32
+
+sim_dtype = torch.complex128
+geo_dtype = torch.float64
+
 
 if torch.cuda.is_available():
     device = torch.device('cuda')
@@ -302,8 +306,8 @@ class TwoBox:
         phi = 0.
 
         # setup RCWA
-        obj = grcwa.obj(self.nG,L1,L2,freqcmp,theta,phi,verbose=0)
-
+        obj = grcwa.obj(self.nG,L1,L2,freqcmp,theta,phi,verbose=0) # verbose=1 for debugging, prints ng actually used 
+        # using order truncation parameter self.nG*4+2 to match Torcwa - Torcwa uses Fourier truncation orders, whereas GRCWA uses total number of k vectors in Brillouin zone.
 
         ## CREATE LAYERS ##
         # Layer depth
@@ -354,9 +358,9 @@ class TwoBox:
         elif self.RCWA_engine == 'TORCWA':
             self.init_TORCWA()
             RT_orders = [-1,0,1]
-            orders=np.array([[j,0] for j in RT_orders])
-            Rs = np.abs(np.power(self.RCWA.S_parameters(orders=orders,direction='forward',port='reflection',polarization='yy',ref_order=[0,0],power_norm=True).cpu().numpy(),2))
-            Ts = np.abs(np.power(self.RCWA.S_parameters(orders=orders,direction='forward',port='transmission',polarization='yy',ref_order=[0,0],power_norm=True).cpu().numpy(),2))
+            orders=[[j,0] for j in RT_orders]
+            Rs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders,direction='forward',port='reflection',polarization='yy',ref_order=[0,0],power_norm=True),2))
+            Ts = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders,direction='forward',port='transmission',polarization='yy',ref_order=[0,0],power_norm=True),2))
     
         return Rs,Ts
     
@@ -370,12 +374,13 @@ class TwoBox:
             """
             Calculates diffraction angles
             """
-            test=(self.npa.sin(self.angle)+m*self.wavelength/self.grating_pitch)
-
+            testa=(self.npa.sin(self.npa.array(self.angle))+m*self.wavelength/self.grating_pitch) 
+            if self.RCWA_engine == 'TORCWA':
+                test=testa.detach().cpu().numpy()  # comparison in next step won't work unless autograd removed
             if abs(test)>=1:
                 delta_m="no_diffraction_order"
             else:
-                delta_m=self.npa.arcsin(test)
+                delta_m=self.npa.arcsin(testa)
                 
             return delta_m
         Q1=0
@@ -1243,19 +1248,19 @@ class TwoBox:
         ----------
         show_analytic_box :   Show analytic boxes overlaid onto boundary-permittivity-accounted-for boxes
         """
-        x0 = np.linspace(0,self.grating_pitch,self.Nx, endpoint=False)
+        # x0 = np.linspace(0,self.grating_pitch,self.Nx, endpoint=False)
     
-        if self.RCWA_engine == 'TORCWA':
-            self.init_TORCWA() 
-            #Torcwa does not need flipping this array - check x axis conventions?           
-            eps_array=self.RCWA.return_layer(0,self.Nx,1)[0].cpu().numpy()
+        # if self.RCWA_engine == 'TORCWA':
+        #     self.init_TORCWA() 
+        #     #Torcwa does not need flipping this array - check x axis conventions?           
+        #     eps_array=self.RCWA.return_layer(0,self.Nx,1)[0].cpu().numpy()
                 
-        elif self.RCWA_engine == 'GRCWA':
-            self.init_RCWA()
-            eps_array = self.RCWA.Return_eps(which_layer=1,Nx=self.Nx,Ny=self.Ny,component='xx')
-            # flip to match ordering of desired eps vs grid number - 
-            eps_array = np.flip(eps_array)
-            
+        # elif self.RCWA_engine == 'GRCWA':
+        #     self.init_RCWA()
+        #     eps_array = self.RCWA.Return_eps(which_layer=1,Nx=self.Nx,Ny=self.Ny,component='xx')
+        #     # flip to match ordering of desired eps vs grid number - 
+        #     eps_array = np.flip(eps_array)
+        x0,eps_array=self.return_epsilon()
             
         eps_array_real = eps_array.real
 
@@ -1279,10 +1284,19 @@ class TwoBox:
             init_Nx = self.Nx
             self.Nx = 1000*self.Nx
             fine_grids = np.arange(0, self.Nx, 1)
-            analytic_boxes = self.build_grating()
-            axs[0].plot(fine_grids/1000,analytic_boxes)
-            self.Nx = init_Nx
-        
+            if self.RCWA_engine == 'GRCWA':
+                analytic_boxes = self.build_grating()
+                axs[0].plot(fine_grids/1000,analytic_boxes)
+                self.Nx = init_Nx
+            elif self.RCWA_engine == 'TORCWA':
+                torcwa.rcwa_geo.nx = self.Nx
+                torcwa.rcwa_geo.grid()
+                analytic_boxes = self.build_grating_torcwa()
+                axs[0].plot(fine_grids/1000,analytic_boxes[:,0])
+                self.Nx = init_Nx
+                torcwa.rcwa_geo.nx = self.Nx            
+                torcwa.rcwa_geo.grid()
+                
         plt.show()
         return x0, eps_array_real, fig, axs
     
@@ -1309,8 +1323,12 @@ class TwoBox:
             # Calculate efficiencies for each order
             self.angle = theta
             Rs,Ts = self.eff()
-            efficiencies[:3,idx] = Rs
-            efficiencies[3:,idx] = Ts
+            if self.RCWA_engine == 'TORCWA':
+                efficiencies[:3,idx] = Rs.detach().cpu().numpy()
+                efficiencies[3:,idx] = Ts.detach().cpu().numpy()
+            elif self.RCWA_engine == 'GRCWA':
+                efficiencies[:3,idx] = Rs
+                efficiencies[3:,idx] = Ts
         self.angle = init_angle # reset user-initialised angle
 
         ### PLOTTING ### 
@@ -1353,6 +1371,29 @@ class TwoBox:
         
         return fig, ax
 
+# the following functions for plotting and debugging autograd/torch
+    def rNeg1(self, angle):
+        self.angle = angle
+        ra,_ = self.eff()
+        r = ra[0]
+        return r
+
+
+    def tNeg1(self, angle):
+        self.angle = angle
+        _,ta= self.eff()
+        t=ta[0]
+        return t
+
+    def PDrNeg1(self, angle):
+        a=self.npa.grad(self.rNeg1)(self.npa.array(angle))
+        return a
+
+
+    def PDtNeg1(self, angle):
+        a=self.npa.grad(self.tNeg1)(self.npa.array(angle))
+        return a
+
     def show_spectrum(self, angle: float=0., efficiency_quantity: str="PDr", wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9):
         """
         Show grating spectrum for the twobox.
@@ -1363,6 +1404,7 @@ class TwoBox:
         efficiency_quantity :   Which efficiency quantity you want spectrum for ("r" - reflection, "PDr" - reflection angular derivative, "t" - transmission, "PDr" - transmission angular derivative, "FoM" - figure of merit)
         wavelength_range    :   Wavelength range to plot spectrum (same units as grating pitch, chosen by you)
         num_plot_points     :   Number of points to plot
+        TODO: check compatibility with torcwa: ok for r,t
         """
         ### Setup ###
         allowed_quantities = ("r", "t", "PDr", "PDt","FoM","eig")
@@ -1372,8 +1414,10 @@ class TwoBox:
         
         wavelengths = np.linspace(*wavelength_range, num_plot_points)
         init_wavelength = self.wavelength # record user-initialised wavelength
+        
         inc_angle_deg = angle*180/np.pi
-
+        #angle=self.npa.array(angle)
+        # angle=torch.tensor(angle,dtype=torch.float64)
 
         ## CALCULATE EFFICIENCY ##
         RT_orders = [-1,0,1]
@@ -1394,13 +1438,23 @@ class TwoBox:
             # Calculate efficiencies for each order
             self.wavelength = lam
             if efficiency_quantity == "r" or efficiency_quantity == "t":
-                Rs,Ts = self.RT()
-                efficiencies[:n_orders,idx] = Rs
-                efficiencies[n_orders:,idx] = Ts
+                Rs,Ts = self.eff()
+                if(self.RCWA_engine=='TORCWA'):
+                    efficiencies[:n_orders,idx]  = Rs.detach().cpu().numpy() # this removes the autograd function -- ok for plottingif(self.RCWA_engine=='TORCWA'):
+                    efficiencies[n_orders:,idx]  = Ts.detach().cpu().numpy() # this removes the autograd function -- ok for plotting
+                else:
+                    efficiencies[:n_orders,idx] = Rs
+                    efficiencies[n_orders:,idx] = Ts
             elif efficiency_quantity == "PDr":
-                efficiencies[0,idx] = self.PDrNeg1(angle)
+                if(self.RCWA_engine=='TORCWA'):
+                    efficiencies[0,idx] = self.PDrNeg1(angle)[0].detach().numpy() # this removes the autograd function -- ok for plotting
+                elif(self.RCWA_engine=='GRCWA'):
+                    efficiencies[0,idx] = self.PDrNeg1(angle)
             elif efficiency_quantity == "PDt":
-                efficiencies[0,idx] = self.PDtNeg1(angle)
+                if(self.RCWA_engine=='TORCWA'):
+                    efficiencies[0,idx] = self.PDtNeg1(angle)[0].detach().numpy() # this removes the autograd function -- ok for plotting
+                elif(self.RCWA_engine=='GRCWA'):    
+                    efficiencies[0,idx] = self.PDtNeg1(angle)
 
             elif efficiency_quantity == "FoM":
                 efficiencies[0,idx] = self.FoM(I=I, grad_method="grad")
@@ -1489,7 +1543,7 @@ class TwoBox:
         # Axis labels
         ax.axhline(y=0, color='black', linestyle='-', lw = '1')
         ax.tick_params(axis='both', which='both', direction='in') # ticks inside box
-        ax.set(title=rf"$h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$", xlabel=r"$\lambda'/\Lambda'$", ylabel=ylabel)
+        ax.set(title=rf"{self.RCWA_engine} $h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$", xlabel=r"$\lambda'/\Lambda'$", ylabel=ylabel)
 
         # Modify axes
         cm_to_inch = 0.393701
@@ -1827,7 +1881,7 @@ class TwoBox:
         torcwa.rcwa_geo.ny = 2 # np.min(self.Ny,2) # 2 minimum for 2d simulation displaying ? 
         torcwa.rcwa_geo.grid()
         torcwa.rcwa_geo.edge_sharpness = self.torcwa_edge_sharpness
-        sim = torcwa.rcwa(freq=freq,order=[self.nG,0],L=L,dtype=sim_dtype,device=device)
+        sim = torcwa.rcwa(freq=freq,order=[self.nG,0],L=L,dtype=sim_dtype,device=device) 
        
         ## CREATE LAYERS ##
         eps_vacuum = 1        
@@ -1861,6 +1915,24 @@ class TwoBox:
         layer0_bool=torcwa.rcwa_geo.union(box1_bool,box2_bool)
         layer0_eps =eb1*box1_bool+eb2*box2_bool + (1.-layer0_bool)
         self.grating_grid_torcwa = layer0_eps
-        self.grating_grid = layer0_eps.cpu().numpy()
-        
-        return layer0_eps
+        try: # when called to calculate gradient functions rather than values, tensors are virtual - do not copy to grating_grid
+            self.grating_grid = layer0_eps.cpu().numpy()
+        except:
+            self.grating_grid =np.zeros((self.Nx,0))
+        return self.grating_grid
+
+    def return_epsilon(self):
+        x0 = np.linspace(0,self.grating_pitch,self.Nx, endpoint=False)
+    
+        if self.RCWA_engine == 'TORCWA':
+            self.init_TORCWA() 
+            #Torcwa does not need flipping this array - check x axis conventions?           
+            eps_array=self.RCWA.return_layer(0,self.Nx,1)[0].cpu().numpy()
+                
+        elif self.RCWA_engine == 'GRCWA':
+            self.init_RCWA()
+            eps_array = self.RCWA.Return_eps(which_layer=1,Nx=self.Nx,Ny=self.Ny,component='xx')
+            # flip to match ordering of desired eps vs grid number - 
+            eps_array = np.flip(eps_array)
+
+        return x0,eps_array
