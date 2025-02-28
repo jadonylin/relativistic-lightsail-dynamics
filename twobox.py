@@ -93,9 +93,31 @@ class MinorSymLogLocator(Locator):
 
 
 
-# Softmax needed for backpropagation by smoothing out the grating unit cell construction
 def softmax(sigma,p):
+    """
+    Softmax needed for backpropagation by smoothing out the grating unit cell construction    
+    
+    NOTE: The translation by npa.max(p) is to avoid numerical instability when exponentiating 
+          large numbers. Adding the max function doesn't ruin differentiability, because the 
+          softmax expression with and without the max(p) shift are identical. Hence, the 
+          derivative of the max-translated softmax is equivalent to the derivative of the
+          unshifted softmax.
+    
+    Parameters
+    ----------
+    sigma :   Softmax inverse temperature, i.e. inverse smoothing factor. Smaller means smoother grating.
+
+    Returns
+    -------
+    Probability of each element in array p based on its value
+    """
+
     e_x = npa.exp(sigma*(p - npa.max(p)))
+    return e_x/npa.sum(e_x)
+
+def softmin(sigma,p):
+    """Used to approximate min via expected value of array p with probability distribution given by softmin(p)"""
+    e_x = npa.exp(sigma*(npa.min(p) - p))
     return e_x/npa.sum(e_x)
 
 
@@ -820,10 +842,14 @@ class TwoBox:
         -------
         FD :   Figure of merit
         """
+        
         eigReal, eigImag = self.Eigs(I=I, m=m, c1=c, grad_method=grad_method, check_det=True, return_vec=False)
 
         def unique_filled(x, filled_value):
             """
+            Finds unique values in x and fills remaining entries with filled_value.
+            The resultant array is sorted by unique values first.
+
             Parameters
             ----------
             x            :   4d array
@@ -849,21 +875,32 @@ class TwoBox:
         #       "RuntimeWarning: invalid value encountered in divide" during optimisation
         # TODO: Determine why we can't use npa functions here
 
-        # Reward all Re(eig) being negative
+        # LvR FoM: Reward all Re(eig) being negative
+        # Fill repeated entries in eigReal with -1 so that, after squaring, they don't influence the product
         eig_real_unique     =   unique_filled(eigReal, -1)
         eig_real_neg_unique =   npa.minimum(0., eig_real_unique)
         func_real_neg_array =   npa.power(eig_real_neg_unique, 2)
-        func_real_neg       =   func_real_neg_array[0] * func_real_neg_array[1] * func_real_neg_array[2] * func_real_neg_array[3]
-        # func_real_neg       =   npa.prod(func_real_neg_array)  
-        # func_real_neg       =   npa.max(-eig_real_unique)
+        # func_real_neg       =   func_real_neg_array[0] * func_real_neg_array[1] * func_real_neg_array[2] * func_real_neg_array[3]
+        # func_real_neg       =   npa.prod(func_real_neg_array) 
 
+        # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to minimising the 
+        #          negative eigenvalue with the smallest real part.
+        # func_real_neg       =   npa.min(-eigReal)  # standard minimum
+        func_real_neg       =   npa.sum(eigReal*softmin(1.,eigReal))  # softened minimum
+        
         # Remove Re(eig)<0 contribution if no restoring behaviour
         # log(1+x^2) chosen as a smooth approximation to the Heaviside step function
         func_imag_array     =   npa.log(1 + npa.power(eigImag,2))
         func_imag           =   func_imag_array[0] * func_imag_array[1] * func_imag_array[2] * func_imag_array[3]
         # func_imag           =   npa.prod(func_imag_array)
 
+        # print(func_real_neg)
+        # print(func_real_neg2)
+        # print(func_real_neg * func_imag)
+        # print(func_real_neg2 * func_imag)
+
         # Penalise mixed positive and negative Re(eig)
+        # Fill repeated entries in eigReal with 0 so that they don't influence the sum
         real_unique_0       =   unique_filled(eigReal, 0.)
         neg_array           =   npa.power(npa.minimum(0.,real_unique_0), 2)
         pos_array           =   npa.power(npa.maximum(0.,real_unique_0), 2)
@@ -873,6 +910,7 @@ class TwoBox:
         penalty             =   neg_sum * pos_sum
 
         # Penalise all positive Re(eig)
+        # Fill repeated entries in eigReal with 1 so that they don't influence the product
         real_unique_1       =   unique_filled(eigReal, 1)
         all_pos_array       =   npa.power(npa.maximum(0.,real_unique_1), 2)
         penalty2            =   all_pos_array[0] * all_pos_array[1] * all_pos_array[2] * all_pos_array[3]
