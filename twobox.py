@@ -869,17 +869,12 @@ class TwoBox:
                 unique_values = npa.append(unique_values,filled_value)
 
             return unique_values
-    
-        # NOTE: In the following penalty and reward terms, all operations must be done element-wise to avoid 
-        #       "RuntimeWarning: invalid value encountered in divide" during optimisation
-        # TODO: Determine why we can't use npa functions here
 
         # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
         #          negative eigenvalue with the smallest real part. 
-        # func_real_neg       =   npa.min(-eigReal)  # standard minimum
-        func_real_neg       =   npa.sum(eigReal*softmin(eigReal,1.))  # softened minimum
+        # FD = npa.min(-eigReal)  # standard minimum
+        FD = npa.sum(eigReal*softmin(eigReal,1.))  # softened minimum
         
-        FD = func_real_neg
         return FD
 
     def FoM_LvR(self, I:float=1e9, grad_method: str="finite") -> float:
