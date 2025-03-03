@@ -135,9 +135,9 @@ class TwoBox:
     box1_width      :   A float for the left box/resonator width
     box2_width      :   A float for the right box/resonator width
     box_centre_dist :   A float for the distance between the box centres
-    box1_eps        :   A float for the left box permittivity
-    box2_eps        :   A float for the right box permittivity
-    gaussian_width  :   A float for the Gaussian beam width
+    box1_eps        :   A float for the left box relative permittivity
+    box2_eps        :   A float for the right box relative permittivity
+    gaussian_width  :   A float for the Gaussian beam width (metres)
     substrate_depth :   A float for the substrate layer depth/height/thickness
     substrate_eps   :   A float for the substrate permittiivty
     wavelength      :   A float for the excitation-plane-wave wavelength (laser-frame wavelength)
