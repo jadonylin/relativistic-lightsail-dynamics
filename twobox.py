@@ -842,7 +842,7 @@ class TwoBox:
         FD :   Figure of merit
         """
         
-        eigReal, eigImag = self.Eigs(I=I, m=m, c1=c, grad_method=grad_method, check_det=True, return_vec=False)
+        eigReal, eigImag = self.Eigs(I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
 
         def unique_filled(x, filled_value):
             """
@@ -891,7 +891,7 @@ class TwoBox:
         FD :   Figure of merit
         """
         
-        eigReal, eigImag = self.Eigs(I=I, m=m, c1=c, grad_method=grad_method, check_det=True, return_vec=False)
+        eigReal, eigImag = self.Eigs(I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
 
         def unique_filled(x, filled_value):
             """
@@ -1028,7 +1028,7 @@ class TwoBox:
                 raise ValueError("Invalid output format. Must be 'tr' or 'rd'.")
     
 
-    def Eigs(self, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', check_det: bool = False, return_vec: bool = False):
+    def Eigs(self, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', return_vec: bool = False):
         """
         Calculate eigendecomposition of Jacobian matrix at equilibrium
 
@@ -1053,10 +1053,10 @@ class TwoBox:
         J = npa.array([[0,0,1,0],[0,0,0,1],[*stiffnesses[:4]],[*stiffnesses[4:]]])
 
         # Find the real part of eigenvalues    
-        eigvalvec   = npaLA.eig(J)
-        eigvals     = eigvalvec[0]
-        eigReal     = npa.real(eigvals)
-        eigImag     = npa.imag(eigvals)
+        eigvalvec = npaLA.eig(J)
+        eigvals   = eigvalvec[0]
+        eigReal   = npa.real(eigvals)
+        eigImag   = npa.imag(eigvals)
 
         if return_vec:
             eigvecs = eigvalvec[1]
@@ -1090,22 +1090,13 @@ class TwoBox:
         input_wavelength = self.wavelength
         self.wavelength = wavelength
 
-
         efficiencies = tuple(self.return_Qs_auto(return_Q=True))
-
         
-        stiffnesses = self.sail_stiffness(I,m,c,grad_method='grad',out="rd")        
-        rest_coeffs = tuple([*stiffnesses[:4]])  
+        stiffnesses = self.sail_stiffness(I,m,c,grad_method="grad",out="rd")
+        rest_coeffs = tuple([*stiffnesses[:4]])
         damp_coeffs = tuple([*stiffnesses[4:]])
 
-
-        J = npa.array([[0,0,1,0],[0,0,0,1],[*stiffnesses[:4]],[*stiffnesses[4:]]])
-
-        eigvalvec        = npaLA.eig(J)
-        eigvals, eigvecs = eigvalvec[0]
-        eigReal          = npa.real(eigvals)
-        eigImag          = npa.imag(eigvals)
-
+        eigReal, eigImag, eigvecs = self.Eigs(I,m,c,grad_method="grad",return_vec=True)
 
         self.wavelength = input_wavelength
         return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs
@@ -1353,25 +1344,21 @@ class TwoBox:
 
     def show_Eigs(self, marker: str='o', eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9):
         """
-        Show spectrum of various efficiency quantities for the twobox.
+        Show eigenvalue spectrum for the twobox.
 
         Parameters
         ----------
         marker              :   Marker style passed to plt.plot()
         eig_real_log_axis   :   If true, logarithmic scale for real part of eigenvalues
         eig_imag_log_axis   :   If true, logarithmic scale for imaginary part of eigenvalues
-        efficiency_quantity :   The efficiency quantity you want spectrum for
-                                "r" - reflection, "PDr" - reflection angular derivative, 
-                                "t" - transmission, "PDr" - transmission angular derivative),
-                                "FoM" - single-wavelength figure of merit
         wavelength_range    :   Wavelength range to plot spectrum (same units as grating pitch)
         num_plot_points     :   Number of points to plot
         I                   :   Laser intensity
 
         Returns
         -------
-        fig :   Spectrum figure object
-        ax  :   Spectrum axs object
+        fig         :   Spectrum figure object
+        (ax1, ax2)  :   Real and imaginary spectrum axis objects
         """
 
         wavelengths = np.linspace(*wavelength_range, num_plot_points)
@@ -1383,7 +1370,7 @@ class TwoBox:
         for idx, lam in enumerate(wavelengths):
             # Calculate eigs for each order
             self.wavelength = lam
-            real, imag = self.Eigs(I=I,m=m,c1=c, grad_method="grad", check_det=False, return_vec=False)
+            real, imag = self.Eigs(I=I,m=m,c1=c, grad_method="grad", return_vec=False)
             eigvals[:,idx] = real + 1j*imag
             
         self.wavelength = init_wavelength # restore user-initialised wavelength
