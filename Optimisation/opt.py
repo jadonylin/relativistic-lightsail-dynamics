@@ -32,7 +32,7 @@ import traceback
 from parameters import Parameters, D1_ND, Initial_bigrating, opt_Parameters
 I0, L, m, c = Parameters()
 _, angle, Nx, nG, Qabs, goal, final_speed, _ = opt_Parameters()
-from twobox import TwoBox
+from twobox import TwoBox, softmin
 
 
 
@@ -157,6 +157,59 @@ def FOM_uniform(grating: TwoBox, final_speed: float=20., goal: float=0.1, return
         return FOM
 
 
+def average_real_eigs(grating, final_speed, goal, return_eigs: bool=False, I: float=10e9):
+    """
+    Calculates the average of each Re(eig) over the wavelength range. 
+    
+    Assumes starting wavelength = 1.
+
+    Parameters
+    ----------
+    grating     :   TwoBox instance 
+    final_speed :   percentage speed of light
+    goal        :   integer (number of points) or float (loss goal)
+    return_eigs :   If true, return normalised eigenvalues. If false, return averaged eigenvalues
+    I           :   Laser intensity
+
+    Returns
+    -------
+    avg_Reig :   Array containing each eigenvalue's real components averaged over wavelength
+    """
+
+    Doppler = D1_ND([final_speed/100,0])
+    l_min = 1  # l = grating-frame wavelength normalised to laser-frame wavelength
+    l_max = l_min/Doppler    
+    l_range = (l_min, l_max)
+    
+    PDF_unif = 1/(l_max-l_min)  # Probability density function (PDF) for averaging
+
+    def weighted_eig_real(l):
+        grating.wavelength = l
+        return PDF_unif*grating.Eigs(I=I, m=m, c1=c, check_det=False, return_vec=False)[0]
+
+    # Adaptive sample eig_real
+    eig_real_learner = adp.Learner1D(weighted_eig_real, bounds=l_range)
+    if isinstance(goal, int):
+        eig_real_runner = adp.runner.simple(eig_real_learner, npoints_goal=goal)
+    elif isinstance(goal, float):
+        eig_real_runner = adp.runner.simple(eig_real_learner, loss_goal=goal)
+    else: 
+        raise ValueError("Sampling goal type not recognised. Must be int for npoints_goal or float for loss_goal.")
+
+    eig_real_data = eig_real_learner.to_numpy()
+    l_vals = eig_real_data[:,0]
+    eigvals = eig_real_data[:,1:]
+
+    avg_Reig = np.trapezoid(eigvals, l_vals, axis=0)
+
+    if return_eigs:
+        return avg_Reig, l_vals, eigvals[:,0], eigvals[:,1], eigvals[:,2], eigvals[:,3]
+    if not return_eigs:
+        return avg_Reig
+    if not isinstance(return_eigs, bool):
+        raise ValueError("input return_eigs must be a bool")
+
+
 def global_optimise(objective, 
                     sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxfev: int=32000,
                     xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[]):
@@ -197,8 +250,13 @@ def global_optimise(objective,
         return y
 
 
-    # NOTE: Constraints must have the form h(x) <= 0
-    def bcd_not_redundant(params,gradn): 
+    # NOTE: Constraints have the form h(x) <= 0, i.e. the constraint function should return a positive 
+    #       value if the constraint is violated. Additionally, MMA takes the gradients of the constraints,
+    #       so the constraint functions should be differentiable with respect to the optimisation parameters. 
+    #       However, I think the gradients of constrain functions are obtained by MMA internally (likely using
+    #       finite differences), so autogradability is not needed.
+
+    def bcd_redundant(params,gradn): 
         """
         Constraint function containing two conditions to avoid redundant parameter space:
             Symmetry wrt swapping box1 and box2, avoid by taking box centre distance > 0
@@ -208,7 +266,7 @@ def global_optimise(objective,
         condition = np.abs(bcd - 0.25*Lam) - 0.25*Lam 
         return condition
 
-    def box_gaps_non_zero(params,gradn):
+    def boxes_overlapping(params,gradn):
         """
         Constraint function to guarantee an asymmetric unit cell by ensuring the distance between two unit cells is larger than zero
         TODO: The boxes overlapping can still be asymmetric, so this constraint is slightly too restrictive
@@ -217,12 +275,12 @@ def global_optimise(objective,
         condition= (w1+w2)/2 - bcd 
         return condition
 
-    def box_clips_cell_edge(params,gradn):
+    def boxes_clip_unit_cell(params,gradn):
         """
         Constraint function that avoids the boxes clipping the edge of the unit cell.
         
         Boxes clipping the unit cell edges can lead to unexpected objective values (user input box widths may not correspond to the 
-        box width that GRCWA receives). Additionally, gradients become expensive to compute in this case.
+        box width that RCWA receives). Additionally, gradients become expensive to compute in this case.
         """
         Lam, _, w1, w2, bcd, _, _, _, _, _ = params
         condition = (w1+w2)/2 + bcd - 0.98*Lam
@@ -231,19 +289,36 @@ def global_optimise(objective,
     def avg_eig_all_negative(params,gradn):
         """
         Constraint function requiring that the average of all real-part eigenvalues are negative. 
-        """
-        Lam, h1, w1, w2, bcd, eps1, eps2, w, t, s_eps = params
-        grating_check = TwoBox(Lam,h1,w1,w2,bcd,eps1,eps2,w,t,s_eps,1,angle,Nx,nG,Qabs)
-        avg_Reigs = grating_check.average_real_eigs(final_speed,goal,return_eigs=False,I=I0)
 
-        MAX = np.max(avg_Reigs) 
-        if MAX == 0:
+        TODO: make this function more differentiable
+        """
+        grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
+        avg_eigvals_real = average_real_eigs(grating_check,final_speed,goal,return_eigs=False,I=I0)
+        largest_avg_Reig = np.max(avg_eigvals_real) 
+        if largest_avg_Reig == 0:  # Don't want zero-real-part eigenvalues, so set condition to unwanted region 
             condition = 1
         else:
-            condition = MAX
-
+            condition = largest_avg_Reig
         return condition
     
+    def zero_imag_eigval(params,gradn):
+        """
+        Constraint function requiring that the imaginary-part eigenvalues are nonzero. 
+
+        TODO: make this function more differentiable
+        """
+        grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
+        _, eigvals_imag = grating_check.Eigs(I=I0,m=m,c1=c,grad_method="finite")
+        # probs = softmin(eigvals_imag,sigma=1.)
+        # smallest_eigval_imag = np.sum(probs*eigvals_imag)
+        smallest_eigval_imag = np.min(np.abs(eigvals_imag))
+        if smallest_eigval_imag == 0:  # Don't want zero-imag-part eigenvalues, so set condition to unwanted region 
+            condition = 1
+        else:
+            condition = -smallest_eigval_imag
+        return condition
+    
+
 
     if sampling_method == 'sobol':
         global_opt = nlopt.opt(nlopt.G_MLSL_LDS, ndof)
@@ -259,10 +334,11 @@ def global_optimise(objective,
     global_opt.set_population(n_sample)  # set initial sampling points
 
     if bcd_constraint:
-        local_opt.add_inequality_constraint(bcd_not_redundant)
-    local_opt.add_inequality_constraint(box_clips_cell_edge)
-    local_opt.add_inequality_constraint(box_gaps_non_zero)
+        local_opt.add_inequality_constraint(bcd_redundant)
+    local_opt.add_inequality_constraint(boxes_clip_unit_cell)
+    local_opt.add_inequality_constraint(boxes_overlapping)
     local_opt.add_inequality_constraint(avg_eig_all_negative)
+    local_opt.add_inequality_constraint(zero_imag_eigval)
 
     local_opt.set_xtol_rel(xtol_rel)
     local_opt.set_ftol_rel(ftol_rel)

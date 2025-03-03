@@ -10,8 +10,6 @@ of merit in a separate module without worrying about the grating simulation.
 """
 
 # IMPORTS ###########################################################################################################################################################################
-import adaptive as adp  # TODO: remove once wavelength-range-dependent functions are moved out of twobox.py
-
 import autograd.numpy as npa
 from autograd import grad, jacobian
 from autograd.scipy.special import erf as autograd_erf
@@ -93,7 +91,7 @@ class MinorSymLogLocator(Locator):
 
 
 
-def softmax(sigma,p):
+def softmax(p,sigma):
     """
     Softmax needed for backpropagation by smoothing out the grating unit cell construction    
     
@@ -105,17 +103,18 @@ def softmax(sigma,p):
     
     Parameters
     ----------
+    p     :   Array of floats to be converted to probabilities
     sigma :   Softmax inverse temperature, i.e. inverse smoothing factor. Smaller means smoother grating.
 
     Returns
     -------
-    Probability of each element in array p based on its value
+    Probability of each element in array p based on its numerical value
     """
 
     e_x = npa.exp(sigma*(p - npa.max(p)))
     return e_x/npa.sum(e_x)
 
-def softmin(sigma,p):
+def softmin(p,sigma):
     """Used to approximate min via expected value of array p with probability distribution given by softmin(p)"""
     e_x = npa.exp(sigma*(npa.min(p) - p))
     return e_x/npa.sum(e_x)
@@ -271,7 +270,7 @@ class TwoBox:
             conditions = npa.array([grid_in_box1, grid_in_box2, grid_left_of_box1, grid_between_boxes, grid_right_of_box2])
             returns = npa.array([eb1, eb2, 1, 1, 1])
             
-            probs = softmax(sigma,conditions)
+            probs = softmax(conditions,sigma)
             eps = npa.sum(probs*returns)
 
             grating.append(eps)
@@ -875,29 +874,76 @@ class TwoBox:
         #       "RuntimeWarning: invalid value encountered in divide" during optimisation
         # TODO: Determine why we can't use npa functions here
 
+        # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
+        #          negative eigenvalue with the smallest real part. 
+        # func_real_neg       =   npa.min(-eigReal)  # standard minimum
+        func_real_neg       =   npa.sum(eigReal*softmin(eigReal,1.))  # softened minimum
+        
+        FD = func_real_neg
+        return FD
+
+    def FoM_LvR(self, I:float=1e9, grad_method: str="finite") -> float:
+        """
+        Calculate the grating single-wavelength figure of merit FD using LvR's most updated method.
+
+        Parameters
+        ----------
+        I           :   Laser intensity
+        grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+        
+        Returns
+        -------
+        FD :   Figure of merit
+        """
+        
+        eigReal, eigImag = self.Eigs(I=I, m=m, c1=c, grad_method=grad_method, check_det=True, return_vec=False)
+
+        def unique_filled(x, filled_value):
+            """
+            Finds unique values in x and fills remaining entries with filled_value.
+            The resultant array is sorted by unique values first.
+
+            Parameters
+            ----------
+            x            :   4d array
+            filled_value :   Float to fill remaining entries in unique_values
+
+            Returns
+            -------
+            unique_values :   Unique contents of x, with remaining entries filled by filled_value
+            """
+            
+            # Sort array to ensure differentiability
+            sorted_x = npa.sort(x.flatten())
+            unique_values = sorted_x[npa.concatenate(([True], npa.diff(sorted_x) != 0))]
+
+            # Append filled_value as needed
+            k = len(unique_values)
+            for i in range(4-k):
+                unique_values = npa.append(unique_values,filled_value)
+
+            return unique_values
+    
+        # NOTE: In the following penalty and reward terms, all operations must be done element-wise to avoid 
+        #       "RuntimeWarning: invalid value encountered in divide" during optimisation
+        # TODO: Determine why we can't use npa functions here
+
         # LvR FoM: Reward all Re(eig) being negative
         # Fill repeated entries in eigReal with -1 so that, after squaring, they don't influence the product
         eig_real_unique     =   unique_filled(eigReal, -1)
         eig_real_neg_unique =   npa.minimum(0., eig_real_unique)
         func_real_neg_array =   npa.power(eig_real_neg_unique, 2)
-        # func_real_neg       =   func_real_neg_array[0] * func_real_neg_array[1] * func_real_neg_array[2] * func_real_neg_array[3]
+        func_real_neg       =   func_real_neg_array[0] * func_real_neg_array[1] * func_real_neg_array[2] * func_real_neg_array[3]
         # func_real_neg       =   npa.prod(func_real_neg_array) 
 
-        # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to minimising the 
-        #          negative eigenvalue with the smallest real part.
-        # func_real_neg       =   npa.min(-eigReal)  # standard minimum
-        func_real_neg       =   npa.sum(eigReal*softmin(1.,eigReal))  # softened minimum
-        
         # Remove Re(eig)<0 contribution if no restoring behaviour
-        # log(1+x^2) chosen as a smooth approximation to the Heaviside step function
+        # log(1+x^2) chosen as a smooth function that moves away from zero
+        # NOTE: This function has zero gradient at x=0, which is bad for stepping away from zero imaginary 
+        #       part. Also, the gradient saturates at large x, which doesn't matter in the sense of 
+        #       needng the imaginary part to be nonzero.
         func_imag_array     =   npa.log(1 + npa.power(eigImag,2))
         func_imag           =   func_imag_array[0] * func_imag_array[1] * func_imag_array[2] * func_imag_array[3]
         # func_imag           =   npa.prod(func_imag_array)
-
-        # print(func_real_neg)
-        # print(func_real_neg2)
-        # print(func_real_neg * func_imag)
-        # print(func_real_neg2 * func_imag)
 
         # Penalise mixed positive and negative Re(eig)
         # Fill repeated entries in eigReal with 0 so that they don't influence the sum
@@ -919,7 +965,6 @@ class TwoBox:
 
         FD = func_real_neg * func_imag - penalty - penalty2
         return FD
-
 
     def sail_stiffness(self, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', out="tr"):
         """
@@ -1007,7 +1052,7 @@ class TwoBox:
         eigvecs :   Eigenvectors of Jacobian matrix
         """
 
-        stiffnesses = self.sail_stiffness(I,m,c1,grad_method='finite',out="tr")
+        stiffnesses = self.sail_stiffness(I,m,c1,grad_method,out="tr")
 
         # Build the Jacobian matrix
         J = npa.array([[0,0,1,0],[0,0,0,1],[*stiffnesses[:4]],[*stiffnesses[4:]]])
@@ -1071,56 +1116,6 @@ class TwoBox:
         return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs
 
 
-    def average_real_eigs(self, final_speed, goal, return_eigs:bool=False, I:float=10e9):
-        """
-        TODO: this function should be moved to opt.py because it depends on final sail velocity
-
-        Calculates the average of each Re(eig) over the wavelength range. 
-        
-        Assumes starting wavelength = 1.
-
-        Parameters
-        ----------
-        final_speed :   percentage speed of light
-        goal        :   integer (number of points) or float (loss goal)
-        return_eigs :   If true, return normalised eigenvalues. If false, return averaged eigenvalues
-        I           :   Laser intensity
-        """
-
-        Doppler = D1_ND([final_speed/100,0])
-        l_min = 1  # l = grating-frame wavelength normalised to laser-frame wavelength
-        l_max = l_min/Doppler    
-        l_range = (l_min, l_max)
-        
-        PDF_unif = 1/(l_max-l_min)  # Probability density function (PDF) for averaging
-
-        def weighted_eig_real(l):
-            self.wavelength = l
-            return PDF_unif*self.Eigs(I=I, m=m, c1=c, check_det=False, return_vec=False)[0]
-
-        # Adaptive sample eig_real
-        eig_real_learner = adp.Learner1D(weighted_eig_real, bounds=l_range)
-        if isinstance(goal, int):
-            eig_real_runner = adp.runner.simple(eig_real_learner, npoints_goal=goal)
-        elif isinstance(goal, float):
-            eig_real_runner = adp.runner.simple(eig_real_learner, loss_goal=goal)
-        else: 
-            raise ValueError("Sampling goal type not recognised. Must be int for npoints_goal or float for loss_goal.")
-
-        eig_real_data = eig_real_learner.to_numpy()
-        l_vals = eig_real_data[:,0]
-        eigvals = eig_real_data[:,1:]
-
-        avg_Reig = np.trapezoid(eigvals, l_vals, axis=0)
-
-        if return_eigs:
-            return avg_Reig, l_vals, eigvals[:,0], eigvals[:,1], eigvals[:,2], eigvals[:,3]
-        if not return_eigs:
-            return avg_Reig
-        if not isinstance(return_eigs, bool):
-            raise ValueError("input return_eigs must be a bool")
-
-    
     def show_permittivity(self, show_analytic_box: bool=False):
         """
         Show permittivity profile for the twobox.
