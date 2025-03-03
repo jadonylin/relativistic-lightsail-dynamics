@@ -185,7 +185,7 @@ def average_real_eigs(grating, final_speed, goal, return_eigs: bool=False, I: fl
 
     def weighted_eig_real(l):
         grating.wavelength = l
-        return PDF_unif*grating.Eigs(I=I, m=m, c1=c, check_det=False, return_vec=False)[0]
+        return PDF_unif*grating.Eigs(I=I, m=m, c1=c, return_vec=False)[0]
 
     # Adaptive sample eig_real
     eig_real_learner = adp.Learner1D(weighted_eig_real, bounds=l_range)
