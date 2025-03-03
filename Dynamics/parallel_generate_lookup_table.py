@@ -1,3 +1,10 @@
+"""
+A script to generate a lookup table for the efficiencies of a user-input twobox grating. Generates 
+the efficiencies for a range of wavelengths and angles, and saves the data as a pickle file. The 
+calculation is parallelised using the multiprocess module, so set the number of processes before
+running.
+"""
+
 import itertools
 
 import multiprocess as mp
@@ -79,5 +86,5 @@ pkl_fname = rf"./Data/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl"
 data = {'Q1': Q1_array, 'Q2': Q2_array, 'PD_Q1_delta': PD_Q1_delta_array, 'PD_Q2_delta': PD_Q2_delta_array, 
         'PD_Q1_lambda': PD_Q1_lambda_array, 'PD_Q2_lambda': PD_Q2_lambda_array, 
         'lambda array': lambda_array, 'delta array': delta_array}
-# with open(pkl_fname, 'wb') as data_file:
-#             pickle.dump(data, data_file)
+with open(pkl_fname, 'wb') as data_file:
+    pickle.dump(data, data_file)
