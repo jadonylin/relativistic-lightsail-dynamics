@@ -1,5 +1,11 @@
 """
 A script for simulating the dynamics of a twobox grating, calculated using a comoving integrator.
+
+For the grating whose dynamics you wish to simulate, copy paste the lookup table data for that grating 
+into the ./Data directory. 
+
+TODO: separate comoving integration loop into a function or class for better reusability and readability
+TODO: Determine how to input optimised Gaussian width without hardcoding
 """
 
 import numpy as np
@@ -22,11 +28,12 @@ grating_type = "Second"
 if grating_type == "Ilic":
     klambda = 650
     kdelta = 1000
-    pkl_load_name = rf'Data/Tables/Ilic_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
+    pkl_load_name = rf'Data/Ilic_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
+    raise NotImplementedError("Ilic grating lookup data is missing")
 if grating_type == "Second":
     klambda = 1000
     kdelta = 1000
-    pkl_load_name = rf'Data/Tables/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
+    pkl_load_name = rf'Data/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
 
 
 with open(pkl_load_name, 'rb') as f: 
@@ -67,8 +74,6 @@ def PD_Q2_lambda_call(delta, lam):
 
 
 I, L, m, c = Parameters()
-I = 10e9
-I_string = "10G"
 w = gaussian_width(grating_type)
 wavelength = 1
 
@@ -81,9 +86,9 @@ def aM(t,yvec,vL,i):
 
     Parameters
     ----------
-    t    : Time measured in Frame Mn
-    yvec : State vector measured in Frame Mn - [x, y, phi, vx, vy, vphi].
-    vL   : Velocity of Frame Mn relative to Frame L - [vx, vy]
+    t    : Time measured in Frame Mn (seconds)
+    yvec : State vector measured in Frame Mn - [x, y, phi, vx, vy, vphi]
+    vL   : Velocity of Frame Mn relative to Frame L - [vx, vy] (metres/second)
     i    : Input step (for troubleshooting)
     
     Returns
@@ -223,15 +228,10 @@ x0 = 0
 vx0 = 0
 
 ## Optimised - 1st
-# y0      = 4.246092324538898e-07
-# phi0    = 1.662492890429048e-07
-# vy0     = -1.8065865332297213
-# omega0  = -0.85798762975541
-## Optimised - 2nd
-y0     = 3.590704173892898e-07
-phi0   = 2.978897761047781e-08
-vy0    = -1.9990833152857805
-omega0 = -0.036371913744121846
+y0      = 0.05*w
+phi0    = 1*np.pi/180
+vy0     = -1.
+omega0  = -1.
 
 ## Ilic - 1st
 # y0      = 1.3183489420398592e-07
@@ -251,9 +251,10 @@ omega0 = -0.036371913744121846
 Y0 = np.array([x0,y0,phi0,vx0,vy0,omega0])
 
 time_MAX = 8.5*60*60  # Maximum runtime (seconds)
+# time_MAX = 10  # Maximum runtime (seconds)
  
 h = 1e-4   # Step size  
-runID = 2  # Added to the output data filename
+runID = 1  # Added to the output data filename
 
 
 ################################
@@ -306,8 +307,7 @@ timeL_array.append(timeLn)
 
 timeSTART = time.time()
 i = 1
-i_STOP = 100  # for debugging
-vFINAL = 0.027*c
+vFINAL = 0.05*c
 
 
 while (vn[0] < vFINAL):
@@ -417,7 +417,7 @@ data = {'YL': YL, 'phiM': phi_nparray, 'phidot': omega_nparray,
         'eps': eps_nparray, 'epsdot': eps_rate_nparray, 
         'step': h, 'duration (min)': t_end_min, 'i': iFINAL, 'Stopped': STOPPED,
         'Initial': Y0, 'Intensity': I}
-pkl_fname = f'./Data/{grating_type}_Dynamics_run{runID}_I{I_string}.pkl'
+pkl_fname = f'./Data/{grating_type}_Dynamics_run{runID}.pkl'
 
 # Save result
 with open(pkl_fname, 'wb') as data_file:

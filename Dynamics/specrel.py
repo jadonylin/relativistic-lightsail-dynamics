@@ -160,8 +160,10 @@ def Parameters():
     return I0, L, m, c
 
 ## Optimised grating
+# TODO: find a better way to acquire gaussian width parameter without relying
+#       on hard coding the values.
 def gaussian_width(grating_type):
     if grating_type=="Ilic":
         return 2 * L
     if grating_type=="Second":
-        return 33.916288616522735
+        return 31.37144885298504
