@@ -13,9 +13,9 @@ sys.path.append("../")
 
 import time
 
-from Dynamics.specrel import Parameters, erf
+from Dynamics.specrel import erf
 from twobox import TwoBox
-from parameters import D1_ND
+from parameters import D1_ND, Parameters
 
 
 _, L, m, c = Parameters()

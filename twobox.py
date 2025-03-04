@@ -15,8 +15,7 @@ from autograd import grad, jacobian
 from autograd.scipy.special import erf as autograd_erf
 from autograd.numpy import linalg as npaLA
 
-from parameters import Parameters
-from parameters import D1_ND
+from parameters import D1_ND, Parameters
 I0, L, m, c = Parameters()
 
 import grcwa

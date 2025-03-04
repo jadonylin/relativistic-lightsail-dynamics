@@ -148,22 +148,3 @@ def E_eps(v, phi):
 
 def erf(x):
     return autograd_erf(x)
-
-
-## Parameters
-I0 = 0.5 * 10**9      # intensity 
-L = 10                # grating width (10 m^2)
-m = 1/1000            # mass (1g)
-c = scipy.constants.c
-
-def Parameters():
-    return I0, L, m, c
-
-## Optimised grating
-# TODO: find a better way to acquire gaussian width parameter without relying
-#       on hard coding the values.
-def gaussian_width(grating_type):
-    if grating_type=="Ilic":
-        return 2 * L
-    if grating_type=="Second":
-        return 31.37144885298504
