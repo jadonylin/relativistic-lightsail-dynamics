@@ -873,7 +873,7 @@ class TwoBox:
         # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
         #          negative eigenvalue with the smallest real part. 
         # FD = npa.min(-eigReal)  # standard minimum
-        FD = npa.sum(eigReal*softmin(eigReal,1.))  # softened minimum
+        FD = npa.sum(-eigReal*softmin(-eigReal,1.))  # softened minimum
         
         return FD
 
