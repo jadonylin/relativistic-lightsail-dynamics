@@ -203,7 +203,7 @@ def average_real_eigs(grating, final_speed, goal, return_eigs: bool=False, I: fl
     l_vals = eig_real_data[:,0]
     eigvals = eig_real_data[:,1:]
 
-    avg_Reig = np.trapezoid(eigvals, l_vals, axis=0)
+    avg_Reig = np.trapz(eigvals, l_vals, axis=0)
 
     if return_eigs:
         return avg_Reig, l_vals, eigvals[:,0], eigvals[:,1], eigvals[:,2], eigvals[:,3]
@@ -250,6 +250,23 @@ def global_optimise(objective,
         y, dy = objective(params)
         if gradn.size > 0:  # Even for gradient methods, in some calls gradn will be empty []
             gradn[:] = dy
+
+        # Debugging: Print constraint values to ensure optimiser moves to negative regions
+
+        # bcd_red = bcd_redundant(params,gradn)
+        # boxes_overl = boxes_overlap(params,gradn)
+        # boxes_clip = boxes_clip_unit_cell(params,gradn)
+        # avg_neg = some_eig_real_avg_positive(params,gradn)
+        # zero_imag = some_eig_imag_zero(params,gradn)
+
+        # print("")
+        # print(bcd_red)
+        # print(boxes_overl)
+        # print(boxes_clip)
+        # print(avg_neg)
+        # print(zero_imag)
+        # print("")
+        
         return y
 
 
@@ -269,7 +286,7 @@ def global_optimise(objective,
         condition = np.abs(bcd - 0.25*Lam) - 0.25*Lam 
         return condition
 
-    def boxes_overlapping(params,gradn):
+    def boxes_overlap(params,gradn):
         """
         Constraint function to guarantee an asymmetric unit cell by ensuring the distance between two unit cells is larger than zero
         TODO: The boxes overlapping can still be asymmetric, so this constraint is slightly too restrictive
@@ -289,7 +306,7 @@ def global_optimise(objective,
         condition = (w1+w2)/2 + bcd - 0.98*Lam
         return condition
     
-    def avg_eig_all_negative(params,gradn):
+    def some_eig_real_avg_positive(params,gradn):
         """
         Constraint function requiring that the average of all real-part eigenvalues are negative. 
 
@@ -304,7 +321,7 @@ def global_optimise(objective,
             condition = largest_avg_Reig
         return condition
     
-    def zero_imag_eigval(params,gradn):
+    def some_eig_imag_zero(params,gradn):
         """
         Constraint function requiring that the imaginary-part eigenvalues are nonzero. 
 
@@ -339,9 +356,9 @@ def global_optimise(objective,
     if bcd_constraint:
         local_opt.add_inequality_constraint(bcd_redundant)
     local_opt.add_inequality_constraint(boxes_clip_unit_cell)
-    local_opt.add_inequality_constraint(boxes_overlapping)
-    local_opt.add_inequality_constraint(avg_eig_all_negative)
-    local_opt.add_inequality_constraint(zero_imag_eigval)
+    local_opt.add_inequality_constraint(boxes_overlap)
+    local_opt.add_inequality_constraint(some_eig_real_avg_positive)
+    local_opt.add_inequality_constraint(some_eig_imag_zero)
 
     local_opt.set_xtol_rel(xtol_rel)
     local_opt.set_ftol_rel(ftol_rel)
