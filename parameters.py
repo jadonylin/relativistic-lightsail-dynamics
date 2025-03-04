@@ -60,7 +60,7 @@ def D1_ND(v):
 
 ## Global Optimisation parameters ##
 # Mission parameters
-I0 = 0.5 * 10**9  # laser intensity (might need to be halved)
+I0 = 0.5e9  # laser intensity (might need to be halved)
 L = 10  # grating width (metres in 2D model)
 m = 1/1000  # mass (grams)
 c = scipy.constants.c
@@ -73,7 +73,7 @@ nG = 25  # Number of Fourier components for RCWA simulation
 
 # Relaxation parameter should be np.inf unless you need to avoid singular matrix at grating cutoffs
 # Note that the optimiser will only find (likely unphysical) large-magnitude, noisy rNeg1 optima when Qabs = np.inf 
-Qabs = 1e7  # 1e7
+Qabs = 1e7
 
 
 ## FoM parameters ##
