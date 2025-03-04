@@ -62,6 +62,7 @@ class agfunc:
             self.eig=npaLA.eig
             self.det=npaLA.det
             self.grad=grad
+            self.isnan=npa.isnan
 
         elif lib=="torch":
             self.sqrt = torch.sqrt
@@ -85,9 +86,10 @@ class agfunc:
             self.imag=torch.imag
             self.power=torch.pow
             self.log=torch.log
-            self.eig=lambda x: torch.eig(x,eigenvectors=True)
+            self.eig=lambda x: torch.linalg.eig(x)
             self.det=torch.det
             self.grad=grad_torch
+            self.isnan=torch.isnan
     def _softmax(self,sigma,p):
         e_x = npa.exp(sigma*(p - npa.max(p)))
         return e_x/npa.sum(e_x)
