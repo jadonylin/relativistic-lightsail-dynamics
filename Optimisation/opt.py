@@ -306,20 +306,20 @@ def global_optimise(objective,
         condition = (w1+w2)/2 + bcd - 0.98*Lam
         return condition
     
-    def some_eig_real_avg_positive(params,gradn):
-        """
-        Constraint function requiring that the average of all real-part eigenvalues are negative. 
+    # def some_eig_real_avg_positive(params,gradn):
+    #     """
+    #     Constraint function requiring that the average of all real-part eigenvalues are negative. 
 
-        TODO: make this function more differentiable
-        """
-        grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
-        avg_eigvals_real = average_real_eigs(grating_check,final_speed,goal,return_eigs=False,I=I0)
-        largest_avg_Reig = np.max(avg_eigvals_real) 
-        if largest_avg_Reig == 0:  # Don't want zero-real-part eigenvalues, so set condition to unwanted region 
-            condition = 1
-        else:
-            condition = largest_avg_Reig
-        return condition
+    #     TODO: make this function more differentiable
+    #     """
+    #     grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
+    #     avg_eigvals_real = average_real_eigs(grating_check,final_speed,goal,return_eigs=False,I=I0)
+    #     largest_avg_Reig = np.max(avg_eigvals_real) 
+    #     if largest_avg_Reig == 0:  # Don't want zero-real-part eigenvalues, so set condition to unwanted region 
+    #         condition = 1
+    #     else:
+    #         condition = largest_avg_Reig
+    #     return condition
     
     def some_eig_imag_zero(params,gradn):
         """
@@ -357,7 +357,7 @@ def global_optimise(objective,
         local_opt.add_inequality_constraint(bcd_redundant)
     local_opt.add_inequality_constraint(boxes_clip_unit_cell)
     local_opt.add_inequality_constraint(boxes_overlap)
-    local_opt.add_inequality_constraint(some_eig_real_avg_positive)
+    # local_opt.add_inequality_constraint(some_eig_real_avg_positive)
     local_opt.add_inequality_constraint(some_eig_imag_zero)
 
     local_opt.set_xtol_rel(xtol_rel)
