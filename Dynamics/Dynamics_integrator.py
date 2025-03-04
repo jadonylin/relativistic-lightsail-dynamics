@@ -3,9 +3,6 @@ A script for simulating the dynamics of a twobox grating, calculated using a com
 
 For the grating whose dynamics you wish to simulate, copy paste the lookup table data for that grating 
 into the ./Data directory. 
-
-TODO: separate comoving integration loop into a function or class for better reusability and readability
-TODO: Determine how to input optimised Gaussian width without hardcoding
 """
 
 import numpy as np
@@ -19,8 +16,14 @@ sys.path.append("../")
 
 import time
 
-from specrel import Gamma, Dv, vadd, SinCosTheta, SinCosEpsilon, ABSC, E_eps, erf, Parameters, gaussian_width, Lorentz, norm_squared
+from cmvint import odecmvint
+from Optimisation.opt import extract_opt
+from parameters import Parameters
+from specrel import Gamma, Dv, SinCosTheta, ABSC, E_eps, erf, norm_squared
 
+
+I, L, m, c = Parameters()
+wavelength = 1
 
 # The efficiency factors are too expensive to calculate in real time, so pre-calculated tables are used.
 grating_type = "Second"
@@ -28,16 +31,22 @@ grating_type = "Second"
 if grating_type == "Ilic":
     klambda = 650
     kdelta = 1000
-    pkl_load_name = rf'Data/Ilic_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
+    lookup_data_fname = rf'Data/Ilic_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
+    w = 2*L
     raise NotImplementedError("Ilic grating lookup data is missing")
 if grating_type == "Second":
     klambda = 1000
     kdelta = 1000
-    pkl_load_name = rf'Data/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
+    lookup_data_fname = rf'Data/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
+    opt_gratings_data_fname = 'Data/FOM_optimisation_maxfev160000.pkl'
 
+    _, _, opt_grating = extract_opt(opt_gratings_data_fname, output_opt_idx=0)
+    # w = opt_grating.gaussian_width
+    w = 31.37144885298504
+    print(w)
 
-with open(pkl_load_name, 'rb') as f: 
-    data = pickle.load(f)
+with open(lookup_data_fname, 'rb') as lookup_file: 
+    data = pickle.load(lookup_file)
 
 
 Q1 = data['Q1']
@@ -71,11 +80,6 @@ def PD_Q1_lambda_call(delta, lam):
     return interp_PD_Q1_lambda( np.array( [lam,delta] ) )[0]
 def PD_Q2_lambda_call(delta, lam):
     return interp_PD_Q2_lambda( np.array( [lam,delta] ) )[0]
-
-
-I, L, m, c = Parameters()
-w = gaussian_width(grating_type)
-wavelength = 1
 
 
 def aM(t,yvec,vL,i):
@@ -208,22 +212,7 @@ def aM(t,yvec,vL,i):
     return F
 
 
-def Mstep(h,tn,yn,vL,i):
-    """Step in the direction of the acceleration vector aM in frame Mn using fourth-order Runge-Kutta."""
-
-    k1 = h*aM(tn      , yn       , vL, i)
-    k2 = h*aM(tn+0.5*h, yn+0.5*k1, vL, i)
-    k3 = h*aM(tn+0.5*h, yn+0.5*k2, vL, i)
-    k4 = h*aM(tn+h    , yn+k3    , vL, i)
-
-    yNew = yn + 1/6*(k1 + 2*k2 + 2*k3 + k4)
-    tNew = tn + h
-
-    return tNew,yNew
-
-
 ## Optimisation parameters and initial conditions ##
-timeLn = 0
 x0 = 0
 vx0 = 0
 
@@ -245,180 +234,43 @@ omega0  = -1.
 # omega0  = -0.06679404481428496
 
 
-# x0=0;   y0=-(5/100)*L;      phi0=0            #y0=-0.05*L
-# vx0=0;  vy0=0;              omega0=0
+# x0     = 0
+# y0     = -0.05*L
+# phi0   = 0
+# vx0    = 0
+# vy0    = 0
+# omega0 = 0
 
 Y0 = np.array([x0,y0,phi0,vx0,vy0,omega0])
 
 time_MAX = 8.5*60*60  # Maximum runtime (seconds)
 # time_MAX = 10  # Maximum runtime (seconds)
+velocity_MAX = 0.05*c
  
 h = 1e-4   # Step size  
 runID = 1  # Added to the output data filename
 
+positions, angles, times, loop_data = odecmvint(aM, Y0, time_MAX, velocity_MAX, args=(), hstep=h)
 
-################################
-## Integration ##
-x_array = []
-y_array = []
-vx_array = []
-vy_array = []
+phi_nparray      = angles[0,:]
+eps_nparray      = angles[1,:]
+omega_nparray    = angles[2,:]
+eps_rate_nparray = angles[3,:]
+timeM_nparray    = times[0,:]
+tau_nparray      = times[1,:]
+timeL_nparray    = times[2,:]
 
-timeM_array = []
-tau_array = []
-timeL_array = []
+runtime = loop_data["Runtime"]
+steps = loop_data["Steps"]
+STOPPED = loop_data["Stopped"]
 
-# Angles are stored in frame M
-phi_array = []
-omega_array = []
-
-# Frame Wigner-rotation angle
-eps_array = []
-eps_rate_array = []
-
-# Flag if the optimisation took too long
-STOPPED = False
-
-
-vn = np.array([vx0, vy0])
-z0 = np.array([timeLn, x0, y0])  # Four-position of the sail (without the third spatial component)           
-
-# Initial four-position in frame M
-zM0    = Lorentz(vn,z0)
-timeMn, x0M, y0M = zM0
-
-# Initial state vectors
-YMn = np.array([x0M, y0M, phi0, 0, 0, omega0])            
-YL0 = np.array([x0, y0, vx0, vy0])       
-taun = 0
-
-
-x_array.append(x0)
-y_array.append(y0)
-vx_array.append(vx0)
-vy_array.append(vy0)
-
-phi_array.append(phi0)
-omega_array.append(omega0)
-
-timeM_array.append(timeMn)
-tau_array.append(taun)
-timeL_array.append(timeLn)
-
-timeSTART = time.time()
-i = 1
-vFINAL = 0.05*c
-
-
-while (vn[0] < vFINAL):
-    """
-    The main loop of the comoving integrator. Information is passed between frames L, Mn and Mn+1.
-
-    The loop:
-        Sail starts in M_n and accelerates into state n+1 via M-frame forces. This updates position, angle and velocities.
-        
-        The n+1 information is sent back to L, then into a new frame M_{n+1} defined by relativistic addition of the M_n velocity 
-        (in L) and the new small velocity due to M-frame forces (over the time step Delta tau).
-    
-        Rotation information is transferred from M_n to M_{n+1} purely via Wigner rotation.
-    """
-    
-    timeDIFF = time.time() - timeSTART
-    
-    if timeDIFF >= time_MAX: # Finished
-        STOPPED = True
-        print("Stopped yay :)")
-        break
-    
-    if STOPPED:
-        break    
-    else:                                  
-        # Take a step in M and evolve state there
-        try:
-            timeMNew, YNew = Mstep(h,timeMn,YMn,vn,i) 
-        except:  # TODO: catch specific exception
-            STOPPED = True
-            print("Force failed: Successfully stopped early")
-            break
-
-        # Store new M
-        xNew     = YNew[0]
-        yNew     = YNew[1]
-        phiNew   = YNew[2]
-        uxNew    = YNew[3]  
-        uyNew    = YNew[4]
-        omegaNew = YNew[5]
-
-        # Convert time and position variables to frame L using inverse Lorentz transformation
-        zNew  = np.array([timeMNew,xNew,yNew]) 
-        uNew  = np.array([uxNew,uyNew])  # Velocity induced by the M-frame forces over small time step
-        zLNew = Lorentz(-vn,zNew)
-
-        # Defining new M_{n+1} frame as a boost from L
-        vLNew   = vadd(vn,uNew)  # Uses relativistic velocity addition
-        zM_NEXT = Lorentz(vLNew,zLNew)  # Won't be at the origin anymore due to forces
-        vM_NEXT = np.array([0,0])  # New velocity is 0 since we've just boosted into the new frame 
-        eps     = SinCosEpsilon(vn,uNew)[2]  # Wigner rotation angle
-        if i==1:
-            eps_rate = (eps - 0)/h
-        else:    
-            eps_rate = (eps - eps_array[i-2])/h
-        
-
-        # Updating state vector and M-frame velocity
-        timeMn  = zM_NEXT[0]
-        xM2     = zM_NEXT[1]
-        yM2     = zM_NEXT[2]
-        phiM2   = phiNew - eps  
-        vxM2    = 0
-        vyM2    = 0
-        omegaM2 = omegaNew - eps_rate
-
-        YMn = np.array([xM2,yM2,phiM2,vxM2,vyM2,omegaM2])
-        vn = vLNew
-
-
-        # Saving L data
-        timeL_array.append(zLNew[0])
-        x_array.append(zLNew[1])
-        y_array.append(zLNew[2])
-        vx_array.append(vLNew[0])
-        vy_array.append(vLNew[1])
-
-        # Saving M data
-        timeM_array.append(timeMn)
-        tau_array.append(tau_array[i-1] + h)
-        
-        phi_array.append(phiM2)
-        omega_array.append(omegaM2)
-        
-        eps_array.append(eps)
-        eps_rate_array.append(eps_rate)
-    
-    iFINAL = i
-    i += 1
-
-t_end = timeDIFF
-t_end_sec = round(t_end)
-t_end_min = round(t_end/60)
-t_end_hours = round(t_end/60**2)
-
-YL               = np.array( [x_array, y_array, vx_array, vy_array] )
-phi_nparray      = np.array(phi_array)
-omega_nparray    = np.array(omega_array)
-timeM_nparray    = np.array(timeM_array)
-tau_nparray      = np.array(tau_array)
-timeL_nparray    = np.array(timeL_array)
-eps_nparray      = np.array(eps_array)
-eps_rate_nparray = np.array(eps_rate_array)
-
-data = {'YL': YL, 'phiM': phi_nparray, 'phidot': omega_nparray,
+save_data = {'YL': positions, 'phiM': phi_nparray, 'phidot': omega_nparray,
         'timeM': timeM_nparray, 'tau': tau_nparray, 'timeL': timeL_nparray, 
         'eps': eps_nparray, 'epsdot': eps_rate_nparray, 
-        'step': h, 'duration (min)': t_end_min, 'i': iFINAL, 'Stopped': STOPPED,
+        'step': h, 'Runtime (sec)': runtime, 'i': steps, 'Stopped': STOPPED,
         'Initial': Y0, 'Intensity': I}
-pkl_fname = f'./Data/{grating_type}_Dynamics_run{runID}.pkl'
+save_fname = f'./Data/{grating_type}_Dynamics_run{runID}.pkl'
 
 # Save result
-with open(pkl_fname, 'wb') as data_file:
-    pickle.dump(data, data_file)
+with open(save_fname, 'wb') as data_file:
+    pickle.dump(save_data, data_file)
