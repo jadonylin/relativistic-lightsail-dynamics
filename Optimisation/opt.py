@@ -21,6 +21,9 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1" 
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1" 
 os.environ["NUMEXPR_NUM_THREADS"] = "1" 
+from operator import itemgetter
+
+import pickle
 
 import random
 
@@ -374,4 +377,35 @@ def global_optimise(objective,
         is_optimum = False
         return (fake_FOM, fake_params, is_optimum)
 
-    
+def extract_opt(data_filename: str, output_opt_idx: int=0):
+    """
+    Extract the optimum gratings stored in a data file. Optima are ordered by FOM (largest to smallest).
+
+    Parameters
+    ----------
+    data_filename  :   pkl file location relative to working directory
+    output_opt_idx :   Index for the optimal twobox instance (from the ordered list) to return directly
+
+    Returns
+    -------
+    maxima_and_maximisers_sorted :   List of tuples, each tuple being (FOM, optimisation parameters) 
+    opt_gratings_sorted          :   List of tuples, each tuple being (FOM, twobox instance)
+    chosen_best_grating          :   Twobox instance for the output grating chosen by output_opt_idx
+    """
+
+    with open(data_filename, 'rb') as data_file:
+        data = pickle.load(data_file)
+
+    opt_FOMs = data["FOM"]
+    opt_gratings = data["Optimised grating"]
+    opt_params = data["Optimised parameters"] #[0]
+
+    maxima_and_maximisers = zip(opt_FOMs, opt_params)
+    maxima_and_gratings = zip(opt_FOMs, opt_gratings)
+
+    # Sort the optima based on the FOM value
+    maxima_and_maximisers_sorted = sorted(maxima_and_maximisers, key=itemgetter(0), reverse=True)
+    opt_gratings_sorted = sorted(maxima_and_gratings, key=itemgetter(0), reverse=True)
+    chosen_best_grating = opt_gratings_sorted[output_opt_idx][1]
+
+    return maxima_and_maximisers_sorted, opt_gratings_sorted, chosen_best_grating
