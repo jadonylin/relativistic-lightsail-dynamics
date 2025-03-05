@@ -171,13 +171,26 @@ class TwoBox:
         self.nG = nG
         self.Qabs = Qabs
 
-
         self.invert_unit_cell = False
-
-        self.box_params = [self.box1_width, self.box2_width, self.box_centre_dist, self.box1_eps, self.box2_eps, self.gaussian_width, self.substrate_depth, self.substrate_eps]
-        self.params = [self.grating_pitch, self.grating_depth] + self.box_params
         
         self.init_RCWA()
+
+    @property
+    def params(self):
+        # Manipulate self.params instance variable using getter and setter properties rather than defining
+        # in __init__. Also, need to define self.params here instead of in __init__. Both of these are
+        # needed in order for user changes to instance variables to update self.params (and vice versa). 
+        self._params = [self.grating_pitch, self.grating_depth, 
+                       self.box1_width, self.box2_width, self.box_centre_dist, self.box1_eps, self.box2_eps, 
+                       self.gaussian_width, self.substrate_depth, self.substrate_eps]
+        return self._params
+    @params.setter
+    def params(self, new_params):
+        self._params = new_params
+        (self.grating_pitch, self.grating_depth, 
+        self.box1_width, self.box2_width, self.box_centre_dist, self.box1_eps, self.box2_eps, 
+        self.gaussian_width, self.substrate_depth, self.substrate_eps) = new_params
+        self.build_grating_gradable()  # TODO: I think every instance method calls init_RCWA, so this is not needed
   
     def build_grating(self):
         """
@@ -318,12 +331,12 @@ class TwoBox:
         obj.Init_Setup(Pscale=self.grating_pitch)
 
         # TODO: re-building the grating every time we calculate diffraction efficiencies is inefficient 
-        # because changes to parameters such as wavelength do not change the grating parameters.
+        #       because changes to parameters such as wavelength do not change the grating parameters.
         self.build_grating_gradable()  # update twobox whenever user changes box parameters
         obj.GridLayer_geteps(self.grating_grid)
 
 
-        planewave={'p_amp':0,'s_amp':1,'p_phase':0,'s_phase':0}
+        planewave = {'p_amp':0,'s_amp':1,'p_phase':0,'s_phase':0}
         obj.MakeExcitationPlanewave(planewave['p_amp'],planewave['p_phase'],planewave['s_amp'],planewave['s_phase'],order = 0)
 
         self.RCWA = obj
@@ -982,14 +995,17 @@ class TwoBox:
         The eight stiffness coefficients for the lightsail at equilibrium.
         """
         
-        if grad_method == 'finite':
-            # For optimisation, need to use finite differences
-            # Approximately optimal step size is 10^-6.5 for both angle and wavelength
-            h_angle = 10**(-6.5)
-            h_wavelength = 10**(-6.5)
-            Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR = self.return_Qs(h_angle, h_wavelength)
-        if grad_method == "grad":
-            Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR = self.return_Qs_auto(return_Q=True)
+        match grad_method:
+            case "finite":
+                # For optimisation, need to use finite differences
+                # Approximately optimal step size is 10^-6.5 for both angle and wavelength
+                h_angle = 10**(-6.5)
+                h_wavelength = 10**(-6.5)
+                Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR = self.return_Qs(h_angle, h_wavelength)
+            case "grad":
+                Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR = self.return_Qs_auto(return_Q=True)
+            case _:
+                raise ValueError("grad_method not recognised. Must be 'finite' or 'grad'.")
 
         w = self.gaussian_width
         w_bar = w/L  # width normalised to total grating length
@@ -1111,7 +1127,7 @@ class TwoBox:
             Panel 1 is the user-input permittivity profile (the boxes smoothed by build_grating_gradable())
             Panel 2 is the GRCWA-resolved permittivity profile (with precision limited by nG)
 
-        Note: GRCWA does not always align the returned permittivity with the grid numbers, it may be displaced by several grids.
+        NOTE: GRCWA does not always align the returned permittivity with the grid numbers, it may be displaced by several grids.
         This is not an issue because the unit cell can be arbitrarily shifted provided you maintain periodic boundary conditions.
 
         Parameters
