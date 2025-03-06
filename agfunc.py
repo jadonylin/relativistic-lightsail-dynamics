@@ -31,7 +31,13 @@ def grad_torch_value(f,x,argnum=0):
 def torch_tensor_with_grad(*args, **kwargs):
     # Force requires_grad to be True (overriding any passed value)
     kwargs['requires_grad'] = True
-    return torch.tensor(*args, **kwargs)
+    if torch.is_tensor(args[0]):
+        # if(args[0].requires_grad==False):
+        #     print("WARNING: tensor has requires_grad==False")
+        return(args[0])        
+    else:
+        return torch.tensor(*args, **kwargs) 
+   
 
 class agfunc:
     """ wrapper class for autograd and torch functions """

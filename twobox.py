@@ -120,7 +120,7 @@ class TwoBox:
     def __init__(self, grating_pitch: float, grating_depth: float, box1_width: float, box2_width: float, box_centre_dist: float, box1_eps: complex, box2_eps: complex, 
                  gaussian_width: float, substrate_depth: float, substrate_eps: float, 
                  wavelength: float=1., angle: float=0.,
-                 Nx: float=1000, nG: int=25, Qabs: float=np.inf,RCWA_engine='GRCWA',torcwa_edge_sharpness:int =1000) -> None:
+                 Nx: float=1000, nG: int=25, Qabs: float=np.inf,RCWA_engine='GRCWA',torcwa_edge_sharpness:int =45) -> None:
         """
         Initialise twobox grating, excitation and hyperparameters.
 
@@ -487,7 +487,12 @@ class TwoBox:
         
         PD_Q1_wavelength=(Q1_forwards_wavelength - Q1_back_wavelength) / (2 * h_wavelength)
         PD_Q2_wavelength=(Q2_forwards_wavelength - Q2_back_wavelength) / (2 * h_wavelength)
-
+        # debug:        
+        # print('PD_angle_Q1:',PD_Q1_angle)
+        # print('PD_angle_Q2:',PD_Q2_angle)
+        # print('PD_wavelength_Q1:',PD_Q1_wavelength)
+        # print('PD_wavelength_Q2:',PD_Q2_wavelength)
+        # end debug
         # return Q1,Q2,PD_Q1_angle,PD_Q2_angle,PD_Q1_wavelength,PD_Q2_wavelength
         return Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength
 
@@ -511,25 +516,29 @@ class TwoBox:
             angle, wavelength = params
             self.angle = angle
             self.wavelength = wavelength
-            # return self.Q()
+            return self.Q()
             # for debuging
-            return self.Q_trivial()
+            # return self.Q_trivial()
             # end debugging
 
         PD_both_Q = self.npa.jacobian(Q_both, argnum=1)
         params =self.npa.array([ input_angle, input_wavelength] )
+
         PD_both_Q_ = PD_both_Q(self, params)
-        # debug:
-        print('params:',params)
-        print('PD_both_Q_:',PD_both_Q_)
-        # end debug
+      
 
         PD_angle_Q1 = PD_both_Q_[0][0]
         PD_angle_Q2 = PD_both_Q_[1][0]
 
         PD_wavelength_Q1 = PD_both_Q_[0][1]
         PD_wavelength_Q2 = PD_both_Q_[1][1]
-
+        # debug:
+        #print('params:',params)
+        # print('PD_angle_Q1:',PD_angle_Q1)
+        # print('PD_angle_Q2:',PD_angle_Q2)
+        # print('PD_wavelength_Q1:',PD_wavelength_Q1)
+        # print('PD_wavelength_Q2:',PD_wavelength_Q2)
+        # end debug
         ########### Restore
         self.angle=input_angle
         self.wavelength=input_wavelength
@@ -1042,9 +1051,12 @@ class TwoBox:
                 print("\n")
 
         # Find the real part of eigenvalues    
-        
-        # if self.npa.isnan(J).any():
-        #     print(J)
+        ord=self.grating_orders()
+        if np.max(ord)==0:
+            print('Warning: single grating order, no restoring forces possible -- undefined Jacobian')
+        if self.npa.isnan(J).any():
+            print(f'Nan in Jacobian at {lam}')
+            print(f'J:{J}')
         
         EIGVALVEC   = self.npa.eig(J)
         eig         = EIGVALVEC[0]
@@ -1311,7 +1323,7 @@ class TwoBox:
         #     # flip to match ordering of desired eps vs grid number - 
         #     eps_array = np.flip(eps_array)
         x0,eps_array=self.return_epsilon()
-            
+        # eps_array=self.to_numpy(eps_array)
         eps_array_real = eps_array.real
 
         # Show actual eps vs grid number 
@@ -1332,17 +1344,17 @@ class TwoBox:
 
         if show_analytic_box:
             init_Nx = self.Nx
-            self.Nx = 1000*self.Nx
+            self.Nx = 2000 # 1000*self.Nx
             fine_grids = np.arange(0, self.Nx, 1)
             if self.RCWA_engine == 'GRCWA':
                 analytic_boxes = self.build_grating()
-                axs[0].plot(fine_grids/1000,analytic_boxes)
+                axs[0].plot(fine_grids/2000.0*init_Nx,analytic_boxes)
                 self.Nx = init_Nx
             elif self.RCWA_engine == 'TORCWA':
                 torcwa.rcwa_geo.nx = self.Nx
                 torcwa.rcwa_geo.grid()
                 analytic_boxes = self.build_grating_torcwa()
-                axs[0].plot(fine_grids/1000,analytic_boxes[:,0])
+                axs[0].plot(fine_grids/2000.0*init_Nx,analytic_boxes[:])
                 self.Nx = init_Nx
                 torcwa.rcwa_geo.nx = self.Nx            
                 torcwa.rcwa_geo.grid()
@@ -1443,6 +1455,7 @@ class TwoBox:
     def PDtNeg1(self, angle):
         a=self.npa.grad(self.tNeg1)(self.npa.array(angle))
         return a
+# end debug functions
 
     def show_spectrum(self, angle: float=0., efficiency_quantity: str="PDr", wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9, grad_method: str="grad"):
         """
@@ -1935,7 +1948,8 @@ class TwoBox:
         torcwa.rcwa_geo.grid()
         torcwa.rcwa_geo.edge_sharpness = self.torcwa_edge_sharpness
         sim = torcwa.rcwa(freq=freq,order=[self.nG,0],L=L,dtype=sim_dtype,device=device,stable_eig_grad=False) # 4/3/25 added stable_eig_grad=False to debug jacobian not working 
-       
+            # Without this flag, self.Eig doesn't work, but with it, grad sometmies returns ill defined eigenvector error when calling grad, instead of NaN - both it seems only for orders past cutoff (tbc)
+        
         ## CREATE LAYERS ##
         eps_vacuum = 1        
         sim.add_input_layer(eps=eps_vacuum) # input and output layers are eps=mu=1 by default, so this line not needed
@@ -1969,18 +1983,19 @@ class TwoBox:
         layer0_eps =eb1*box1_bool+eb2*box2_bool + (1.-layer0_bool)
         self.grating_grid_torcwa = layer0_eps
         try: # when called to calculate gradient functions rather than values, tensors are virtual - do not copy to grating_grid
-            self.grating_grid = layer0_eps.cpu().numpy()
+            self.grating_grid = self.to_numpy(layer0_eps)
         except:
             self.grating_grid =np.zeros((self.Nx,0))
         return self.grating_grid
 
     def return_epsilon(self):
-        x0 = np.linspace(0,self.grating_pitch,self.Nx, endpoint=False)
+        p=self.to_numpy(self.grating_pitch)
+        x0 = np.linspace(0,p,self.Nx, endpoint=False)
     
         if self.RCWA_engine == 'TORCWA':
             self.init_TORCWA() 
             #Torcwa does not need flipping this array - check x axis conventions?           
-            eps_array=self.RCWA.return_layer(0,self.Nx,1)[0].cpu().numpy()
+            eps_array=self.to_numpy(self.RCWA.return_layer(0,self.Nx,1)[0])
                 
         elif self.RCWA_engine == 'GRCWA':
             self.init_RCWA()
@@ -1994,3 +2009,22 @@ class TwoBox:
             return x.detach().cpu().numpy()
         else:
             return np.array(x)
+    
+    def grating_orders(self,wavelength=np.nan,angle=np.nan):
+        """ return list of grating orders given current wavelenth and incident angle """
+        if np.isnan(wavelength): wavelength=self.to_numpy(self.wavelength) 
+        if np.isnan(angle): angle=self.to_numpy(self.angle)
+        p=self.to_numpy(self.grating_pitch)
+        # Calculate the maximum possible diffraction order
+        m_max = int((p / wavelength) * (1 + np.sin(angle)))
+        # Initialize a list to store the valid diffraction orders
+        orders = []
+        # Iterate over possible diffraction orders from -m_max to m_max
+        for m in range(-m_max, m_max + 1):
+            # Calculate sin(θ_m) using the grating equation
+            sin_theta_m = (m * wavelength / p) - np.sin(angle)
+            # Check if sin(θ_m) is within the valid range [-1, 1]
+            if -1 <= sin_theta_m <= 1:
+                orders.append(m)
+        return orders
+    
