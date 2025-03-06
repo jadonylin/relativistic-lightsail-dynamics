@@ -14,12 +14,10 @@ from scipy.interpolate import RegularGridInterpolator
 import sys
 sys.path.append("../")
 
-import time
-
-from cmvint import odecmvint
+from cmvint import InterpolateError, odecmvint
 from Optimisation.opt import extract_opt
 from parameters import Parameters
-from specrel import Gamma, Dv, SinCosTheta, ABSC, E_eps, erf, norm_squared
+from specrel import Gamma, Dv, SinCosTheta, ABSC, E_eps, erf
 
 
 I, L, m, c = Parameters()
@@ -43,7 +41,6 @@ if grating_type == "Second":
     _, _, opt_grating = extract_opt(opt_gratings_data_fname, output_opt_idx=0)
     # w = opt_grating.gaussian_width
     w = 31.37144885298504
-    print(w)
 
 with open(lookup_data_fname, 'rb') as lookup_file: 
     data = pickle.load(lookup_file)
@@ -124,8 +121,12 @@ def aM(t,yvec,vL,i):
     D   = Dv(vL)
     g   = Gamma(vL)
     lam = wavelength / D  # Incident wavelength in Frame Mn
+      
     
-    try:
+    try:  
+        # TODO: incorporate these interpolation calculations into a function
+        # TODO: user script shouldn't need to manually catch exceptions, that should all be handled by cmvint. 
+        #       Moving the interpolation calculators into a function might help with that.
         Q1R = Q1_call(delta,lam);    Q2R =  Q2_call(delta,lam);    
         Q1L = Q1_call(-delta,lam);   Q2L = -Q2_call(-delta,lam);   
 
@@ -134,17 +135,19 @@ def aM(t,yvec,vL,i):
 
         dQ1dlambdaR = PD_Q1_lambda_call(delta,lam);     dQ2dlambdaR =  PD_Q2_lambda_call(delta,lam)
         dQ1dlambdaL = PD_Q1_lambda_call(-delta,lam);    dQ2dlambdaL = -PD_Q2_lambda_call(-delta,lam)
-
-        # Define T_{pr,j}' as angular correction terms, containing the Q1 and Q2 dispersion derivatives
-        T1R = (A/costheta - E) * dQ1ddeltaR + cosphi * lam * dQ1dlambdaR
-        T1L = (A/costheta - E) * dQ1ddeltaL + cosphi * lam * dQ1dlambdaL
-        T2R = (A/costheta - E) * dQ2ddeltaR + cosphi * lam * dQ2dlambdaR
-        T2L = (A/costheta - E) * dQ2ddeltaL + cosphi * lam * dQ2dlambdaL
-    except:  # TODO: catch specific exception
-        print(rf"Failed on delta'={delta}, lambda'={lam}")
-        print(rf"Data boundaries: delta' in ({delta_array[0]}, {delta_array[-1]}), lambda' in ({lambda_array[0]}, {lambda_array[-1]})")
-        print(rf"Failed on i={i}, t={t}, v={vL}")
-        STOPPED = True
+    except ValueError as ve:  
+        # Should be caught when interpolator tries to extrapolate outside the lookup table bounds
+        print(f"Failed on delta'={delta}, lambda'={lam}")
+        print(f"Data boundaries: delta' in ({delta_array[0]}, {delta_array[-1]}), lambda' in ({lambda_array[0]}, {lambda_array[-1]})")
+        print(f"Failed on i={i}, t={t}, v={vL}")
+        print(f"\nOriginal error: {ve}")
+        raise InterpolateError("Interpolator moved out of bounds")
+    
+    # Define T_{pr,j}' as angular correction terms, containing the Q1 and Q2 dispersion derivatives
+    T1R = (A/costheta - E) * dQ1ddeltaR + cosphi * lam * dQ1dlambdaR
+    T1L = (A/costheta - E) * dQ1ddeltaL + cosphi * lam * dQ1dlambdaL
+    T2R = (A/costheta - E) * dQ2ddeltaR + cosphi * lam * dQ2dlambdaR
+    T2L = (A/costheta - E) * dQ2ddeltaL + cosphi * lam * dQ2dlambdaL
 
     # Transformed Gaussian intensity distribution from Frame L to Frame Mn
     A_int = yM     * (1 + g**2/(g+1)*vy**2/c**2) + xM     * g**2/(g+1)*vx*vy/c**2 + g*vy*t
@@ -213,14 +216,22 @@ def aM(t,yvec,vL,i):
 
 
 ## Optimisation parameters and initial conditions ##
-x0 = 0
-vx0 = 0
+# x0 = 0
+# vx0 = 0
 
-## Optimised - 1st
-y0      = 0.05*w
-phi0    = 1*np.pi/180
-vy0     = -1.
-omega0  = -1.
+# ## Optimised - 1st
+# y0      = 0.05*w
+# phi0    = 1*np.pi/180
+# vy0     = -1.
+# omega0  = -1.
+
+# Observing divergences
+x0 = 215177197.96531236
+y0 = -0.09459471262152874
+phi0 = -0.0027986233605225125
+vx0 = 2658365.0469323145
+vy0 = -11.247767769881074
+omega0 = 0.9393570477723936
 
 ## Ilic - 1st
 # y0      = 1.3183489420398592e-07
@@ -250,12 +261,13 @@ velocity_MAX = 0.05*c
 h = 1e-4   # Step size  
 runID = 1  # Added to the output data filename
 
-positions, angles, times, loop_data = odecmvint(aM, Y0, time_MAX, velocity_MAX, args=(), hstep=h)
+positions, angles, times, accels, loop_data = odecmvint(aM, Y0, time_MAX, velocity_MAX, hstep=h)
 
 phi_nparray      = angles[0,:]
 eps_nparray      = angles[1,:]
 omega_nparray    = angles[2,:]
 eps_rate_nparray = angles[3,:]
+theta_nparray    = angles[4,:]
 timeM_nparray    = times[0,:]
 tau_nparray      = times[1,:]
 timeL_nparray    = times[2,:]
@@ -266,7 +278,8 @@ STOPPED = loop_data["Stopped"]
 
 save_data = {'YL': positions, 'phiM': phi_nparray, 'phidot': omega_nparray,
         'timeM': timeM_nparray, 'tau': tau_nparray, 'timeL': timeL_nparray, 
-        'eps': eps_nparray, 'epsdot': eps_rate_nparray, 
+        'eps': eps_nparray, 'epsdot': eps_rate_nparray, 'theta': theta_nparray,
+        'accel': accels,
         'step': h, 'Runtime (sec)': runtime, 'i': steps, 'Stopped': STOPPED,
         'Initial': Y0, 'Intensity': I}
 save_fname = f'./Data/{grating_type}_Dynamics_run{runID}.pkl'
