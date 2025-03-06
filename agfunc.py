@@ -69,6 +69,9 @@ class agfunc:
             self.det=npaLA.det
             self.grad=grad
             self.isnan=npa.isnan
+            self.concatenate=npa.concatenate
+            self.diff=npa.diff
+            self.maximum=npa.maximum
 
         elif lib=="torch":
             self.sqrt = torch.sqrt
@@ -96,6 +99,9 @@ class agfunc:
             self.det=torch.det
             self.grad=grad_torch
             self.isnan=torch.isnan
+            self.concatenate=torch.cat
+            self.diff=torch.diff
+            self.maximum=torch.maximum
     def _softmax(self,sigma,p):
         e_x = npa.exp(sigma*(p - npa.max(p)))
         return e_x/npa.sum(e_x)

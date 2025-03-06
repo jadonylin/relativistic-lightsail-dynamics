@@ -937,9 +937,17 @@ class TwoBox:
             Unique contents of x, with remaining items filled by filled_value
             """
             # Sort to ensure differentiability
+            # this does not work for torch
             sorted_x = self.npa.sort(x.flatten())
             unique_values = sorted_x[np.npa.concatenate(([True], self.diff(sorted_x) != 0))]
-            
+            # attempt for torch, but this approach is not differentiable either. It is
+            # not clear to me how the autograd version above extracting variable numbers of unique values
+            #  can ever be differentiable.
+            # perhaps we don't this for our FOM in the end.
+            # sorted_x = self.npa.sort(x.flatten())
+            # diffindices=(self.npa.diff(sorted_x) != 0)
+            # indices=self.npa.concatenate((self.npa.array([1]), diffindices))
+            # unique_values = sorted_x[indices]
             
             # Append filled_value as needed
             k = len(unique_values)
