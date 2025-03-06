@@ -7,15 +7,15 @@ The module also includes lesser-known relativistic aberration and Wigner rotatio
 This module also implements functions for convenience factors that appear in the equations of motion
 of symmetric lightsails, labelled A, B, C, S and E.
 
-TODO: move Parameters out of this module (redundant)
+TODO: update documentation
 """
 
-import autograd
 from autograd import numpy as np
 from autograd.scipy.special import erf as autograd_erf
 import scipy
 
 #### All velocities are in m/s (NOT normalised by c)
+c = scipy.constants.c
 
 def norm_squared(v):
     """
@@ -141,7 +141,7 @@ def E_eps(v, phi):
     v: [vx, vy] 2D array \n
     phi': grating angle
     ## Output
-    $\mathcal(E)$ - epsilon linear correction
+    $mathcal(E)$ - epsilon linear correction
     """
     g = Gamma(v)
     return (g/(g+1)) * ( np.sin(phi)*v[0]/c - np.cos(phi)*v[1]/c )
