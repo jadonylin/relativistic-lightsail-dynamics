@@ -347,28 +347,29 @@ class TwoBox:
             Ts.append(npa.sum(T_byorder[Fourier_orders[:,0]==order]))
 
         return Rs,Ts
-    
+
+    def diffraction_angle(self, m):
+        """
+        Calculate the diffraction angle for a given diffraction order m, if it exists.
+        """
+        sin_delta_m = npa.sin(self.angle) + m*self.wavelength/self.grating_pitch
+        if abs(sin_delta_m) >= 1:
+            delta_m = "no_diffraction_order"
+        else:
+            delta_m = npa.arcsin(sin_delta_m)
+        return delta_m
+
     def Q(self):
         """
         Calculate efficiency factors Q_{pr,j}'(delta', lambda') for j = 1, 2
         """
         r,t = self.eff()
         
-        def diffraction_angle(m):
-            """
-            Calculate the diffraction angle for a given diffraction order m, if it exists.
-            """
-            sin_delta_m = npa.sin(self.angle) + m*self.wavelength/self.grating_pitch
-            if abs(sin_delta_m)>=1:
-                delta_m = "no_diffraction_order"
-            else:
-                delta_m = npa.arcsin(sin_delta_m)
-            return delta_m
         Q1 = 0
         Q2 = 0
         orders = [-1,0,1]
-        for m in range(len(orders)):
-            delta_m = diffraction_angle(orders[m])
+        for m in range(len(orders)):  # TODO: get rid of the for loop here and use native np vectorisation
+            delta_m = self.diffraction_angle(orders[m])
             if isinstance(delta_m,str):  # Q_{pr,j}' is unchanged by evanescent orders
                 Q1 = Q1 + 0
                 Q2 = Q2 + 0
@@ -831,6 +832,13 @@ class TwoBox:
         """
         Calculate the grating single-wavelength figure of merit FD.
 
+        This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
+        using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
+        implementation, the optimised grating recorded via the twobox instance is the right-half grating,
+        i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
+        efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
+        the unit cell along the x-axis about the unit-cell centre.
+
         Parameters
         ----------
         I           :   Laser intensity
@@ -1162,6 +1170,8 @@ class TwoBox:
         """
         Show grating efficiencies as a function of excitation angle for the twobox.
 
+        TODO: add flag to show angles for order cutoffs
+
         Parameters
         ----------
         theta_max       :   Plot angles up to theta_max (degrees)
@@ -1206,8 +1216,9 @@ class TwoBox:
         eff_sum = np.sum(efficiencies[:6,:],axis=0)
         ax.plot(inc_angles, eff_sum, color=(0, 0.7, 0), linestyle='-', label=r"$\Sigma (r_i + t_i)$", lw = LINE_WIDTH) 
 
-        ax.set(title=rf"$\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda$, $h_1' = {self.grating_depth/self.wavelength:.3f}\lambda$"
-            , xlabel="Incident angle (°)"
+        ax.set(title=rf"$\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda$, \
+               $h_1' = {self.grating_depth/self.wavelength:.3f}\lambda$, $\lambda$ = {self.wavelength:.7f}~$\mu$m"
+            , xlabel=r"Incident angle, $\delta$ (°)"
             , ylabel="Efficiency")
 
         leg = plt.legend(loc='center left', bbox_to_anchor=(1, 0.5))
