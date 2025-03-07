@@ -18,6 +18,11 @@ from autograd.scipy.special import erf as autograd_erf
 from autograd.numpy import linalg as npaLA
 from agfunc import agfunc
 from parameters import Parameters
+try:
+    from autograd.numpy.numpy_boxes import ArrayBox
+except ImportError:
+    ArrayBox = None
+
 I0, L, m, c = Parameters()
 
 
@@ -500,7 +505,6 @@ class TwoBox:
     def return_Qs_auto(self, return_Q: bool=True):
         """
         Calculate efficiency factors and their derivatives
-        todo: check the torch version works...
         """
         ## Saving current angle, wavelength
         input_angle=self.angle
@@ -560,6 +564,8 @@ class TwoBox:
         h_angle: wavelength step size 
         ## Outputs
         d^2 Q1/ d(), d^2 Q2/ d()
+        NOTE: with TORCWA works with 'grad' automatic differentiation for both angle and wavelength 
+              with GRCWA one of method_one, method_two must be 'finite' or code runs forever        
         """
         allowed_methods = ("grad", "finite")
         if (method_one or method_two) not in allowed_methods:
@@ -620,7 +626,10 @@ class TwoBox:
                 self.angle = angle
                 self.wavelength = wavelength
 
-                return self.npa.array( [PD_Q1, PD_Q2] )
+                if self.RCWA_engine == 'TORCWA':
+                    return torch.stack((PD_Q1, PD_Q2))
+                else:                    
+                    return self.npa.array( [PD_Q1, PD_Q2] )
 
             if method_one=="grad":
                 def Q_params(angle, wavelength):
@@ -682,7 +691,11 @@ class TwoBox:
                 PD_Q1 = (Q1_forwards - Q1_back) / (2 * h)
                 PD_Q2 = (Q2_forwards - Q2_back) / (2 * h)
 
-                return self.array( [PD_Q1, PD_Q2] )
+                if self.RCWA_engine == 'TORCWA':
+                    return torch.stack((PD_Q1, PD_Q2))
+                else:                    
+                    return self.npa.array( [PD_Q1, PD_Q2] )
+                
 
             if method_two == "grad":
                 restore()
@@ -691,7 +704,7 @@ class TwoBox:
                     return first(angle, wavelength, method_one)
                 
                 
-                PD2 = self.jacobian(fun, argnum = var)
+                PD2 = self.npa.jacobian(fun, argnum = var)
                 PD2_value = PD2(input_angle, input_wavelength)
                 restore()
                 return PD2_value
@@ -917,73 +930,74 @@ class TwoBox:
     ##################
     #### Optimisation functions
 
-    def FoM(self, I:float=1e9, grad_method: str="finite"):
-        """
-        ## Inputs
-        I: intensity
-        grad_method: "finite" for optimisation
-        ## Outputs
-        Calculate the grating single-wavelength figure of merit FD.
-        """
-        eigReal, eigImag = self.Eigs(I=I, m=m,c1=c, grad_method=grad_method, check_det=True, return_vec=False)
+    # def FoM(self, I:float=1e9, grad_method: str="finite"):
+    #     """
+    #     ## Inputs
+    #     I: intensity
+    #     grad_method: "finite" for optimisation
+    #     ## Outputs
+    #     Calculate the grating single-wavelength figure of merit FD.
+    #     This FOM does not work for torcwa - finding unique eigvenalues is not differentiable
+    #     """
+    #     eigReal, eigImag = self.Eigs(I=I, m=m,c1=c, grad_method=grad_method, check_det=True, return_vec=False)
 
-        def unique_filled(x, filled_value):
-            """
-            ## Inputs
-            x: 4-d array
-            filled_value: Float to fill remaining
+    #     def unique_filled(x, filled_value):
+    #         """
+    #         ## Inputs
+    #         x: 4-d array
+    #         filled_value: Float to fill remaining
 
-            ## Outputs
-            Unique contents of x, with remaining items filled by filled_value
-            """
-            # Sort to ensure differentiability
-            # this does not work for torch
-            sorted_x = self.npa.sort(x.flatten())
-            unique_values = sorted_x[np.npa.concatenate(([True], self.diff(sorted_x) != 0))]
-            # attempt for torch, but this approach is not differentiable either. It is
-            # not clear to me how the autograd version above extracting variable numbers of unique values
-            #  can ever be differentiable.
-            # perhaps we don't this for our FOM in the end.
-            # sorted_x = self.npa.sort(x.flatten())
-            # diffindices=(self.npa.diff(sorted_x) != 0)
-            # indices=self.npa.concatenate((self.npa.array([1]), diffindices))
-            # unique_values = sorted_x[indices]
+    #         ## Outputs
+    #         Unique contents of x, with remaining items filled by filled_value
+    #         """
+    #         # Sort to ensure differentiability
+    #         # this does not work for torch
+    #         sorted_x = self.npa.sort(x.flatten())
+    #         unique_values = sorted_x[self.npa.concatenate(([True], self.npa.diff(sorted_x) != 0))]
+    #         # attempt for torch, but this approach is not differentiable either. It is
+    #         # not clear to me how the autograd version above extracting variable numbers of unique values
+    #         #  can ever be differentiable.
+    #         # perhaps we don't this for our FOM in the end.
+    #         # sorted_x = self.npa.sort(x.flatten())
+    #         # diffindices=(self.npa.diff(sorted_x) != 0)
+    #         # indices=self.npa.concatenate((self.npa.array([1]), diffindices))
+    #         # unique_values = sorted_x[indices]
             
-            # Append filled_value as needed
-            k = len(unique_values)
-            for i in range(4-k):
-                unique_values=self.npa.append(unique_values,filled_value)
+    #         # Append filled_value as needed
+    #         k = len(unique_values)
+    #         for i in range(4-k):
+    #             unique_values=self.npa.append(unique_values,filled_value)
                 
-            return unique_values
+    #         return unique_values
     
-        ## Reward all Re(eig) being negative
-        eig_real_unique     =   unique_filled( eigReal, -1 )
-        eig_real_neg_unique =   self.npa.minimum( 0., eig_real_unique )
-        func_real_neg_array =   self.npa.power( eig_real_neg_unique , 2 )
-        func_real_neg       =   func_real_neg_array[0]  *   func_real_neg_array[1]  *   func_real_neg_array[2]  *   func_real_neg_array[3]
+    #     ## Reward all Re(eig) being negative
+    #     eig_real_unique     =   unique_filled( eigReal, -1 )
+    #     eig_real_neg_unique =   self.npa.minimum( 0., eig_real_unique )
+    #     func_real_neg_array =   self.npa.power( eig_real_neg_unique , 2 )
+    #     func_real_neg       =   func_real_neg_array[0]  *   func_real_neg_array[1]  *   func_real_neg_array[2]  *   func_real_neg_array[3]
 
-        ## Penalise mixed positive and negative Re(eig)
-        real_unique_0       =   unique_filled( eigReal, 0. )
-        neg_array           =   self.npa.power( self.npa.minimum(0., real_unique_0) , 2 )
-        pos_array           =   self.npa.power( self.npa.maximum(0., real_unique_0) , 2 )
+    #     ## Penalise mixed positive and negative Re(eig)
+    #     real_unique_0       =   unique_filled( eigReal, 0. )
+    #     neg_array           =   self.npa.power( self.npa.minimum(0., real_unique_0) , 2 )
+    #     pos_array           =   self.npa.power( self.npa.maximum(0., real_unique_0) , 2 )
         
-        neg_sum             =   neg_array[0] + neg_array[1] + neg_array[2] + neg_array[3]
-        pos_sum             =   pos_array[0] + pos_array[1] + pos_array[2] + pos_array[3]
-        penalty             =   neg_sum * pos_sum
+    #     neg_sum             =   neg_array[0] + neg_array[1] + neg_array[2] + neg_array[3]
+    #     pos_sum             =   pos_array[0] + pos_array[1] + pos_array[2] + pos_array[3]
+    #     penalty             =   neg_sum * pos_sum
 
-        ## All positive
-        real_unique_1       =   unique_filled( eigReal, 1 )
-        all_pos_array       =   self.npa.power( self.npa.maximum( 0., real_unique_1 ) , 2 )
-        penalty2            =   all_pos_array[0]  *   all_pos_array[1]  *   all_pos_array[2]  *   all_pos_array[3]
+    #     ## All positive
+    #     real_unique_1       =   unique_filled( eigReal, 1 )
+    #     all_pos_array       =   self.npa.power( self.npa.maximum( 0., real_unique_1 ) , 2 )
+    #     penalty2            =   all_pos_array[0]  *   all_pos_array[1]  *   all_pos_array[2]  *   all_pos_array[3]
 
-        ## Remove Re(eig)<0 contribution if no restoring behaviour - now scales
-        func_imag_array = self.npa.log( 1 + self.npa.power(eigImag,2) )
-        func_imag = func_imag_array[0] * func_imag_array[1] * func_imag_array[2] * func_imag_array[3]
+    #     ## Remove Re(eig)<0 contribution if no restoring behaviour - now scales
+    #     func_imag_array = self.npa.log( 1 + self.npa.power(eigImag,2) )
+    #     func_imag = func_imag_array[0] * func_imag_array[1] * func_imag_array[2] * func_imag_array[3]
 
-        ## Build FoM
-        FD = func_real_neg * func_imag - penalty - penalty2
+    #     ## Build FoM
+    #     FD = func_real_neg * func_imag - penalty - penalty2
 
-        return FD
+    #     return FD
 
     def Eigs(self, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', check_det: bool = False, return_vec: bool = False):
         """
@@ -1081,81 +1095,83 @@ class TwoBox:
         else:
             return eigReal, eigImag
 
-    def Linear_info(self, wavelength, I: float=0.5e9):
-        """
-        ## Inputs
-        wavelength
-        I - intensity
-        ## Outputs
-        eff_array, restoring_array, damping_array, Re(eig)_array, Im(eig)_array
-        """
-        input_wavelength = self.wavelength
-        self.wavelength = wavelength
+    # def Linear_info(self, wavelength, I: float=0.5e9):
+    #     """
+    #     Deprecated - use linear_info_new
+    #     ## Inputs
+    #     wavelength
+    #     I - intensity
+    #     ## Outputs
+    #     eff_array, restoring_array, damping_array, Re(eig)_array, Im(eig)_array
+    #     NOTE: Checked with TORCWA, works
+    #     """
+    #     input_wavelength = self.wavelength
+    #     self.wavelength = self.npa.array(wavelength)
 
-        ####################################
-        ## Call efficiency factors
-        Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs_auto(return_Q=True)
-        eff_array = (Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength)
+    #     ####################################
+    #     ## Call efficiency factors
+    #     Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength = self.return_Qs_auto(return_Q=True)
+    #     eff_array = (Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength)
 
-        ####################################
-        ## Build Jacobian matrix
-        w = self.gaussian_width
-        w_bar = w/L
+    #     ####################################
+    #     ## Build Jacobian matrix
+    #     w = self.gaussian_width
+    #     w_bar = w/L
 
-        lam = self.wavelength 
+    #     lam = self.wavelength 
 
-        ## Convert velocity dependence to wavelength dependence
-        D = 1/lam 
-        g = (self.npa.power(lam,2) + 1)/(2*lam) 
+    #     ## Convert velocity dependence to wavelength dependence
+    #     D = 1/lam 
+    #     g = (self.npa.power(lam,2) + 1)/(2*lam) 
 
-        ## Convert wavelength derivative to efficiency factor
-        Q1R=Q1; Q2R=Q2; PD_Q1R_angle=PD_Q1_angle;   PD_Q2R_angle=PD_Q2_angle
-        PD_Q1R_omega=(lam/D)*PD_Q1_wavelength;   PD_Q2R_omega=(lam/D)*PD_Q2_wavelength
+    #     ## Convert wavelength derivative to efficiency factor
+    #     Q1R=Q1; Q2R=Q2; PD_Q1R_angle=PD_Q1_angle;   PD_Q2R_angle=PD_Q2_angle
+    #     PD_Q1R_omega=(lam/D)*PD_Q1_wavelength;   PD_Q2R_omega=(lam/D)*PD_Q2_wavelength
 
-        ## Symmetry of effiency factors
-        Q1L =   Q1R 
-        Q2L = - Q2R
+    #     ## Symmetry of effiency factors
+    #     Q1L =   Q1R 
+    #     Q2L = - Q2R
 
-        PD_Q1L_angle = - PD_Q1R_angle
-        PD_Q2L_angle =   PD_Q2R_angle
+    #     PD_Q1L_angle = - PD_Q1R_angle
+    #     PD_Q2L_angle =   PD_Q2R_angle
 
-        PD_Q1L_omega =   PD_Q1R_omega
-        PD_Q2L_omega = - PD_Q2R_omega
+    #     PD_Q1L_omega =   PD_Q1R_omega
+    #     PD_Q2L_omega = - PD_Q2R_omega
 
-        if self.rcwa_engine == 'GRCWA':
-            # y acceleration
-            fy_y= -     D**2 * (I/(m*c)) * ( Q2R - Q2L) * ( 1 - self.npa.exp( -1/(2*w_bar**2) ))
-            fy_phi= -   D**2 * (I/(m*c)) * ( PD_Q2R_angle + PD_Q2L_angle) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
-            fy_vy= -    D**2 * (I/(m*c)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + PD_Q1R_angle + PD_Q1L_angle ) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
-            fy_vphi=    D**2 * (I/(m*c)) * ( 2*( Q2R - Q2L ) - D*( PD_Q2R_omega - PD_Q2L_omega ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
+    #     # if self.RCWA_engine == 'GRCWA':
+    #     # y acceleration
+    #     fy_y= -     D**2 * (I/(m*c)) * ( Q2R - Q2L) * ( 1 - self.npa.exp( -1/(2*w_bar**2) ))
+    #     fy_phi= -   D**2 * (I/(m*c)) * ( PD_Q2R_angle + PD_Q2L_angle) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
+    #     fy_vy= -    D**2 * (I/(m*c)) * (D+1)/(D* (g+1)) * ( Q1R + Q1L + PD_Q1R_angle + PD_Q1L_angle ) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
+    #     fy_vphi=    D**2 * (I/(m*c)) * ( 2*( Q2R - Q2L ) - D*( PD_Q2R_omega - PD_Q2L_omega ) ) * (w/2)**2 * ( 1 - self.npa.exp( -1/(2*w_bar**2) ))
 
-            # phi acceleration
-            fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
-            fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
-            fphi_vy=    D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
-            fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * ( 2*( Q1R + Q1L ) - D*( PD_Q1R_omega + PD_Q1L_omega ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+    #     # phi acceleration
+    #     fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* self.npa.exp( -1/(2*w_bar**2) )  ) 
+    #     fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - self.npa.exp( -1/(2*w_bar**2) ))
+    #     fphi_vy=    D**2 * (12*I/( m*c*L**2)) * ( PD_Q1R_angle - PD_Q1L_angle - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - self.npa.exp( -1/(2*w_bar**2) )) * (D+1)/(D* (g+1))
+    #     fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * ( 2*( Q1R + Q1L ) - D*( PD_Q1R_omega + PD_Q1L_omega ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* self.npa.exp( -1/(2*w_bar**2) )  ) 
 
-        ## array
-        rest_array = ( fy_y,fy_phi,  fphi_y,fphi_phi )
-        damp_array = ( fy_vy/c,fy_vphi/c,  fphi_vy/c,fphi_vphi/c )
+    #     ## array
+    #     rest_array = ( fy_y,fy_phi,  fphi_y,fphi_phi )
+    #     damp_array = ( fy_vy/c,fy_vphi/c,  fphi_vy/c,fphi_vphi/c )
 
-        # Build the Jacobian matrix
-        J00=fy_y;   J01=fy_phi;     J02=fy_vy/c;    J03=fy_vphi/c
-        J10=fphi_y; J11=fphi_phi;   J12=fphi_vy/c;  J13=fphi_vphi/c
-        J=self.npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
+    #     # Build the Jacobian matrix
+    #     J00=fy_y;   J01=fy_phi;     J02=fy_vy/c;    J03=fy_vphi/c
+    #     J10=fphi_y; J11=fphi_phi;   J12=fphi_vy/c;  J13=fphi_vphi/c
+    #     J=self.npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
 
-        # Find the real part of eigenvalues    
-         # TODO: check torch eigenvectors and eigenvalues have same structure
+    #     # Find the real part of eigenvalues    
+    #      # TODO: check torch eigenvectors and eigenvalues have same structure
 
-        EIGVALVEC   = self.npa.eig(J)
+    #     EIGVALVEC   = self.npa.eig(J)
         
-        eig         = EIGVALVEC[0]
-        eigReal     = self.npa.real(eig)
-        eigImag     = self.npa.imag(eig)
+    #     eig         = EIGVALVEC[0]
+    #     eigReal     = self.npa.real(eig)
+    #     eigImag     = self.npa.imag(eig)
 
-        ## Restore wavelength
-        self.wavelength = input_wavelength
-        return eff_array, rest_array, damp_array, eigReal, eigImag 
+    #     ## Restore wavelength
+    #     self.wavelength = input_wavelength
+    #     return eff_array, rest_array, damp_array, eigReal, eigImag 
 
     def Linear_info_new(self, wavelength, I: float=0.5e9):
         """
@@ -1164,9 +1180,10 @@ class TwoBox:
         I - intensity
         ## Outputs
         eff_array, restoring_array, damping_array, Re(eig)_array, Im(eig)_array
+        NOTE: works with Torcwa
         """
         input_wavelength = self.wavelength
-        self.wavelength = wavelength
+        self.wavelength = self.npa.array(wavelength)
 
         ####################################
         ## Call efficiency factors
@@ -1190,16 +1207,16 @@ class TwoBox:
         w_bar = w / L
 
         # y acceleration
-        fy_y= -     D**2 * (I/(m*c)) *  ( Q2R - Q2L ) * ( 1 - np.exp(-1/(2*w_bar**2) ) )
+        fy_y= -     D**2 * (I/(m*c)) *  ( Q2R - Q2L ) * ( 1 - self.npa.exp(-1/(2*w_bar**2) ) )
         fy_phi= -   D**2 * (I/(m*c)) * ( dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
         fy_vy= -    D**2 * (I/(m*c)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
-        fy_vphi=    D**2 * (I/(m*c)) * (1/c) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
+        fy_vphi=    D**2 * (I/(m*c)) * (1/c) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - self.npa.exp( -1/(2*w_bar**2) ))
 
         # phi acceleration
-        fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
-        fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
-        fphi_vy=    D**2 * (12*I/( m*c*L**2)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - np.exp( -1/(2*w_bar**2) ))
-        fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* np.exp( -1/(2*w_bar**2) )  ) 
+        fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* self.npa.exp( -1/(2*w_bar**2) )  ) 
+        fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - self.npa.exp( -1/(2*w_bar**2) ))
+        fphi_vy=    D**2 * (12*I/( m*c*L**2)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - self.npa.exp( -1/(2*w_bar**2) ))
+        fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* self.npa.exp( -1/(2*w_bar**2) )  ) 
 
 
         ## array
@@ -1230,60 +1247,6 @@ class TwoBox:
         return eff_array, rest_array, damp_array, eigReal, eigImag , vec
 
 
-    def average_real_eigs(self, final_speed, goal, return_eigs:bool=False, I:float=10e9):
-        """
-        Calculates the average of each real part over the wavelength range (assumes starting wavelength=1)
-
-        Parameters:
-        final_speed - percentage speed of light
-        goal - integer (number of points) or float (loss goal)
-        return_eigs - True to return normalised eigenvalues or False for just averaged eigenvalues
-        I: intensity
-        """
-        from parameters import D1_ND
-        import adaptive as adp
-        Doppler = D1_ND([final_speed/100,0])
-        l_min = 1 # l = grating frame wavelength normalised to laser frame wavelength
-        l_max = l_min/Doppler    
-        l_range = (l_min, l_max)
-        
-        # Perturbation probability density function (PDF)
-        PDF_unif = 1/(l_max-l_min)
-
-        def weighted_fun(l):
-            self.wavelength = l
-            return PDF_unif*self.Eigs(I=I, m=m, c1=c, check_det=False, return_vec=False)[0]  # just real part
-
-        # Adaptive sample FD
-        FD_learner = adp.Learner1D(weighted_fun, bounds=l_range)
-        if isinstance(goal, int):
-            FD_runner = adp.runner.simple(FD_learner, npoints_goal=goal)
-        elif isinstance(goal, float):
-            FD_runner = adp.runner.simple(FD_learner, loss_goal=goal)
-        else: 
-            raise ValueError("Sampling goal type not recognised. Must be int for npoints_goal or float for loss_goal.")
-
-        FD_data = FD_learner.to_numpy()
-        l_vals = FD_data[:,0]
-        norm_Reig1 = FD_data[:,1]
-        norm_Reig2 = FD_data[:,2]
-        norm_Reig3 = FD_data[:,3]
-        norm_Reig4 = FD_data[:,4]
-
-        avg_Reig1 = np.trapezoid(norm_Reig1, l_vals)
-        avg_Reig2 = np.trapezoid(norm_Reig2, l_vals)
-        avg_Reig3 = np.trapezoid(norm_Reig3, l_vals)
-        avg_Reig4 = np.trapezoid(norm_Reig4, l_vals)
-
-        avg_Reig = np.array( [avg_Reig1,avg_Reig2,avg_Reig3,avg_Reig4] )
-
-        if return_eigs:
-            return avg_Reig, l_vals, norm_Reig1, norm_Reig2, norm_Reig3, norm_Reig4
-        if not return_eigs:
-            return avg_Reig
-        if not isinstance(return_eigs,bool):
-            raise ValueError("input return_eigs must be a bool")
-
     ##################
     #### Plotting
     def calculate_y_fields(self, height):
@@ -1297,14 +1260,20 @@ class TwoBox:
         """
         if self.RCWA_engine == 'GRCWA':
             self.init_RCWA()
-            fields = self.RCWA.Solve_FieldOnGrid(1,height)
-            Efield = fields[0]
-            Ey = np.transpose(Efield[1])
+            if(height<=self.grating_depth and height>=0): # in grating layer
+                fields = self.RCWA.Solve_FieldOnGrid(1,height) # above grating
+                Efield = fields[0]
+                Ey = np.transpose(Efield[1])
+            elif(height>self.grating_depth): # above  grating
+                Ey = np.zeros((self.Nx,1)) # self.RCWA.Solve_FieldOnGrid(2,height) 
+            else:            # below grating
+                Ey = np.zeros((self.Nx,1)) # self.RCWA.Solve_FieldOnGrid(0,height)
+            
         elif self.RCWA_engine == 'TORCWA':
             self.init_TORCWA()
-            self.RCWA.source_planewave(amplitude=[1.,0.],direction='forward')
+            self.RCWA.source_planewave(amplitude=[0,1.],direction='forward')
             z=self.npa.array([height])
-            [Ex, Ey, Ez], [Hx, Hy, Hz] = self.RCWA.field_xz(torcwa.rcwa_geo.x,z,0)
+            [Ex, Ey, Ez], [Hx, Hy, Hz] = self.to_numpy(self.RCWA.field_xz(torcwa.rcwa_geo.x,z,0))
         return Ey
  # TODO: adapt all plotting routines below   to Torcwa   
     def show_permittivity(self, show_analytic_box: bool=False):
@@ -1845,7 +1814,7 @@ class TwoBox:
         ## CALCULATE FIELDS ##
         Eys = np.zeros((len(heights), self.Nx), dtype=np.complex128) # need complex to assign complex Ey to Eys
         for idx, d in enumerate(heights):
-            Eys[idx,:] = self.calculate_y_fields(d)
+            Eys[idx,:] = self.calculate_y_fields(d).flatten()
 
         if field_output == "real":
             Eys = np.real(Eys)
@@ -1877,6 +1846,8 @@ class TwoBox:
         ## Plot ##
         fig, axs = plt.subplots(nrows=1, ncols=1)
         
+        p=self.to_numpy(self.grating_pitch)
+        grating_depth=self.to_numpy(self.grating_depth)
         if show_eps_profile:
             axs2 = axs.twinx()
             
@@ -1893,7 +1864,7 @@ class TwoBox:
             axs2.set(ylabel=r"$\varepsilon$")
             axs2.set_ylim(bottom=eps_min, top=eps_max)
             axs2.yaxis.label.set_color(eps_color)
-        E_mesh = axs.pcolormesh(x0, heights/self.grating_pitch, Eys, vmin=vmin, vmax=vmax, shading=fill_style, cmap='hot')
+        E_mesh = axs.pcolormesh(x0, heights/p, Eys, vmin=vmin, vmax=vmax, shading=fill_style, cmap='hot')
 
         # create an axes on the right side of ax. The width of cax will be x%
         # of ax and the padding between cax and ax will be fixed at y inch.
@@ -1905,18 +1876,20 @@ class TwoBox:
             cax = divider.append_axes("right", size="2.5%", pad=0.05) 
         fig.colorbar(E_mesh, label=cbar_label, cax=cax)
 
-        axs.set_title(label=rf"$\Lambda'={self.grating_pitch:.4f}\lambda_0$")
+        axs.set_title(label=rf"{self.RCWA_engine}$\Lambda'={p:.4f}\lambda_0$")
         axs.set(xlabel=r"$x'/\Lambda'$", ylabel=r"$z'/\Lambda'$")
-        # axs.set_ylim(bottom=np.min(heights), top=np.max(heights))
-        # axs.set_aspect('equal')
+        axs.set_ylim(bottom=np.min(heights), top=np.max(heights))
+        axs.set_aspect('equal')
         
         fig_mult = 4
         fig_width = 9
-        if self.grating_depth/self.grating_pitch < 0.2:
-            fig_height = 3*self.grating_depth/self.grating_pitch*fig_mult
-        else:
-            fig_height = self.grating_depth/self.grating_pitch*fig_mult
-        fig.set_size_inches(fig_width, fig_height)
+        
+        
+        # if grating_depth/p < 0.2:
+        #     fig_height = 3*grating_depth/p*fig_mult
+        # else:
+        #     fig_height = grating_depth/p*fig_mult
+        # fig.set_size_inches(fig_width, fig_height)
         
         return fig, axs
     
@@ -2013,10 +1986,45 @@ class TwoBox:
 
         return x0,eps_array
     def to_numpy(self,x):
-        if(isinstance(x, torch.Tensor)):
-            return x.detach().cpu().numpy()
-        else:
-            return np.array(x)
+        """ Converts tensors, autograd arrays or numpy arrays, or lsit or tuples of these
+          (including mixed tuples) to numpy arrays (or tuples of these). For scalars, output are native python, not numpy, for 
+          easier readability in print statements,
+          All results are separated from gradient information.
+        """        
+        if isinstance(x,(list,tuple)):        
+            result = []
+            for item in x:
+                if isinstance(item, torch.Tensor):
+                    # Convert tensor to numpy array.
+                    if item.numel()==1:
+                        result.append(item.item())
+                    else:
+                        result.append(item.detach().cpu().numpy())
+                elif(isinstance(item, (tuple,list))):
+                    # nested tuple -> recurse
+                    result.append(self.to_numpy(item)) # recurse for nested tuples
+                elif ArrayBox is not None and isinstance(x, ArrayBox):
+                    # autograd array
+                    if item.size==1:
+                        result.append(np.asarray(x).item())
+                    else:
+                        result.append(np.array(item))
+                    
+                elif isinstance(item, (np.ndarray)):
+                    result.append(np.array(item))
+                elif np.isscalar(item):
+                    result.append(item.item())
+                else:
+                    raise TypeError(f"to_numpy Unsupported type: {type(item)}")
+            if isinstance(x,tuple):
+                return tuple(result)        
+            else:
+                return result
+        else:        
+            if(isinstance(x, torch.Tensor)):
+                return x.detach().cpu().numpy()
+            else:
+                return np.array(x)
     
     def grating_orders(self,wavelength=np.nan,angle=np.nan):
         """ return list of grating orders given current wavelenth and incident angle """
