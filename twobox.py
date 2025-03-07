@@ -839,6 +839,9 @@ class TwoBox:
         efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
         the unit cell along the x-axis about the unit-cell centre.
 
+        MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
+                 negative eigenvalue with the smallest real part. 
+
         Parameters
         ----------
         I           :   Laser intensity
@@ -851,34 +854,6 @@ class TwoBox:
         
         eigReal, eigImag = self.Eigs(I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
 
-        def unique_filled(x, filled_value):
-            """
-            Finds unique values in x and fills remaining entries with filled_value.
-            The resultant array is sorted by unique values first.
-
-            Parameters
-            ----------
-            x            :   4d array
-            filled_value :   Float to fill remaining entries in unique_values
-
-            Returns
-            -------
-            unique_values :   Unique contents of x, with remaining entries filled by filled_value
-            """
-            
-            # Sort array to ensure differentiability
-            sorted_x = npa.sort(x.flatten())
-            unique_values = sorted_x[npa.concatenate(([True], npa.diff(sorted_x) != 0))]
-
-            # Append filled_value as needed
-            k = len(unique_values)
-            for i in range(4-k):
-                unique_values = npa.append(unique_values,filled_value)
-
-            return unique_values
-
-        # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
-        #          negative eigenvalue with the smallest real part. 
         # FD = npa.min(-eigReal)  # standard minimum
         FD = npa.sum(-eigReal*softmin(-eigReal,1.))  # softened minimum
         
