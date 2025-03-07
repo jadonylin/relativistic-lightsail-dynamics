@@ -104,6 +104,44 @@ def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5
     return restoring_coeffs, damping_coeffs, real_eigvals, imag_eigvals, eigvec_moduli
 
 
+def plot_array_on_same_axes(ax, x, y, **kwargs):
+    """
+    Plot y vs x on axes ax. y can have multiple rows, which are all plotted on the same axes.
+
+    kwargs are passed to plt.plot()
+    """
+    if len(y.shape) > 1:  
+        if y.shape[0] > y.shape[1]:  # Data should be arranged with columns representing times
+            y = y.T
+        for y_row in y:
+            ax.plot(x, y_row, **kwargs)
+    else:
+        ax.plot(x, y, **kwargs)
+    return ax
+
+def plot_twinx_array(ax, x, y, **kwargs):
+    sec_ax = ax.twinx()
+    sec_ax = plot_array_on_same_axes(sec_ax, x, y, **kwargs)
+    return ax, sec_ax
+
+def show_standard_axes(ax, x, xlabel, ylabel, show_zero_line, color, ax_width):
+    """
+    Show standard plot features on the axes of ax. 
+    """
+    ax.set_xlim(x[0],x[-1])
+    ax.set(xlabel=xlabel, ylabel=ylabel)
+    if show_zero_line:
+        ax.axhline(0, linestyle="--", color=color)
+    ax.tick_params(which="both", axis='both', width=ax_width, direction='in')
+    for axis in ['top','bottom','left','right']:
+        ax.spines[axis].set_linewidth(ax_width)
+    return ax
+
+def color_yaxis(ax, color):
+    ax.yaxis.label.set_color(color)
+    ax.tick_params(axis='y',labelcolor=color)
+    return ax
+
 def show_dynamics(nrows: int, ncols: int, times: list, coords: list, 
                   colors: list, xlabels: list, ylabels: list, show_zero_line: list,
                   second_yaxis_coords: list=[], second_yaxis_colors: list=[], second_yaxis_ylabels: list=[],
@@ -140,40 +178,17 @@ def show_dynamics(nrows: int, ncols: int, times: list, coords: list,
         q = coords[ax_idx]
         col = colors[ax_idx]
 
-        if len(q.shape) > 1:  # Handle multiple plots on the same X and Y axis
-            if q.shape[0] > q.shape[1]:  # Data should be arranged with columns representing times
-                q = q.T
-            for q_row in q:
-                ax.plot(t, q_row, color=col, linewidth=linewidth)
-        else:
-            ax.plot(t, q, color=col, linewidth=linewidth)
-        ax.set_xlim(t[0],t[-1])
-        ax.set(xlabel=xlabels[ax_idx], ylabel=ylabels[ax_idx])
-        if show_zero_line[ax_idx]:
-            ax.axhline(0, linestyle="--", color=col)
-        ax.tick_params(which="both", axis='both', width=ax_width, direction='in')
+        ax = plot_array_on_same_axes(ax, t, q, color=col, linewidth=linewidth)
+        ax = show_standard_axes(ax, t, xlabels[ax_idx], ylabels[ax_idx], show_zero_line[ax_idx], col, ax_width)
 
         if len(second_yaxis_coords) != 0:
             q2 = second_yaxis_coords[ax_idx]
             if q2 is not None:  # Handle secondary Y-axis plot
                 col2 = second_yaxis_colors[ax_idx]
-                
-                sec_ax = ax.twinx()
-                sec_ax.plot(t, q2, color=col2, linewidth=linewidth)
-                sec_ax.set_xlim(t[0],t[-1])
-                sec_ax.set(xlabel=xlabels[ax_idx], ylabel=second_yaxis_ylabels[ax_idx])
-                if show_zero_line[ax_idx]:
-                    sec_ax.axhline(0, linestyle="--", color=col)
-                
-                sec_ax.tick_params(which="both", axis='both', width=ax_width, direction='in')
-                sec_ax.tick_params(axis='y',labelcolor=col2)
-                sec_ax.yaxis.label.set_color(col2)
-                
-                ax.yaxis.label.set_color(col)
-                ax.tick_params(axis='y',labelcolor=col)
-
-        for axis in ['top','bottom','left','right']:
-            ax.spines[axis].set_linewidth(ax_width)
+                ax, sec_ax = plot_twinx_array(ax, t, q2, color=col2, linewidth=linewidth)
+                sec_ax = show_standard_axes(sec_ax, t, xlabels[ax_idx], second_yaxis_ylabels[ax_idx], show_zero_line[ax_idx], col2, ax_width)
+                sec_ax = color_yaxis(sec_ax, col2)
+                ax = color_yaxis(ax, col)
     
     fig.tight_layout()
     return fig, dyn_axs
