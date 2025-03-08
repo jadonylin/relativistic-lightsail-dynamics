@@ -75,31 +75,29 @@ def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5
 
     wavelength_range = np.linspace(1/D1_ND(speed_range[0]/100), 1/D1_ND(speed_range[1]/100), num_points)
     
-    restoring_coeffs = np.zeros((4,num_points))
-    damping_coeffs = np.zeros((4,num_points))
-    real_eigvals = np.zeros((4,num_points))
-    imag_eigvals = np.zeros((4,num_points))
-    eigvec_moduli = np.zeros((4,4,num_points))
+    restoring_coeffs = np.zeros((num_points,4))
+    damping_coeffs = np.zeros((num_points,4))
+    real_eigvals = np.zeros((num_points,4))
+    imag_eigvals = np.zeros((num_points,4))
+    eigvec_moduli = np.zeros((num_points,4,4))
 
     for i in range(num_points):
         wavelength = wavelength_range[i]
         _, rest, damp, real, imag, eigvecs = grating.lsa_info(wavelength, I)
 
-        restoring_coeffs[:,i] = rest
-        damping_coeffs[:,i] = damp
-        real_eigvals[:,i] = real
-        imag_eigvals[:,i] = imag
-        print(imag)
+        restoring_coeffs[i,:] = rest
+        damping_coeffs[i,:] = damp
+        real_eigvals[i,:] = real
+        imag_eigvals[i,:] = imag
+        # print(imag)
 
         _eigvec_norms = norm(eigvecs, axis=0).T
         eigvec_norms = _eigvec_norms[:,None]
-        # print(eigvecs)
-        # print(_eigvec_norms)
+        print(eigvecs)
+        print(_eigvec_norms)
         # print(eigvec_norms)
 
-        eigvec_moduli[:,:,i] = np.abs(eigvecs)/norm(eigvecs, axis=0)[:,None]
-
-        # print(eigvec_moduli[:,:,i])
+        eigvec_moduli[i,:,:] = np.abs(eigvecs)/norm(eigvecs, axis=0)[:,None]
 
     return restoring_coeffs, damping_coeffs, real_eigvals, imag_eigvals, eigvec_moduli
 
@@ -108,15 +106,28 @@ def plot_array_on_same_axes(ax, x, y, **kwargs):
     """
     Plot y vs x on axes ax. y can have multiple rows, which are all plotted on the same axes.
 
-    kwargs are passed to plt.plot()
+    Parameters
+    ----------
+    ax     :   matplotlib axis object
+    x      :   1D array of times
+    y      :   Array of features x time. Can be up to 3 dimensions large. Data should be arranged with the 0 axis representing times.
+    kwargs :   kwargs to pass to matplotlib.plt.plot()
     """
-    if len(y.shape) > 1:  
-        if y.shape[0] > y.shape[1]:  # Data should be arranged with columns representing times
-            y = y.T
-        for y_row in y:
-            ax.plot(x, y_row, **kwargs)
-    else:
+    if len(y.shape) == 1:
         ax.plot(x, y, **kwargs)
+    elif len(y.shape) == 2:
+        n_yrows, n_ycols = y.shape  
+        if n_yrows < n_ycols:  # Number of times should be greater than the number of features to plot
+            print("Warning: number of time data points was fewer than number of features. Check if y should be transposed.")
+            y = y.T
+        ax.plot(x, y, **kwargs)
+    elif len(y.shape) == 3:
+        n_yrows, n_ycols, n_ywids = y.shape  
+        y_conditioned = np.transpose(y, (0,2,1))  # Swap eigenvector from columns into rows
+        for y_row in range(y_conditioned.shape[1]):
+            ax.plot(x, y_conditioned[...,y_row], **kwargs)
+    else:
+        raise ValueError("y has too many dimensions (maximum 3).")
     return ax
 
 def plot_twinx_array(ax, x, y, **kwargs):
@@ -178,17 +189,20 @@ def show_dynamics(nrows: int, ncols: int, times: list, coords: list,
         q = coords[ax_idx]
         col = colors[ax_idx]
 
-        ax = plot_array_on_same_axes(ax, t, q, color=col, linewidth=linewidth)
-        ax = show_standard_axes(ax, t, xlabels[ax_idx], ylabels[ax_idx], show_zero_line[ax_idx], col, ax_width)
+        if q is None:
+            ax.axis('off')
+        else:
+            ax = plot_array_on_same_axes(ax, t, q, color=col, linewidth=linewidth)
+            ax = show_standard_axes(ax, t, xlabels[ax_idx], ylabels[ax_idx], show_zero_line[ax_idx], col, ax_width)
 
-        if len(second_yaxis_coords) != 0:
-            q2 = second_yaxis_coords[ax_idx]
-            if q2 is not None:  # Handle secondary Y-axis plot
-                col2 = second_yaxis_colors[ax_idx]
-                ax, sec_ax = plot_twinx_array(ax, t, q2, color=col2, linewidth=linewidth)
-                sec_ax = show_standard_axes(sec_ax, t, xlabels[ax_idx], second_yaxis_ylabels[ax_idx], show_zero_line[ax_idx], col2, ax_width)
-                sec_ax = color_yaxis(sec_ax, col2)
-                ax = color_yaxis(ax, col)
+            if len(second_yaxis_coords) != 0:
+                q2 = second_yaxis_coords[ax_idx]
+                if q2 is not None:  # Handle secondary Y-axis plot
+                    col2 = second_yaxis_colors[ax_idx]
+                    ax, sec_ax = plot_twinx_array(ax, t, q2, color=col2, linewidth=linewidth)
+                    sec_ax = show_standard_axes(sec_ax, t, xlabels[ax_idx], second_yaxis_ylabels[ax_idx], show_zero_line[ax_idx], col2, ax_width)
+                    sec_ax = color_yaxis(sec_ax, col2)
+                    ax = color_yaxis(ax, col)
     
     fig.tight_layout()
     return fig, dyn_axs
