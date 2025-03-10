@@ -859,6 +859,26 @@ class TwoBox:
         
         return FD
 
+    def FoM_quality_factor(self, I:float=1e9, grad_method: str="finite") -> float:
+        """
+        Calculate the grating single-wavelength figure of merit FD.
+
+        Quality factor FoM: Maximise the magnitude of the quality factor (Re(xi)/Im(xi)) 
+                            for the eigenvalue with the smallest quality factor. Issue:
+                            Im(xi) --> 0 will blow this up, and we need to track the sign.
+
+        Parameters
+        ----------
+        I           :   Laser intensity
+        grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+        
+        Returns
+        -------
+        FD :   Figure of merit
+        """
+        
+        raise NotImplementedError("Must determine how to handle signs and avoid Im(xi) = 0.")
+
     def FoM_LvR(self, I:float=1e9, grad_method: str="finite") -> float:
         """
         Calculate the grating single-wavelength figure of merit FD using LvR's most updated method.
@@ -1327,18 +1347,18 @@ class TwoBox:
         return fig, ax
 
 
-    def show_Eigs(self, marker: str='o', eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9):
+    def show_Eigs(self, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plot_points: int=200, eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, marker: str='o'):
         """
         Show eigenvalue spectrum for the twobox.
 
         Parameters
         ----------
-        marker              :   Marker style passed to plt.plot()
+        wavelength_range    :   Wavelength range to plot spectrum (same units as grating pitch)
+        I                   :   Laser intensity
+        num_plot_points     :   Number of points to plot
         eig_real_log_axis   :   If true, logarithmic scale for real part of eigenvalues
         eig_imag_log_axis   :   If true, logarithmic scale for imaginary part of eigenvalues
-        wavelength_range    :   Wavelength range to plot spectrum (same units as grating pitch)
-        num_plot_points     :   Number of points to plot
-        I                   :   Laser intensity
+        marker              :   Marker style passed to plt.plot()
 
         Returns
         -------
