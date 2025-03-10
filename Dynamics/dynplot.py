@@ -10,7 +10,7 @@ from matplotlib import rcParams
 rcParams.update({'figure.autolayout': True,
                  "text.usetex": True,
                  "font.family": "Computer Modern Roman"})
-# matplotlib.rc('text.latex', preamble=r'\usepackage{amsmath, physics}')
+matplotlib.rc('text.latex', preamble=r'\usepackage{amsmath, physics}')
 SMALL_SIZE = 18
 MEDIUM_SIZE = 20
 BIGGER_SIZE = 22
@@ -33,13 +33,13 @@ from parameters import D1_ND
 from twobox import TwoBox
 
 
-def wavelength_to_beta(wavelengths, wavelength_start=1.):
+def wavelength_to_beta(wavelengths: np.ndarray, wavelength_start: float=1.):
     """Convert np.array of wavelengths to normalised velocities, assuming a given starting wavelength"""
     Doppler_factors = wavelength_start/wavelengths
     betas = (1 - Doppler_factors**2)/(1 + Doppler_factors**2)
     return betas
 
-def beta_to_wavelength(betas, wavelength_start):
+def beta_to_wavelength(betas: np.ndarray, wavelength_start: float=1.):
     """Convert np.array of normalised velocities to wavelengths, assuming a given starting wavelength"""
     Doppler_factors = np.sqrt((1-betas)/(1+betas))
     wavelengths = wavelength_start/Doppler_factors
@@ -89,20 +89,16 @@ def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5
         damping_coeffs[i,:] = damp
         real_eigvals[i,:] = real
         imag_eigvals[i,:] = imag
-        # print(imag)
 
         _eigvec_norms = norm(eigvecs, axis=0).T
         eigvec_norms = _eigvec_norms[:,None]
-        print(eigvecs)
-        print(_eigvec_norms)
-        # print(eigvec_norms)
 
         eigvec_moduli[i,:,:] = np.abs(eigvecs)/norm(eigvecs, axis=0)[:,None]
 
     return restoring_coeffs, damping_coeffs, real_eigvals, imag_eigvals, eigvec_moduli
 
 
-def plot_array_on_same_axes(ax, x, y, **kwargs):
+def plot_array_on_same_axes(ax: plt.Axes, x: np.ndarray, y: np.ndarray, **kwargs):
     """
     Plot y vs x on axes ax. y can have multiple rows, which are all plotted on the same axes.
 
@@ -121,25 +117,21 @@ def plot_array_on_same_axes(ax, x, y, **kwargs):
             print("Warning: number of time data points was fewer than number of features. Check if y should be transposed.")
             y = y.T
         ax.plot(x, y, **kwargs)
-    elif len(y.shape) == 3:
-        n_yrows, n_ycols, n_ywids = y.shape  
-        y_conditioned = np.transpose(y, (0,2,1))  # Swap eigenvector from columns into rows
-        for y_row in range(y_conditioned.shape[1]):
-            ax.plot(x, y_conditioned[...,y_row], **kwargs)
     else:
         raise ValueError("y has too many dimensions (maximum 3).")
     return ax
 
-def plot_twinx_array(ax, x, y, **kwargs):
+def plot_twinx_array(ax: plt.Axes, x: np.ndarray, y: np.ndarray, **kwargs):
     sec_ax = ax.twinx()
     sec_ax = plot_array_on_same_axes(sec_ax, x, y, **kwargs)
     return ax, sec_ax
 
-def show_standard_axes(ax, x, xlabel, ylabel, show_zero_line, color, ax_width):
+def show_standard_axes(ax: plt.Axes, x: np.ndarray, xlabel: str, ylabel: str, show_zero_line: bool, color: str, ax_width: float=2.5):
     """
     Show standard plot features on the axes of ax. 
     """
-    ax.set_xlim(x[0],x[-1])
+    if x is not None:
+        ax.set_xlim(x[0],x[-1])
     ax.set(xlabel=xlabel, ylabel=ylabel)
     if show_zero_line:
         ax.axhline(0, linestyle="--", color=color)
@@ -148,7 +140,7 @@ def show_standard_axes(ax, x, xlabel, ylabel, show_zero_line, color, ax_width):
         ax.spines[axis].set_linewidth(ax_width)
     return ax
 
-def color_yaxis(ax, color):
+def color_yaxis(ax: plt.Axes, color: str):
     ax.yaxis.label.set_color(color)
     ax.tick_params(axis='y',labelcolor=color)
     return ax
