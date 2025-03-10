@@ -15,7 +15,7 @@ import sys
 sys.path.append("../")
 
 from cmvint import InterpolateError, odecmvint
-from Optimisation.opt import extract_opt
+# from Optimisation.opt import extract_opt
 from parameters import Parameters
 from specrel import Gamma, Dv, SinCosTheta, ABSC, E_eps, erf
 
@@ -24,23 +24,13 @@ I, L, m, c = Parameters()
 wavelength = 1
 
 # The efficiency factors are too expensive to calculate in real time, so pre-calculated tables are used.
-grating_type = "Second"
+klambda = 1000
+kdelta = 1000
+lookup_data_fname = rf'Data/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
+opt_gratings_data_fname = 'Data/FOM_optimisation_maxfev160000.pkl'
 
-if grating_type == "Ilic":
-    klambda = 650
-    kdelta = 1000
-    lookup_data_fname = rf'Data/Ilic_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
-    w = 2*L
-    raise NotImplementedError("Ilic grating lookup data is missing")
-if grating_type == "Second":
-    klambda = 1000
-    kdelta = 1000
-    lookup_data_fname = rf'Data/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
-    opt_gratings_data_fname = 'Data/FOM_optimisation_maxfev160000.pkl'
-
-    _, _, opt_grating = extract_opt(opt_gratings_data_fname, output_opt_idx=0)
-    # w = opt_grating.gaussian_width
-    w = 31.37144885298504
+# _, _, opt_grating = extract_opt(opt_gratings_data_fname, output_opt_idx=0)
+w = 31.37144885298504
 
 with open(lookup_data_fname, 'rb') as lookup_file: 
     data = pickle.load(lookup_file)
@@ -259,7 +249,7 @@ time_MAX = 8.5*60*60  # Maximum runtime (seconds)
 velocity_MAX = 0.05*c
  
 h = 1e-4   # Step size  
-runID = 1  # Added to the output data filename
+runID = "LvRFinalOpt_test"  # Added to the output data filename
 
 positions, angles, times, accels, loop_data = odecmvint(aM, Y0, time_MAX, velocity_MAX, hstep=h)
 
@@ -282,7 +272,7 @@ save_data = {'YL': positions, 'phiM': phi_nparray, 'phidot': omega_nparray,
         'accel': accels,
         'step': h, 'Runtime (sec)': runtime, 'i': steps, 'Stopped': STOPPED,
         'Initial': Y0, 'Intensity': I}
-save_fname = f'./Data/{grating_type}_Dynamics_run{runID}.pkl'
+save_fname = f'./Data/{runID}_Dynamics.pkl'
 
 # Save result
 with open(save_fname, 'wb') as data_file:
