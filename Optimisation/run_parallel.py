@@ -39,7 +39,7 @@ from twobox import TwoBox
 
 
 # Global optimisation parameters
-num_cores = 2  # number of cores to run parallel optimisation
+num_cores = 8  # number of cores to run parallel optimisation
 maxfev = 2  # global 1000
 h1_min, h1_max, param_bounds = Bounds()
 
@@ -135,9 +135,9 @@ with open(txt_fname, "a") as result_file:
 # those subsidiary h1 ranges, and saves the found most-optimal grating and all optimisation parameters into a dictionary 
 # that is stored in .pkl file. The optimisation results for all cores are stored in the same .pkl file.
 
-def optimise_partitioned_depth(partition_h1_min, partition_h1_max):
+def optimise_partitioned_depth(h1_bounds):
     _param_bounds = param_bounds[:]
-    _param_bounds[1] = (partition_h1_min, partition_h1_max)
+    _param_bounds[1] = tuple([*h1_bounds])  # Must unpack a single argument for pool.imap to be applied correctly
     return global_optimise(objective, sampling, seed, n_sample, maxfev, xtol_rel, ftol_rel, _param_bounds)
 
 h1_bounds = []
@@ -147,40 +147,29 @@ for p in range(0,num_cores):
     h1_bounds.append(interval)
 
 # Run parallel optimisation
-pkl_fname = f'./Data/FOM_optimisation_maxfev{maxfev*num_cores}.pkl'
 if __name__ == '__main__':
     with Pool(processes=num_cores) as pool:        
         T1 = time.time()
         print("Begun!")
         
-        all_optima = pool.starmap(optimise_partitioned_depth, h1_bounds)
-        opt_FOMs = []
-        opt_params = []
-        opt_gratings = []
-        is_opt = []
-
-        for optimum in all_optima:
-            opt_FOMs.append(optimum[0])
+        # Some processes run for too long, so we need to store the results of each process 
+        # immediately once they become available.
+        # From https://stackoverflow.com/questions/70317903/how-to-store-all-the-output-before-multiprocessing-finish
+        for opt_index, opt_result in enumerate(pool.imap_unordered(optimise_partitioned_depth, h1_bounds)):
             
-            opt_param = optimum[1]
-            opt_params.append(opt_param)
+            opt_FOM = opt_result[0]
+            opt_params = opt_result[1]
+            is_opt = opt_result[2]
             
             # Copy the grating to ensure it is not subsequently modified during optimisation
-            grating_copy = deepcopy(grating)
-            grating_copy.params = opt_param
-            opt_gratings.append(grating_copy) 
+            opt_grating = deepcopy(grating)
+            opt_grating.params = opt_params
 
-            is_opt.append(optimum[2])
-
-        data = {'Optimised grating': opt_gratings,  'FOM': opt_FOMs,        'Real optimum?': is_opt,
-                'Optimised parameters': opt_params,
-                'FOM parameters': FOM_params_dict,  'Bounds': bounds_dict,
-                'Sampling settings': sampling_dict, 'LO settings': LO_dict, 'GO settings': GO_dict}
-        
-
-        try:
+            data = {'Optimised grating': opt_grating, 'FOM': opt_FOM, 'Real optimum?': is_opt,
+                    'Optimised parameters': opt_params,
+                    'FOM parameters': FOM_params_dict,  'Bounds': bounds_dict,
+                    'Sampling settings': sampling_dict, 'LO settings': LO_dict, 'GO settings': GO_dict}
+            
+            pkl_fname = f'./Data/FOM_optimisation_maxfev{maxfev*num_cores}_process{opt_index}.pkl'
             with open(pkl_fname, 'wb') as data_file:
                 pickle.dump(data, data_file)
-        except:  # TODO: Catch specific exceptions
-            print("Couldn't save data")
-            print(data)
