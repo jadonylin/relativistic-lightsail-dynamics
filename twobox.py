@@ -67,7 +67,7 @@ plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 import numpy as np
-from numpy import *
+# from numpy import *
 
 import os
 # os.environ["OMP_NUM_THREADS"] = "1" 
@@ -1728,14 +1728,33 @@ class TwoBox:
         for idx, d in enumerate(heights):
             # Calculate efficiencies for each order
             self.grating_depth = d
+            # if efficiency_quantity == "r" or efficiency_quantity == "t":
+            #     Rs,Ts = self.eff()
+            #     if(self.RCWA_engine=='TORCWA'):
+            #         efficiencies[:n_orders,idx]  = Rs.detach().cpu().numpy() # this removes the autograd function -- ok for plottingif(self.RCWA_engine=='TORCWA'):
+            #         efficiencies[n_orders:,idx]  = Ts.detach().cpu().numpy() # this removes the autograd function -- ok for plotting
+            #     else:
+            #         efficiencies[:n_orders,idx] = Rs
+            #         efficiencies[n_orders:,idx] = Ts
+            # elif efficiency_quantity == "PDr":
+            #     if(self.RCWA_engine=='TORCWA'):
+            #         efficiencies[0,idx] = self.PDrNeg1(angle)[0].detach().numpy() # this removes the autograd function -- ok for plotting
+            #     elif(self.RCWA_engine=='GRCWA'):
+            #         efficiencies[0,idx] = self.PDrNeg1(angle)
+            # elif efficiency_quantity == "PDt":
+            #     if(self.RCWA_engine=='TORCWA'):
+            #         efficiencies[0,idx] = self.PDtNeg1(angle)[0].detach().numpy() # this removes the autograd function -- ok for plotting
+            #     elif(self.RCWA_engine=='GRCWA'):    
+            #         efficiencies[0,idx] = self.PDtNeg1(angle)
+
             if efficiency_quantity == "r" or efficiency_quantity == "t":
                 Rs,Ts = self.RT()
-                efficiencies[:n_orders,idx] = Rs
-                efficiencies[n_orders:,idx] = Ts
+                efficiencies[:n_orders,idx] = self.to_numpy(Rs)
+                efficiencies[n_orders:,idx] = self.to_numpy(Ts)
             elif efficiency_quantity == "PDr":
-                efficiencies[0,idx] = self.PDrNeg1(angle)
+                efficiencies[0,idx] = self.to_numpy(self.PDrNeg1(angle))
             elif efficiency_quantity == "PDt":
-                efficiencies[0,idx] = self.PDtNeg1(angle)
+                efficiencies[0,idx] = self.to_numpy(self.PDtNeg1(angle))
         self.grating_depth = init_depth # restore user-initialised wavelength
 
 
