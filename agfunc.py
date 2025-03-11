@@ -24,25 +24,16 @@ def grad_torch(f,argnum=0):
 #     y.backward()
 #     return x.grad
 def grad_torch_value(f,x,argnum=0):
-     a=f(x)
+     a=f(x)     
      return torch.autograd.grad(a,x,create_graph=True, materialize_grads=True) # materialize_grads=True to avoid returning None when functino does not depend on x  - added during debugging of PDtNeg1 but may not be needed? 
 
-@functools.wraps(torch.tensor)
-def torch_tensor_with_grad(*args, **kwargs):
-    # Force requires_grad to be True (overriding any passed value)
-    kwargs['requires_grad'] = True
-    if torch.is_tensor(args[0]):
-        # if(args[0].requires_grad==False):
-        #     print("WARNING: tensor has requires_grad==False")
-        return(args[0])        
-    else:
-        return torch.tensor(*args, **kwargs) 
-   
+
 
 class agfunc:
     """ wrapper class for autograd and torch functions """
-    def __init__(self,lib):
+    def __init__(self,lib,device="cpu"):
         self.lib = lib
+        self.device=device
         if lib=="autograd":
             self.sqrt= npa.sqrt
             self.erf = autograd_erf
@@ -72,13 +63,15 @@ class agfunc:
             self.concatenate=npa.concatenate
             self.diff=npa.diff
             self.maximum=npa.maximum
+            self.int=lambda x: x.astype(int)
+            self.zeros=npa.zeros
 
         elif lib=="torch":
             self.sqrt = torch.sqrt
             self.erf = torch_erf
             self.norm=torchLA.norm
             self.jacobian = jacobian_torch
-            self.array = torch_tensor_with_grad
+            self.array = self.torch_tensor_with_grad
             self.sin=torch.sin
             self.cos=torch.cos
             self.arcsin=torch.asin
@@ -102,6 +95,8 @@ class agfunc:
             self.concatenate=torch.cat
             self.diff=torch.diff
             self.maximum=torch.maximum
+            self.int=lambda x: x.long()
+            self.zeros=torch.zeros
     def _softmax(self,sigma,p):
         e_x = npa.exp(sigma*(p - npa.max(p)))
         return e_x/npa.sum(e_x)
@@ -109,3 +104,15 @@ class agfunc:
     def _softmax_torch(self,sigma,p):
         e_x = torch.exp(sigma*(p - torch.max(p)))
         return e_x/torch.sum(e_x)
+    @functools.wraps(torch.tensor)
+    def torch_tensor_with_grad(self,*args, **kwargs):
+        # Force requires_grad to be True (overriding any passed value)
+        kwargs['requires_grad'] = True
+        kwargs['device'] = self.device
+        if torch.is_tensor(args[0]):
+            # if(args[0].requires_grad==False):
+            #     print("WARNING: tensor has requires_grad==False")
+            return(args[0])        
+        else:
+            return torch.tensor(*args, **kwargs) 
+    
