@@ -1,5 +1,5 @@
 # File to defin ilic grating parameters
-# use for twobox_test.ipynb: from ilic import all
+# use for twobox_test.ipynb: from ilic import *
 import numpy as np
 wavelength      = 1.5 #/ D1_ND(1.2/100)
 grating_pitch   = 1.8 / wavelength
