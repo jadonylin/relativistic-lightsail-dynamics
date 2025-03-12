@@ -1104,7 +1104,7 @@ class TwoBox:
         return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs
 
 
-    def show_permittivity(self, show_analytic_box: bool=False):
+    def show_permittivity(self, show_analytic_box: bool=False, show_box_edges: bool=False):
         """
         Show permittivity profile for the twobox.
 
@@ -1156,7 +1156,21 @@ class TwoBox:
             fine_grids = np.arange(0, self.Nx, 1)
             analytic_boxes = self.build_grating()
             axs[0].plot(fine_grids/1000,analytic_boxes)
+            
             self.Nx = init_Nx
+
+        if show_box_edges:
+            box1_left_edge = 0.02*self.grating_pitch  # TODO: save preset 0.02 value (used here and in build_grating()) somewhere accessible
+            box1_right_edge = box1_left_edge + self.box1_width
+            box1_centre = (box1_left_edge + box1_right_edge)/2
+            box2_left_edge = box1_centre + self.box_centre_dist - self.box2_width/2 
+            box2_right_edge = box2_left_edge + self.box2_width
+
+            vlines = self.Nx/self.grating_pitch*np.array([box1_left_edge, box1_right_edge, box2_left_edge, box2_right_edge])
+            # colors = ["tab:orange", "tab:orange", "tab:orange", "tab:orange"]
+            ymax = [self.box1_eps, self.box1_eps, self.box2_eps, self.box2_eps]
+            for v, y in zip(vlines,ymax):
+                axs[0].axvline(v, ymax=y, color="tab:orange", linestyle="--")
         
         plt.show()
         return x0, eps_array_real, fig, axs
