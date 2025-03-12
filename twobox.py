@@ -374,17 +374,14 @@ class TwoBox:
         elif self.RCWA_engine == 'TORCWA':
             self.init_TORCWA()
             RT_orders=self.grating_orders()
-            # RT_orders = [-1,0,1]
-            # RT_orders=[0]
             Rs=self.npa.zeros(len([-1,0,1]))
             Ts=self.npa.zeros(len([-1,0,1]))
             orders=[[j,0] for j in RT_orders]
             lRs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders,direction='forward',port='reflection',polarization='yy',ref_order=[0,0],power_norm=True),2))
             lTs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders,direction='forward',port='transmission',polarization='yy',ref_order=[0,0],power_norm=True),2))
-            k=0
             for i,j in enumerate(RT_orders):
-                Rs[j+1]=lRs[i]
-                Ts[j+1]=lTs[i]
+                Rs[1+j]=lRs[i]
+                Ts[1+j]=lTs[i]
         return Rs,Ts
     def Q_trivial(self):
         """ 
@@ -939,77 +936,7 @@ class TwoBox:
 
         return third(method_three)
 
-    ##################
-    #### Optimisation functions
-
-    # def FoM(self, I:float=1e9, grad_method: str="finite"):
-    #     """
-    #     ## Inputs
-    #     I: intensity
-    #     grad_method: "finite" for optimisation
-    #     ## Outputs
-    #     Calculate the grating single-wavelength figure of merit FD.
-    #     This FOM does not work for torcwa - finding unique eigvenalues is not differentiable
-    #     """
-    #     eigReal, eigImag = self.Eigs(I=I, m=m,c1=c, grad_method=grad_method, check_det=True, return_vec=False)
-
-    #     def unique_filled(x, filled_value):
-    #         """
-    #         ## Inputs
-    #         x: 4-d array
-    #         filled_value: Float to fill remaining
-
-    #         ## Outputs
-    #         Unique contents of x, with remaining items filled by filled_value
-    #         """
-    #         # Sort to ensure differentiability
-    #         # this does not work for torch
-    #         sorted_x = self.npa.sort(x.flatten())
-    #         unique_values = sorted_x[self.npa.concatenate(([True], self.npa.diff(sorted_x) != 0))]
-    #         # attempt for torch, but this approach is not differentiable either. It is
-    #         # not clear to me how the autograd version above extracting variable numbers of unique values
-    #         #  can ever be differentiable.
-    #         # perhaps we don't this for our FOM in the end.
-    #         # sorted_x = self.npa.sort(x.flatten())
-    #         # diffindices=(self.npa.diff(sorted_x) != 0)
-    #         # indices=self.npa.concatenate((self.npa.array([1]), diffindices))
-    #         # unique_values = sorted_x[indices]
-            
-    #         # Append filled_value as needed
-    #         k = len(unique_values)
-    #         for i in range(4-k):
-    #             unique_values=self.npa.append(unique_values,filled_value)
-                
-    #         return unique_values
     
-    #     ## Reward all Re(eig) being negative
-    #     eig_real_unique     =   unique_filled( eigReal, -1 )
-    #     eig_real_neg_unique =   self.npa.minimum( 0., eig_real_unique )
-    #     func_real_neg_array =   self.npa.power( eig_real_neg_unique , 2 )
-    #     func_real_neg       =   func_real_neg_array[0]  *   func_real_neg_array[1]  *   func_real_neg_array[2]  *   func_real_neg_array[3]
-
-    #     ## Penalise mixed positive and negative Re(eig)
-    #     real_unique_0       =   unique_filled( eigReal, 0. )
-    #     neg_array           =   self.npa.power( self.npa.minimum(0., real_unique_0) , 2 )
-    #     pos_array           =   self.npa.power( self.npa.maximum(0., real_unique_0) , 2 )
-        
-    #     neg_sum             =   neg_array[0] + neg_array[1] + neg_array[2] + neg_array[3]
-    #     pos_sum             =   pos_array[0] + pos_array[1] + pos_array[2] + pos_array[3]
-    #     penalty             =   neg_sum * pos_sum
-
-    #     ## All positive
-    #     real_unique_1       =   unique_filled( eigReal, 1 )
-    #     all_pos_array       =   self.npa.power( self.npa.maximum( 0., real_unique_1 ) , 2 )
-    #     penalty2            =   all_pos_array[0]  *   all_pos_array[1]  *   all_pos_array[2]  *   all_pos_array[3]
-
-    #     ## Remove Re(eig)<0 contribution if no restoring behaviour - now scales
-    #     func_imag_array = self.npa.log( 1 + self.npa.power(eigImag,2) )
-    #     func_imag = func_imag_array[0] * func_imag_array[1] * func_imag_array[2] * func_imag_array[3]
-
-    #     ## Build FoM
-    #     FD = func_real_neg * func_imag - penalty - penalty2
-
-    #     return FD
 
     def Eigs(self, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', check_det: bool = False, return_vec: bool = False):
         """
@@ -1968,26 +1895,7 @@ class TwoBox:
                 return x.detach().cpu().numpy()
             else:
                 return np.array(x)
-    
-    # def grating_orders(self,wavelength=np.nan,angle=np.nan):
-    #     """ return list of grating orders given current wavelenth and incident angle """
-    #     # if np.isnan(self.to_numpy(wavelength)): wavelength=self.to_numpy(self.wavelength) 
-    #     # if np.isnan(self.to_numpy(angle)): angle=self.to_numpy(self.angle)
-    #     angle=self.to_numpy(self.angle)
-    #     wavelength=self.to_numpy(self.wavelength)
-    #     p=self.to_numpy(self.grating_pitch)
-    #     # Calculate the maximum possible diffraction order
-    #     m_max = int((p / wavelength) * (1 + np.sin(angle)))
-    #     # Initialize a list to store the valid diffraction orders
-    #     orders = []
-    #     # Iterate over possible diffraction orders from -m_max to m_max
-    #     for m in range(-m_max, m_max + 1):
-    #         # Calculate sin(θ_m) using the grating equation
-    #         sin_theta_m = (m * wavelength / p) - np.sin(angle)
-    #         # Check if sin(θ_m) is within the valid range [-1, 1]
-    #         if -1 <= sin_theta_m <= 1:
-    #             orders.append(m)
-    #     return orders
+        
     def grating_orders(self):
         """ return list of grating orders given current wavelenth and incident angle """
         # if np.isnan(self.to_numpy(wavelength)): wavelength=self.to_numpy(self.wavelength) 
@@ -1996,15 +1904,15 @@ class TwoBox:
         wavelength=self.wavelength
         p=self.grating_pitch
         # Calculate the maximum possible diffraction order
-        m_max = self.npa.int(((p / wavelength) * (1 + self.npa.sin(angle))))
+        m_max = self.npa.int(((p / wavelength) * (1 - self.npa.sin(angle))))
         # Initialize a list to store the valid diffraction orders
         orders = []
         # Iterate over possible diffraction orders from -m_max to m_max
-        for m in range(-m_max, m_max + 1):
+        for m in range(-m_max-1, m_max + 1):
             # Calculate sin(θ_m) using the grating equation
-            sin_theta_m = (m * wavelength / p) - self.npa.sin(angle)
+            sin_theta_m = (m * wavelength / p) + self.npa.sin(angle)
             # Check if sin(θ_m) is within the valid range [-1, 1]
             if -1 <= sin_theta_m <= 1:
-                orders.append(-m)
+                orders.append(m)
         return orders
     
