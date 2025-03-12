@@ -15,7 +15,7 @@ import sys
 sys.path.append("../")
 
 from cmvint import InterpolateError, odecmvint
-# from Optimisation.opt import extract_opt
+from Optimisation.opt import extract_opt
 from parameters import Parameters
 from specrel import Gamma, Dv, SinCosTheta, ABSC, E_eps, erf
 
@@ -27,10 +27,11 @@ wavelength = 1
 klambda = 1000
 kdelta = 1000
 lookup_data_fname = rf'Data/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
-opt_gratings_data_fname = 'Data/FOM_optimisation_maxfev160000.pkl'
+opt_gratings_data_fname = 'Data/FOM_optimisation_maxfev36000.pkl'
 
-# _, _, opt_grating = extract_opt(opt_gratings_data_fname, output_opt_idx=0)
-w = 31.37144885298504
+_, _, opt_grating = extract_opt(opt_gratings_data_fname, output_opt_idx=0)
+w = opt_grating.params[-3]
+print(w)
 
 with open(lookup_data_fname, 'rb') as lookup_file: 
     data = pickle.load(lookup_file)
@@ -206,22 +207,22 @@ def aM(t,yvec,vL,i):
 
 
 ## Optimisation parameters and initial conditions ##
-# x0 = 0
-# vx0 = 0
+x0 = 0
+vx0 = 0
 
-# ## Optimised - 1st
-# y0      = 0.05*w
-# phi0    = 1*np.pi/180
-# vy0     = -1.
-# omega0  = -1.
+## Optimised - 1st
+y0      = 0.05*w
+phi0    = 1*np.pi/180
+vy0     = -1.
+omega0  = -1.
 
-# Observing divergences
-x0 = 215177197.96531236
-y0 = -0.09459471262152874
-phi0 = -0.0027986233605225125
-vx0 = 2658365.0469323145
-vy0 = -11.247767769881074
-omega0 = 0.9393570477723936
+# # Observing divergences
+# x0 = 215177197.96531236
+# y0 = -0.09459471262152874
+# phi0 = -0.0027986233605225125
+# vx0 = 2658365.0469323145
+# vy0 = -11.247767769881074
+# omega0 = 0.9393570477723936
 
 ## Ilic - 1st
 # y0      = 1.3183489420398592e-07
@@ -249,7 +250,7 @@ time_MAX = 8.5*60*60  # Maximum runtime (seconds)
 velocity_MAX = 0.05*c
  
 h = 1e-4   # Step size  
-runID = "LvRFinalOpt_test"  # Added to the output data filename
+runID = "MdS_v1"  # Added to the output data filename
 
 positions, angles, times, accels, loop_data = odecmvint(aM, Y0, time_MAX, velocity_MAX, hstep=h)
 
