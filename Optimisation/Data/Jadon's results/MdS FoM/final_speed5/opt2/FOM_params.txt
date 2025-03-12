@@ -1,0 +1,13 @@
+grating_pitch   = 1.2221966598845793
+grating_depth   = 1.0847939028971945
+box1_width      = 0.5707113920859432
+box2_width      = 0.6659446942549011
+box_centre_dist = 0.27684880240180076
+box1_eps        = 6.632292384257145
+box2_eps        = 5.707919872266289
+gaussian_width  = 50.0
+substrate_depth = 0.01
+substrate_eps   = 2.25
+
+FoM recorded:     0.00013953698865806045
+FoM converged (Nx=10000, nG=50, Qabs=inf): 0.00013936227051896286
