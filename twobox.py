@@ -1354,7 +1354,7 @@ class TwoBox:
                     efficiencies[n_orders:,idx] = Ts
             elif efficiency_quantity == "PDr":
                 if(self.RCWA_engine=='TORCWA'):
-                    efficiencies[0,idx] = self_to_numpy(self.PDrNeg1(angle)[0]) # this removes the autograd function -- ok for plotting
+                    efficiencies[0,idx] = self.to_numpy(self.PDrNeg1(angle)[0]) # this removes the autograd function -- ok for plotting
                 elif(self.RCWA_engine=='GRCWA'):
                     efficiencies[0,idx] = self.PDrNeg1(angle)
             elif efficiency_quantity == "PDt":
