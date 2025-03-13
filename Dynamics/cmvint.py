@@ -54,7 +54,7 @@ def _func(func, tn, yn, vL, i, args):
     if args == ():
         return func(tn,yn,vL,i)
     else:
-        return func(tn,yn,vL,i,args)
+        return func(tn,yn,vL,i,*args)
 
 def Mstep(func: callable, h: float, tn: float, yn: np.ndarray, vL: np.ndarray, i: int, args: tuple=()):
     """
