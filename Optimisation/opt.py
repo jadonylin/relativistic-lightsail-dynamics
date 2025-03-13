@@ -271,6 +271,22 @@ def global_optimise(objective,
     #       However, I think the gradients of constrain functions are obtained by MMA internally (likely using
     #       finite differences), so autogradability is not needed.
 
+    def box1_too_wide(params,gradn): 
+        """
+        Constraint function to prevent box1 from being wider than the unit cell.
+        """
+        Lam, _, w1, _, _, _, _, _, _, _ = params
+        condition = w1 - Lam 
+        return condition
+    
+    def box2_too_wide(params,gradn): 
+        """
+        Constraint function to prevent box2 from being wider than the unit cell.
+        """
+        Lam, _, _, w2, _, _, _, _, _, _ = params
+        condition = w2 - Lam 
+        return condition
+
     def bcd_redundant(params,gradn): 
         """
         Constraint function containing two conditions to avoid redundant parameter space:
@@ -285,6 +301,7 @@ def global_optimise(objective,
         """
         Constraint function to guarantee an asymmetric unit cell by ensuring the distance between two unit cells is larger than zero
         TODO: The boxes overlapping can still be asymmetric, so this constraint is slightly too restrictive
+              However, would need to find a way to handle gradients in the overlap regime.
         """
         _, _, w1, w2, bcd, _, _, _, _, _ = params
         condition= (w1+w2)/2 - bcd 
@@ -350,6 +367,8 @@ def global_optimise(objective,
 
     if bcd_constraint:
         local_opt.add_inequality_constraint(bcd_redundant)
+    local_opt.add_inequality_constraint(box1_too_wide)
+    local_opt.add_inequality_constraint(box2_too_wide)
     local_opt.add_inequality_constraint(boxes_clip_unit_cell)
     local_opt.add_inequality_constraint(boxes_overlap)
     # local_opt.add_inequality_constraint(some_eig_real_avg_positive)
