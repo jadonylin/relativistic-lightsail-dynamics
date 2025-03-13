@@ -7,10 +7,7 @@ You should import your figure-of-merit functions from opt.py into your main opti
 # IMPORTS ########################################################################################################################
 import adaptive as adp
 
-import autograd.numpy as npa
 from autograd import grad
-from autograd.scipy.special import erf as autograd_erf
-from autograd.numpy import linalg as npaLA
 
 import numpy as np
 import nlopt
@@ -29,8 +26,6 @@ import random
 
 import sys
 sys.path.append("../")
-
-import traceback
 
 from parameters import Parameters, D1_ND, Initial_bigrating, opt_Parameters
 I0, L, m, c = Parameters()
@@ -321,22 +316,22 @@ def global_optimise(objective,
     #         condition = largest_avg_Reig
     #     return condition
     
-    def some_eig_imag_zero(params,gradn):
-        """
-        Constraint function requiring that the imaginary-part eigenvalues are nonzero. 
+    # def some_eig_imag_zero(params,gradn):
+    #     """
+    #     Constraint function requiring that the imaginary-part eigenvalues are nonzero. 
 
-        TODO: make this function more differentiable
-        """
-        grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
-        _, eigvals_imag = grating_check.Eigs(I=I0,m=m,c1=c,grad_method="finite")
-        # probs = softmin(eigvals_imag,sigma=1.)
-        # smallest_eigval_imag = np.sum(probs*eigvals_imag)
-        smallest_eigval_imag = np.min(np.abs(eigvals_imag))
-        if smallest_eigval_imag == 0:  # Don't want zero-imag-part eigenvalues, so set condition to unwanted region 
-            condition = 1
-        else:
-            condition = -smallest_eigval_imag
-        return condition
+    #     TODO: make this function more differentiable
+    #     """
+    #     grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
+    #     _, eigvals_imag = grating_check.Eigs(I=I0,m=m,c1=c,grad_method="finite")
+    #     # probs = softmin(eigvals_imag,sigma=1.)
+    #     # smallest_eigval_imag = np.sum(probs*eigvals_imag)
+    #     smallest_eigval_imag = np.min(np.abs(eigvals_imag))
+    #     if smallest_eigval_imag == 0:  # Don't want zero-imag-part eigenvalues, so set condition to unwanted region 
+    #         condition = 1
+    #     else:
+    #         condition = -smallest_eigval_imag
+    #     return condition
     
 
 
@@ -358,7 +353,7 @@ def global_optimise(objective,
     local_opt.add_inequality_constraint(boxes_clip_unit_cell)
     local_opt.add_inequality_constraint(boxes_overlap)
     # local_opt.add_inequality_constraint(some_eig_real_avg_positive)
-    local_opt.add_inequality_constraint(some_eig_imag_zero)
+    # local_opt.add_inequality_constraint(some_eig_imag_zero)
 
     local_opt.set_xtol_rel(xtol_rel)
     local_opt.set_ftol_rel(ftol_rel)
@@ -379,20 +374,6 @@ def global_optimise(objective,
     is_optimum = True
 
     return (optimum, opt_params, is_optimum)
-
-    try:
-        opt_params = global_opt.optimize(init)
-        optimum = objective(opt_params)[0]
-        print("Success on starting bounds: ", param_bounds[1])
-        is_optimum = True
-        return (optimum, opt_params, is_optimum)
-    except:  # TODO: catch specific exceptions
-        print("Failed on starting bounds: ",param_bounds[1])
-        traceback.format_exc()
-        fake_FOM = - np.inf
-        fake_params = init
-        is_optimum = False
-        return (fake_FOM, fake_params, is_optimum)
 
 def extract_opt(data_filename: str, output_opt_idx: int=0):
     """
