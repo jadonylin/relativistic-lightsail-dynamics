@@ -828,7 +828,7 @@ class TwoBox:
         return third(method_three)
 
 
-    def FoM(self, I:float=1e9, grad_method: str="finite") -> float:
+    def FoM(self, I:float=1e9, grad_method: str="finite", sigma: float=1.) -> float:
         """
         Calculate the grating single-wavelength figure of merit FD.
 
@@ -854,9 +854,8 @@ class TwoBox:
         
         eigReal, eigImag = self.Eigs(I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
 
-        # FD = npa.min(-eigReal)  # standard minimum
-        FD = npa.sum(-eigReal*softmin(-eigReal,1.))  # softened minimum
-        
+        FD = npa.min(-eigReal)  # standard minimum
+        # FD = npa.sum(-eigReal*softmin(-eigReal,sigma))  # softened minimum
         return FD
 
     def FoM_quality_factor(self, I:float=1e9, grad_method: str="finite") -> float:
