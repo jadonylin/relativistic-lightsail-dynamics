@@ -375,14 +375,15 @@ def global_optimise(objective,
 
     return (optimum, opt_params, is_optimum)
 
-def extract_opt(data_filename: str, output_opt_idx: int=0):
+def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: int=0):
     """
     Extract the optimum gratings stored in a data file. Optima are ordered by FOM (largest to smallest).
 
     Parameters
     ----------
-    data_filename  :   pkl file location relative to working directory
-    output_opt_idx :   Index for the optimal twobox instance (from the ordered list) to return directly
+    data_basefile_name  :   pkl file name relative to working directory
+    num_processes       :   Number of processes used in the optimisation that must be individually extracted
+    output_opt_idx      :   Index for the optimal twobox instance (from the ordered list) to return directly
 
     Returns
     -------
@@ -391,12 +392,20 @@ def extract_opt(data_filename: str, output_opt_idx: int=0):
     chosen_best_grating          :   Twobox instance for the output grating chosen by output_opt_idx
     """
 
-    with open(data_filename, 'rb') as data_file:
-        data = pickle.load(data_file)
+    opt_FOMs = []
+    opt_gratings = []
+    opt_params = []
+    for n in range(num_processes):
+        try: 
+            data_fname = data_basefile_name + f"_process{n}.pkl"
+            with open(data_fname, 'rb') as data_file:
+                data = pickle.load(data_file)
+        except FileNotFoundError:
+            continue
 
-    opt_FOMs = data["FOM"]
-    opt_gratings = data["Optimised grating"]
-    opt_params = data["Optimised parameters"] #[0]
+        opt_FOMs.append(data["FOM"])
+        opt_gratings.append(data["Optimised grating"])
+        opt_params.append(data["Optimised parameters"])
 
     maxima_and_maximisers = zip(opt_FOMs, opt_params)
     maxima_and_gratings = zip(opt_FOMs, opt_gratings)
