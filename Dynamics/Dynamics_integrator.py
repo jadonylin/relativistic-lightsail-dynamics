@@ -23,8 +23,9 @@ wavelength = 1
 # The efficiency factors are too expensive to calculate in real time, so pre-calculated tables are used.
 klambda = 1000
 kdelta = 1000
-lookup_data_fname = rf'Data/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
-opt_gratings_data_fname = 'Data/FOM_optimisation_maxfev160000.pkl'
+runID_load = "LvRFinalOpt"
+lookup_data_fname = rf'./Data/{runID_load}_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
+opt_gratings_data_fname = './Data/FOM_optimisation_maxfev160000.pkl'
 
 w, lookup_data = forces.load_essential_data(opt_gratings_data_fname, 0,lookup_data_fname)
 interpolation_funcs = forces.create_interpolation_funcs(lookup_data)
@@ -70,8 +71,8 @@ omega0 = 0.9393570477723936
 
 Y0 = np.array([x0,y0,phi0,vx0,vy0,omega0])
 
-# time_MAX = 8.5*60*60  # Maximum runtime (seconds)
-time_MAX = 10  # Maximum runtime (seconds)
+time_MAX = 8.5*60*60  # Maximum runtime (seconds)
+# time_MAX = 10  # Maximum runtime (seconds)
 velocity_MAX = 0.05*c
  
 h = 1e-4   # Step size  

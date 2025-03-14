@@ -60,11 +60,11 @@ def Mstep(func: callable, h: float, tn: float, yn: np.ndarray, vL: np.ndarray, i
     """
     Step in the direction of the state-vector derivative, func, in frame Mn using fourth-order Runge-Kutta.
     """
-    k1 = _func(func, tn    , yn     , vL, i, args)
-    k2 = _func(func, tn+h/2, yn+k1/2, vL, i, args)
-    k3 = _func(func, tn+h/2, yn+k2/2, vL, i, args)
-    k4 = _func(func, tn+h  , yn+k3  , vL, i, args)
-    yNew = yn + h/6*(k1 + 2*k2 + 2*k3 + k4)
+    k1 = h*_func(func, tn    , yn     , vL, i, args)
+    k2 = h*_func(func, tn+h/2, yn+k1/2, vL, i, args)
+    k3 = h*_func(func, tn+h/2, yn+k2/2, vL, i, args)
+    k4 = h*_func(func, tn+h  , yn+k3  , vL, i, args)
+    yNew = yn + 1/6*(k1 + 2*k2 + 2*k3 + k4)
     tNew = tn + h
     ydotNew = k1/h
     return tNew,yNew,ydotNew
