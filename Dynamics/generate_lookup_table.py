@@ -24,7 +24,7 @@ from twobox import TwoBox
 t_start = time.time()
 
 ## Initialise grating
-# TODO: extract gratings directly from optimised pkl and print parameters
+# TODO: extract gratings directly from optimised pkl, and print parameters
 grating_pitch   = 1.4448460868780606
 grating_depth   = 2.0643298724749126
 box1_width      = 0.7418355927658334
