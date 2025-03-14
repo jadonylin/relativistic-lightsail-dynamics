@@ -57,6 +57,7 @@ delta_max = 16*np.pi/180
 delta_min = -delta_max
 delta_array = np.linspace(delta_min, delta_max, kdelta)
 
+runID = "LvRFinalOpt"  # String to add to .pkl filename
 num_processes = 8
 
 def eff_auto(*args):
@@ -83,7 +84,7 @@ t_end_hours = round(t_end/60**2)
 print(rf"Finished in {t_end_sec} seconds, or {t_end_min} minutes, or {t_end_hours} hours!")
 print(rf"#lambda: {klambda}, #delta: {kdelta}")
 
-pkl_fname = rf"./Data/Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl"
+pkl_fname = rf"./Data/{runID}_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl"
 data = {'Q1': Q1_array, 'Q2': Q2_array, 'PD_Q1_delta': PD_Q1_delta_array, 'PD_Q2_delta': PD_Q2_delta_array, 
         'PD_Q1_lambda': PD_Q1_lambda_array, 'PD_Q2_lambda': PD_Q2_lambda_array, 
         'lambda array': lambda_array, 'delta array': delta_array}
