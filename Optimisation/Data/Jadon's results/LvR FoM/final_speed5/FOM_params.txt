@@ -1,0 +1,13 @@
+grating_pitch   = 1.4185910181100811
+grating_depth   = 0.49190319526197407
+box1_width      = 0.5719025530222406
+box2_width      = 0.053439272331534775
+box_centre_dist = 0.44458828885168056
+box1_eps        = 11.029595778447616
+box2_eps        = 6.100136959625866
+gaussian_width  = 31.37144885298504
+substrate_depth = 0.43257336002828756
+substrate_eps   = 2.279546035418172
+
+FoM recorded (LvR Final FOM):     8.557435033810407e-13
+MdS np min FOM: -0.0003895102782259829
