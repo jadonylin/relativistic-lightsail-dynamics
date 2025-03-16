@@ -1,7 +1,8 @@
 """
 A module containing the force functions to be integrated by odecmvint.
 
-Add your own custom force functions in here and call them in Dynamics_integrator.py or your own dynamics-solving script.
+Add your own custom force functions in here and call them in Dynamics_integrator.py or your own 
+dynamics-solving script.
 """
 
 import numpy as np
