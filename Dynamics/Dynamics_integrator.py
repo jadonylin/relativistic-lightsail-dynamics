@@ -38,9 +38,9 @@ x0 = 0
 vx0 = 0
 
 ## Optimised - 1st
-y0      = 0.05*w  # metres
+y0      = 0.01*w  # metres
 phi0    = 0.1*np.pi/180  # degrees converted to radians
-vy0     = -1.  # metres per second
+vy0     = -0.1  # metres per second
 omega0  = -0.05*2*np.pi  # rotations per second converted to radians per second
 
 # # Observing divergences
