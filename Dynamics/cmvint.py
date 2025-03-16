@@ -50,6 +50,7 @@ def append_coordinate_arrays(coordinate_arrays: list[list], items: list[float]):
         arr.append(item)
     return coordinate_arrays
 
+
 def _func(func, tn, yn, vL, i, args):  
     if args == ():
         return func(tn,yn,vL,i)
@@ -68,6 +69,7 @@ def Mstep(func: callable, h: float, tn: float, yn: np.ndarray, vL: np.ndarray, i
     tNew = tn + h
     ydotNew = k1/h
     return tNew,yNew,ydotNew
+
 
 def update_frame_L(timeMNew: float, YNew: np.ndarray, vn: np.ndarray):
     """
@@ -105,6 +107,7 @@ def update_finite_difference(current_value: float, all_values: list, iteration: 
     else:    
         derivative = (current_value - all_values[iteration-2])/(2*hstep)
     return derivative
+
 
 def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, args: tuple=(), hstep: float=1e-4):
     """
