@@ -1,3 +1,16 @@
+"""
+Main script for running twobox optimisation on multiple computer cores.
+
+How to run:
+    Set the parameters for optimisation in the parameters.py module 
+    
+    Set the hyperparameters for the global and local optimisation in this module
+    
+    Set the number of computer cores to use in parallel during optimisation
+
+    Set the maximum number of function evaluations (for optimisation) per core
+"""
+
 # IMPORTS ################################################################################################################################################
 import os
 ## Limit number of numpy threads (MUST GO BEFORE NUMPY IMPORT) ##
@@ -18,36 +31,38 @@ import pickle
 import sys
 sys.path.append("../")
 
+import time 
+
 from opt import FOM_uniform, global_optimise
 from parameters import Initial_bigrating, opt_Parameters, Bounds
 from twobox import TwoBox
 
-Email_result = True
 
-## GLOBAL OPTIMISATION ##
-xtol_rel = 1e-4 # local
-ftol_rel = 1e-8 # local
-num_cores = 32 # number of cores to run parallel optimisation
-maxfev = 5000 # global 1000
+# Global optimisation parameters
+num_cores = 8  # number of cores to run parallel optimisation
+maxfev = 2  # global 1000
 h1_min, h1_max, param_bounds = Bounds()
 
-## LOCAL OPTIMISATION ##
-# Set up NLOPT
-seed = 20240902 # LDS seed
-sampling = 'sobol' # 'sobol' or 'random'
+
+# Local optimisation parameters
+xtol_rel = 1e-4  
+ftol_rel = 1e-8  
+
+seed = 20240902  # LDS seed
+sampling = 'sobol'  # 'sobol' or 'random'
 n_sample_exp = 3
 n_sample = 2**n_sample_exp
-ndof = 11
-wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad = opt_Parameters()
+ndof = 10  # number of optimisation parameters
 
-## Build grating
-grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps=Initial_bigrating()
+
+# Initial grating parameters and hyperparameters
+wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad = opt_Parameters()
+grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = Initial_bigrating()
 grating = TwoBox(grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, 
                  gaussian_width, substrate_depth, substrate_eps,
                  wavelength, angle, Nx, nG, Qabs)
 
 
-# OBJECTIVE FUNCTION ###########################################################################
 def objective(params):
     grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = params
     grating.grating_pitch = grating_pitch
@@ -65,12 +80,14 @@ def objective(params):
     return FOM_uniform(grating, final_speed, goal, return_grad)
 
 
+
 # RECORDING RESULTS ###########################################################################
+# Parameters and hyperparameters for an optimisation run are recorded in dictionaries and saved to a text file for 
+# convenient viewing. 
+
 ## Converting non-h1 parameter dicts to strings ##
 # Fixed parameters
-fixed_params_dict = {'wavelength': wavelength,
-                     'angle': angle,
-                     'Nx': Nx, 'nG': nG, 'Qabs': Qabs}
+fixed_params_dict = {'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs}
 fixed_params_line = str(fixed_params_dict)
 FOM_params_dict = {'final_speed': final_speed, 'goal': goal}
 FOM_params_line = str(FOM_params_dict)
@@ -103,15 +120,24 @@ lines_to_file = ["\n\n----------------------------------------------------------
                 , f"GO options       | {GO_line}\n"
                 , "------------------------------------------------------------------------------------------------------------------------------------\n"]
 
+
 ## Writing to file ##
-txt_fname = f'./Data/FOM_5th_bounds3_optimisation_maxfev{maxfev*num_cores}.txt'
+# txt_fname = f'./Data/FOM_5th_bounds3_optimisation_maxfev{maxfev*num_cores}.txt'  # What do the numbers mean?
+txt_fname = f'./Data/FOM_optimisation_maxfev{maxfev*num_cores}.txt'
 with open(txt_fname, "a") as result_file:
     result_file.writelines(lines_to_file)
 
+
+
 ### RUN GLOBAL OPTIMISATION ###########################################################################
-def optimise_partitioned_depth(partition_h1_min, partition_h1_max):
+# The parallel optimisation is run by partitioning the h1 parameter range into a number (num_cores) of non-intersecting 
+# subsidiary parameter ranges whose union is the full h1 parameter range set by the user. Each core optimises over one of 
+# those subsidiary h1 ranges, and saves the found most-optimal grating and all optimisation parameters into a dictionary 
+# that is stored in .pkl file. The optimisation results for all cores are stored in the same .pkl file.
+
+def optimise_partitioned_depth(h1_bounds):
     _param_bounds = param_bounds[:]
-    _param_bounds[1] = (partition_h1_min, partition_h1_max)
+    _param_bounds[1] = tuple([*h1_bounds])  # Must unpack a single argument for pool.imap to be applied correctly
     return global_optimise(objective, sampling, seed, n_sample, maxfev, xtol_rel, ftol_rel, _param_bounds)
 
 h1_bounds = []
@@ -120,90 +146,30 @@ for p in range(0,num_cores):
     interval = (h1s[p], h1s[p+1])
     h1_bounds.append(interval)
 
-
 # Run parallel optimisation
-pkl_fname = f'./Data/FOM_5th_bounds3_optimisation_maxfev{maxfev*num_cores}.pkl'
 if __name__ == '__main__':
-    with Pool(processes=num_cores) as pool:
-        # Time checking
-        import time 
-        T1=time.time()
+    with Pool(processes=num_cores) as pool:        
+        T1 = time.time()
         print("Begun!")
         
-        all_optima = pool.starmap(optimise_partitioned_depth, h1_bounds)
-        opt_FOMs = []
-        opt_params = []
-        opt_gratings = []
-        is_opt = []
-        for optimum in all_optima:
-            opt_FOMs.append(optimum[0])
+        # Some processes run for too long, so we need to store the results of each process 
+        # immediately once they become available.
+        # From https://stackoverflow.com/questions/70317903/how-to-store-all-the-output-before-multiprocessing-finish
+        for opt_index, opt_result in enumerate(pool.imap_unordered(optimise_partitioned_depth, h1_bounds)):
             
-            opt_param = optimum[1]
-            opt_params.append(opt_param)
+            opt_FOM = opt_result[0]
+            opt_params = opt_result[1]
+            is_opt = opt_result[2]
             
-            grating_copy = deepcopy(grating)
-            grating_copy.params = opt_param
-            opt_gratings.append(grating_copy) 
+            # Copy the grating to ensure it is not subsequently modified during optimisation
+            opt_grating = deepcopy(grating)
+            opt_grating.params = opt_params
 
-            is_opt.append(optimum[2])
-
-        data = {'Optimised grating': opt_gratings,  'FOM': opt_FOMs,        'Real optimum?': is_opt,
-                'Optimised parameters': opt_params,
-                'FOM parameters': FOM_params_dict,  'Bounds': bounds_dict,
-                'Sampling settings': sampling_dict, 'LO settings': LO_dict, 'GO settings': GO_dict}
-        
-        # Save result
-        try:
+            data = {'Optimised grating': opt_grating, 'FOM': opt_FOM, 'Real optimum?': is_opt,
+                    'Optimised parameters': opt_params,
+                    'FOM parameters': FOM_params_dict,  'Bounds': bounds_dict,
+                    'Sampling settings': sampling_dict, 'LO settings': LO_dict, 'GO settings': GO_dict}
+            
+            pkl_fname = f'./Data/FOM_optimisation_maxfev{maxfev*num_cores}_process{opt_index}.pkl'
             with open(pkl_fname, 'wb') as data_file:
                 pickle.dump(data, data_file)
-        except:
-            print("Couldn't save data")
-            print(data)
-
-        if Email_result:
-
-            ## Send email to notify end of code
-
-            # Import the following module 
-            from email.mime.text import MIMEText 
-            from email.mime.multipart import MIMEMultipart 
-            import smtplib 
-            from login import email_address, password, from_address, to
-
-            smtp = smtplib.SMTP('smtp.gmail.com', 587) 
-            smtp.ehlo() 
-            smtp.starttls() 
-
-            # Login with your email and password 
-            smtp.login(email_address, password)
-
-            def message(subject="Python Notification", 
-                        text="", img=None, 
-                        attachment=None): 
-                
-                # build message contents 
-                msg = MIMEMultipart() 
-                
-                # Add Subject 
-                msg['Subject'] = subject 
-                
-                # Add text contents 
-                msg.attach(MIMEText(text)) 
-
-                
-                return msg 
-
-            T2=str(round( (time.time()-T1)/ (60**2) ) )
-
-            # Call the message function 
-            msg = message(subject="Your code has finished in " + T2 + " hours!", text="Code finished! Yay!",img=None, 
-                        attachment=None) 
-
-
-            # Provide some data to the sendmail function! 
-            smtp.sendmail(from_addr= from_address, 
-                        to_addrs=to, msg=msg.as_string()) 
-
-            # Finally, don't forget to close the connection 
-            smtp.quit()
-

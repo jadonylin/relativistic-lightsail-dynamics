@@ -4,7 +4,7 @@ import sys
 sys.path.append("../")
 c=299792458
 
-from SR_functions import Gamma, Dv, vadd, SinCosTheta, SinCosEpsilon, erf, Parameters, Lorentz
+from specrel import Gamma, Dv, vadd, SinCosTheta, SinCosEpsilon, erf, Parameters, Lorentz
 from parameters import D1_ND
 from twobox import TwoBox
 
