@@ -97,11 +97,11 @@ class agfunc:
             self.maximum=torch.maximum
             self.int=lambda x: x.long()
             self.zeros=torch.zeros
-    def _softmax(self,sigma,p):
+    def _softmax(self,p,sigma):
         e_x = npa.exp(sigma*(p - npa.max(p)))
         return e_x/npa.sum(e_x)
 
-    def _softmax_torch(self,sigma,p):
+    def _softmax_torch(self,p,sigma):
         e_x = torch.exp(sigma*(p - torch.max(p)))
         return e_x/torch.sum(e_x)
     @functools.wraps(torch.tensor)
