@@ -97,6 +97,7 @@ class agfunc:
             self.maximum=torch.maximum
             self.int=lambda x: x.long()
             self.zeros=torch.zeros
+
     def _softmax(self,p,sigma):
         e_x = npa.exp(sigma*(p - npa.max(p)))
         return e_x/npa.sum(e_x)
@@ -104,6 +105,12 @@ class agfunc:
     def _softmax_torch(self,p,sigma):
         e_x = torch.exp(sigma*(p - torch.max(p)))
         return e_x/torch.sum(e_x)
+
+    def softmin(self,p,sigma):
+        """Used to approximate min via expected value of array p with probability distribution given by softmin(p)"""
+        e_x = self.exp(sigma*(self.min(p) - p))
+        return e_x/self.sum(e_x)
+
     @functools.wraps(torch.tensor)
     def torch_tensor_with_grad(self,*args, **kwargs):
         # Force requires_grad to be True (overriding any passed value)

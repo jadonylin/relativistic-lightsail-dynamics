@@ -12,10 +12,10 @@ of merit in a separate module without worrying about the grating simulation.
 # IMPORTS ###########################################################################################################################################################################
 from torch import erf as torch_erf
 from torch import linalg as torchLA
-from autograd.scipy.special import erf as autograd_erf
+from autograd.scipy.special import erf as self.npa.erf
 from autograd.numpy import linalg as npaLA
 from agfunc import agfunc
-from parameters import D1_ND, Parameters
+from parameters import Parameters
 try:
     from autograd.numpy.numpy_boxes import ArrayBox
 except ImportError:
@@ -118,11 +118,6 @@ class MinorSymLogLocator(Locator):
 
 
 
-# def softmin(p,sigma):
-#     """Used to approximate min via expected value of array p with probability distribution given by softmin(p)"""
-#     e_x = npa.exp(sigma*(npa.min(p) - p))
-#     return e_x/npa.sum(e_x)
-
 
 class TwoBox:
     """
@@ -149,6 +144,9 @@ class TwoBox:
     Nx              :   An integer for the number of grid points in the unit cell
     nG              :   An integer for the number of Fourier components used in the RCWA simulation
     Qabs            :   A float for the relaxation parameter, determining the strength of the imaginary frequency and thus smoothness of resonances
+    RCWA_engine     :   RCWA engine to use - 'GRCWA' or 'TORCWA'
+    torcwa_edge_sharpness: An integer for the sharpness of the edge of the unit cell in TORCWA
+    title           :   A string for the title of plots
     """
 
     def __init__(self, grating_pitch: float, grating_depth: float, box1_width: float, box2_width: float, box_centre_dist: float, box1_eps: complex, box2_eps: complex, 
@@ -457,7 +455,7 @@ class TwoBox:
             # however, doing it this way doesn't help with NaN being by  returned for derivatives when only m=0 orders are propagative in torcwa
         for ord in M:
             m=1+ord # convert grating order to index of array, assumes -1,0,1
-            delta_m=beta_m(ord,self)
+            delta_m=self.diffraction_angle(ord)
             # # if isinstance(delta_m,str):
             if self.npa.isnan(delta_m):
                 """
@@ -949,218 +947,215 @@ class TwoBox:
     ##################
     #### Optimisation functions
 
-    def FoM(self, I:float=1e9, grad_method: str="finite"):
+    def FoM(self, I:float=1e9, grad_method: str="finite", sigma: float=1.) -> float:
         """
-        ## Inputs
-        I: intensity
-        grad_method: "finite" for optimisation
-        ## Outputs
         Calculate the grating single-wavelength figure of merit FD.
+
+        This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
+        using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
+        implementation, the optimised grating recorded via the twobox instance is the right-half grating,
+        i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
+        efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
+        the unit cell along the x-axis about the unit-cell centre.
+
+        MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
+                 negative eigenvalue with the smallest real part. 
+
+        Parameters
+        ----------
+        I           :   Laser intensity
+        grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+        
+        Returns
+        -------
+        FD :   Figure of merit
         """
-        eigReal, eigImag = self.Eigs(I=I, m=m,c1=c, grad_method=grad_method, check_det=True, return_vec=False)
+        
+        eigReal, eigImag = self.Eigs(I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
 
-        def unique_filled(x, filled_value):
-            """
-            ## Inputs
-            x: 4-d array
-            filled_value: Float to fill remaining
-
-            ## Outputs
-            Unique contents of x, with remaining items filled by filled_value
-            """
-            # Sort to ensure differentiability
-            sorted_x = npa.sort(x.flatten())
-            unique_values = sorted_x[np.concatenate(([True], npa.diff(sorted_x) != 0))]
-
-            # Append filled_value as needed
-            k = len(unique_values)
-            for i in range(4-k):
-                unique_values=npa.append(unique_values,filled_value)
-
-            return unique_values
-    
-        ## Reward all Re(eig) being negative
-        eig_real_unique     =   unique_filled( eigReal, -1 )
-        eig_real_neg_unique =   npa.minimum( 0., eig_real_unique )
-        func_real_neg_array =   npa.power( eig_real_neg_unique , 2 )
-        func_real_neg       =   func_real_neg_array[0]  *   func_real_neg_array[1]  *   func_real_neg_array[2]  *   func_real_neg_array[3]
-
-        ## Penalise mixed positive and negative Re(eig)
-        real_unique_0       =   unique_filled( eigReal, 0. )
-        neg_array           =   npa.power( npa.minimum(0., real_unique_0) , 2 )
-        pos_array           =   npa.power( npa.maximum(0., real_unique_0) , 2 )
-        neg_sum             =   neg_array[0] + neg_array[1] + neg_array[2] + neg_array[3]
-        pos_sum             =   pos_array[0] + pos_array[1] + pos_array[2] + pos_array[3]
-        penalty             =   neg_sum * pos_sum
-
-        ## All positive
-        real_unique_1       =   unique_filled( eigReal, 1 )
-        all_pos_array       =   npa.power( npa.maximum( 0., real_unique_1 ) , 2 )
-        penalty2            =   all_pos_array[0]  *   all_pos_array[1]  *   all_pos_array[2]  *   all_pos_array[3]
-
-        ## Remove Re(eig)<0 contribution if no restoring behaviour - now scales
-        func_imag_array = npa.log( 1 + npa.power(eigImag,2) )
-        func_imag = func_imag_array[0] * func_imag_array[1] * func_imag_array[2] * func_imag_array[3]
-
-        ## Build FoM
-        FD = func_real_neg * func_imag - penalty - penalty2
-
+        # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
+        #          negative eigenvalue with the smallest real part. 
+        FD = self.npa.min(-eigReal)  # standard minimum
+        # FD = npa.sum(-eigReal*softmin(-eigReal,1.))  # softened minimum
+        
         return FD
 
     def FoM_quality_factor(self, I:float=1e9, grad_method: str="finite") -> float:
         """
-        ## Inputs
-        I: intensity
-        m: mass 
-        c1: speed of light
-        grad_method: for Q derivatives
-        check_det: FoM is non-differentiable if det(J)=0
-        return_vec: Returns eigenvectors when true
-        ## Outputs
-        Calculate eigenvalues of Jacobian matrix at equilibrium
-    
+        Calculate the grating single-wavelength figure of merit FD.
+
+        Quality factor FoM: Maximise the magnitude of the quality factor (Re(xi)/Im(xi)) 
+                            for the eigenvalue with the smallest quality factor. Issue:
+                            Im(xi) --> 0 will blow this up, and we need to track the sign.
+
+        Parameters
+        ----------
+        I           :   Laser intensity
+        grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+        
+        Returns
+        -------
+        FD :   Figure of merit
         """
         
-        if grad_method=='finite':
-            # For optimisation, need to use finite differences. ~optimal step size is ...
-            h_angle = 10**(-6.5)
-            h_wavelength = 10**(-6.5)
-            Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR = self.return_Qs(h_angle, h_wavelength)
-        if grad_method=="grad":
-            Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR = self.return_Qs_auto(return_Q=True)
+        raise NotImplementedError("Must determine how to handle signs and avoid Im(xi) = 0.")
 
-        w = self.npa.array(self.gaussian_width)
-        w_bar = w/L
+    def FoM_LvR(self, I:float=1e9, grad_method: str="finite") -> float:
+        """
+        Last FoM implemented by Liam - not working with TORCWA
+        Calculate the grating single-wavelength figure of merit FD using LvR's most updated method.
 
-        lam = self.wavelength 
+        Parameters
+        ----------
+        I           :   Laser intensity
+        grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+        
+        Returns
+        -------
+        FD :   Figure of merit
+        """
+        
+        eigReal, eigImag = self.Eigs(I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
 
-        ## Convert velocity dependence to wavelength dependence
-        D = 1/lam 
-        g = (self.npa.power(self.npa.array(lam),2) + 1)/(2*lam) 
-   
-        ## Symmetry
-        Q1L = Q1R;   Q2L = -Q2R;   
-        dQ1ddeltaL  = -dQ1ddeltaR;    dQ2ddeltaL  = dQ2ddeltaR
-        dQ1dlambdaL = dQ1dlambdaR;    dQ2dlambdaL = -dQ2dlambdaR
+        def unique_filled(x, filled_value):
+            """
+            Finds unique values in x and fills remaining entries with filled_value.
+            The resultant array is sorted by unique values first.
 
-        # if self.RCWA_engine == 'GRCWA':            
-        # y acceleration
-        fy_y= -     D**2 * (I/(m*c1)) *  ( Q2R - Q2L ) * ( 1 - self.npa.exp(-1/(2*w_bar**2) ) )
-        fy_phi= -   D**2 * (I/(m*c1)) * ( dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
-        fy_vy= -    D**2 * (I/(m*c1)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
-        fy_vphi=    D**2 * (I/(m*c1)) * (1/c) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - self.npa.exp( -1/(2*w_bar**2) ))
+            Parameters
+            ----------
+            x            :   4d array
+            filled_value :   Float to fill remaining entries in unique_values
 
-        # phi acceleration
-        fphi_y=     D**2 * (12*I/( m*c1*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* self.npa.exp( -1/(2*w_bar**2) )  ) 
-        fphi_phi=   D**2 * (12*I/( m*c1*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - self.npa.exp( -1/(2*w_bar**2) ))
-        fphi_vy=    D**2 * (12*I/( m*c1*L**2)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - self.npa.exp( -1/(2*w_bar**2) ))
-        fphi_vphi= -D**2 * (12*I/( m*c1*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* self.npa.exp( -1/(2*w_bar**2) )  ) 
+            Returns
+            -------
+            unique_values :   Unique contents of x, with remaining entries filled by filled_value
+            """
+            
+            # Sort array to ensure differentiability
+            sorted_x = self.npa.sort(x.flatten())
+            unique_values = sorted_x[self.npa.concatenate(([True], self.npa.diff(sorted_x) != 0))]
 
-        # Build the Jacobian matrix
-        J00=fy_y;   J01=fy_phi;     J02=fy_vy;    J03=fy_vphi
-        J10=fphi_y; J11=fphi_phi;   J12=fphi_vy;  J13=fphi_vphi
-        J=self.npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
+            # Append filled_value as needed
+            k = len(unique_values)
+            for i in range(4-k):
+                unique_values = self.npa.append(unique_values,filled_value)
+
+            return unique_values
+    
+        # NOTE: In the following penalty and reward terms, all operations must be done element-wise to avoid 
+        #       "RuntimeWarning: invalid value encountered in divide" during optimisation
+        # TODO: Determine why we can't use npa functions here
+
+        # LvR FoM: Reward all Re(eig) being negative
+        # Fill repeated entries in eigReal with -1 so that, after squaring, they don't influence the product
+        eig_real_unique     =   unique_filled(eigReal, -1)
+        eig_real_neg_unique =   self.npa.minimum(0., eig_real_unique)
+        func_real_neg_array =   self.npa.power(eig_real_neg_unique, 2)
+        func_real_neg       =   func_real_neg_array[0] * func_real_neg_array[1] * func_real_neg_array[2] * func_real_neg_array[3]
+        # func_real_neg       =   npa.prod(func_real_neg_array) 
+
+        # Remove Re(eig)<0 contribution if no restoring behaviour
+        # log(1+x^2) chosen as a smooth function that moves away from zero
+        # NOTE: This function has zero gradient at x=0, which is bad for stepping away from zero imaginary 
+        #       part. Also, the gradient saturates at large x, which doesn't matter in the sense of 
+        #       needng the imaginary part to be nonzero.
+        func_imag_array     =   self.npa.log(1 + self.npa.power(eigImag,2))
+        func_imag           =   func_imag_array[0] * func_imag_array[1] * func_imag_array[2] * func_imag_array[3]
+        # func_imag           =   npa.prod(func_imag_array)
+
+        # Penalise mixed positive and negative Re(eig)
+        # Fill repeated entries in eigReal with 0 so that they don't influence the sum
+        real_unique_0       =   unique_filled(eigReal, 0.)
+        neg_array           =   self.npa.power(self.npa.minimum(0.,real_unique_0), 2)
+        pos_array           =   self.npa.power(self.npa.maximum(0.,real_unique_0), 2)
+        # penalty             =   npa.sum(neg_array) * npa.sum(pos_array)
+        neg_sum             =   neg_array[0] + neg_array[1] + neg_array[2] + neg_array[3]
+        pos_sum             =   pos_array[0] + pos_array[1] + pos_array[2] + pos_array[3]
+        penalty             =   neg_sum * pos_sum
+
+        # Penalise all positive Re(eig)
+        # Fill repeated entries in eigReal with 1 so that they don't influence the product
+        real_unique_1       =   unique_filled(eigReal, 1)
+        all_pos_array       =   self.npa.power(self.npa.maximum(0.,real_unique_1), 2)
+        penalty2            =   all_pos_array[0] * all_pos_array[1] * all_pos_array[2] * all_pos_array[3]
+        # penalty2            =   npa.prod(all_pos_array)
+
+
+        FD = func_real_neg * func_imag - penalty - penalty2
+        return FD
+
     
 
-        # Debugging during optimisation
-        if check_det:
-            if self.npa.det(J)==0:
-                print("Grating parameters:")
-                print(self.grating_pitch)
-                print(self.grating_depth)
-                print(self.box1_width)
-                print(self.box2_width)
-                print(self.box_centre_dist)
-                print(self.box1_eps)
-                print(self.box2_eps)
-                print(self.gaussian_width)
-                print(self.substrate_depth)
-                print(self.substrate_eps)
-
-                print("lam: ", lam)
-                print("\n")
-
-        # Find the real part of eigenvalues    
-        ord=self.grating_orders()
-        # if __debug__:
-        #     print(f'J:{J}')
-        # if np.max(ord)==0:
-        #     print('Warning: single grating order, no restoring forces possible -- ill-defined Jacobian')
-        if self.npa.isnan(J).any():
-            print(f'Nan in Jacobian at {lam} converting to zero')
-            print(f'J:{J}')
-            J=J.nan_to_num()
-        
-        EIGVALVEC   = self.npa.eig(J)
-        eig         = EIGVALVEC[0]
-        eigReal     = self.npa.real(eig)
-        eigImag     = self.npa.imag(eig)
-        # for debugging differences between torch and autograd:
-        # print(self.RCWA_engine)
-        # print('J:',J)
-        # print('eig:',eig)
-        # print('\n')
-        if return_vec:
-            vec = EIGVALVEC[1]
-            return eigReal, eigImag, vec
-        else:
-            return eigReal, eigImag
-
-    
-
-    def Linear_info_new(self, wavelength, I: float=0.5e9):
+    def sail_stiffness(self, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', out="tr"):
         """
-        ## Inputs
-        wavelength
-        I - intensity
-        ## Outputs
-        eff_array, restoring_array, damping_array, Re(eig)_array, Im(eig)_array
-        NOTE: works with Torcwa
-        """
-        input_wavelength = self.wavelength
-        self.wavelength = self.npa.array(wavelength)
+        Calculate stiffness coefficients/Jacobian coefficients for a symmetric lightsail at equilibrium. Here, symmetric 
+        means symmetric with respect to reflections about the laser-beam axis (when the CoM lies on the laser-beam axis).
 
-        ####################################
-        ## Call efficiency factors
-        Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR = self.return_Qs_auto(return_Q=True)
-        eff_array = (Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR)
+        Parameters
+        ----------
+        I           :   Laser intensity
+        m           :   Spacecraft mass (sail membrane + payload)
+        c1          :   speed of light  # TODO: why is this a parameter?
+        grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+        out         :   Output format 
+                        "tr" for translation coefficients first, then rotation coefficients. Use when outputting to Jacobian.
+                        "rd" for restoring coefficients first, then damping coefficients
         
+        Returns
+        -------
+        The eight stiffness coefficients for the lightsail at equilibrium.
+        """
+        
+        match grad_method:
+            case "finite":
+                # For optimisation, need to use finite differences
+                # Approximately optimal step size is 10^-6.5 for both angle and wavelength
+                h_angle = 10**(-6.5)
+                h_wavelength = 10**(-6.5)
+                Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR = self.return_Qs(h_angle, h_wavelength)
+            case "grad":
+                Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR = self.return_Qs_auto(return_Q=True)
+            case _:
+                raise ValueError("grad_method not recognised. Must be 'finite' or 'grad'.")
+
         w = self.gaussian_width
         w_bar = w/L  # width normalised to total grating length
         lam = self.wavelength 
 
-        ## Convert velocity dependence to wavelength dependence
-        D = 1/lam 
-        g = (self.npa.power(lam,2) + 1)/(2*lam) 
+        # Convert velocity factors to wavelength factors
+        # TODO: may need to change these factors to account for non-unity starting wavelengths
+        D = 1/lam  # Doppler factor assuming starting wavelength is 1
+        g = (self.npa.power(lam,2) + 1)/(2*lam)  # Lorentz factor
    
-        ## Symmetry
-        Q1L = Q1R;   Q2L = -Q2R;   
-        dQ1ddeltaL  = -dQ1ddeltaR;    dQ2ddeltaL  = dQ2ddeltaR
-        dQ1dlambdaL = dQ1dlambdaR;    dQ2dlambdaL = -dQ2dlambdaR
+        # Lightsail reflection-symmetry conditions
+        Q1L = Q1R                ; Q2L = -Q2R;   
+        dQ1ddeltaL  = -dQ1ddeltaR; dQ2ddeltaL  = dQ2ddeltaR
+        dQ1dlambdaL = dQ1dlambdaR; dQ2dlambdaL = -dQ2dlambdaR        
+        
+        # y acceleration terms
+        # NOTE: derivatives with respect to lambda differ from derivatives with respect to frequency offset, the latter
+        # being presented in Liam's thesis
+        fy_y    = - D**2 * I/(m*c1) * (Q2R - Q2L) * (1 - self.npa.exp(-1/(2*w_bar**2)))
+        fy_phi  = - D**2 * I/(m*c1) * (dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * self.npa.erf(1/(w_bar*np.sqrt(2)))
+        fy_vy   = - D**2 * I/(m*c1) * 1/c1 * (D+1)/(D*(g+1)) * (Q1R + Q1L + dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * self.npa.erf(1/(w_bar*np.sqrt(2)))
+        fy_vphi =   D**2 * I/(m*c1) * 1/c1 * (2*(Q2R - Q2L) - lam*(dQ2dlambdaR - dQ2dlambdaL)) * (w/2)**2 * (1 - self.npa.exp(-1/(2*w_bar**2)))
 
-        w_bar = w / L
-
-        # y acceleration
-        fy_y= -     D**2 * (I/(m*c)) *  ( Q2R - Q2L ) * ( 1 - self.npa.exp(-1/(2*w_bar**2) ) )
-        fy_phi= -   D**2 * (I/(m*c)) * ( dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
-        fy_vy= -    D**2 * (I/(m*c)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( Q1R + Q1L  + dQ2ddeltaR + dQ2ddeltaL ) * (w/2) * np.sqrt( np.pi/2 ) * self.npa.erf( 1/(w_bar*np.sqrt(2)) )
-        fy_vphi=    D**2 * (I/(m*c)) * (1/c) * ( 2*( Q2R - Q2L ) - lam*( dQ2dlambdaR - dQ2dlambdaL ) ) * (w/2)**2 * ( 1 - self.npa.exp( -1/(2*w_bar**2) ))
-
-        # phi acceleration
-        fphi_y=     D**2 * (12*I/( m*c*L**2)) * ( Q1R + Q1L ) * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* self.npa.exp( -1/(2*w_bar**2) )  ) 
-        fphi_phi=   D**2 * (12*I/( m*c*L**2)) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - self.npa.exp( -1/(2*w_bar**2) ))
-        fphi_vy=    D**2 * (12*I/( m*c*L**2)) * (1/c) * ( (D+1)/(D*(g+1)) ) * ( dQ1ddeltaR - dQ1ddeltaL - ( Q2R - Q2L ) ) * (w/2)**2 * ( 1 - self.npa.exp( -1/(2*w_bar**2) ))
-        fphi_vphi= -D**2 * (12*I/( m*c*L**2)) * (1/c) * ( 2*( Q1R + Q1L ) - lam*( dQ1dlambdaR + dQ1dlambdaL ) ) * (w/2)**2 * (  (w/2)*np.sqrt( np.pi/2 )  * self.npa.erf( 1/(w_bar*np.sqrt(2)))  - (L/2)* self.npa.exp( -1/(2*w_bar**2) )  ) 
+        # phi acceleration terms
+        # TODO: generalise for non-flat-geometry moments of inertia
+        fphi_y    =  D**2 * 12*I/(m*c1*L**2) * (Q1R + Q1L) * (w/2*self.npa.sqrt(np.pi/2) * self.npa.erf(1/(w_bar*np.sqrt(2))) - L/2*self.npa.exp(-1/(2*w_bar**2))) 
+        fphi_phi  =  D**2 * 12*I/(m*c1*L**2) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - self.npa.exp(-1/(2*w_bar**2)))
+        fphi_vy   =  D**2 * 12*I/(m*c1*L**2) * 1/c1 * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - self.npa.exp(-1/(2*w_bar**2)))
+        fphi_vphi = -D**2 * 12*I/(m*c1*L**2) * 1/c1 * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*np.sqrt(np.pi/2) * self.npa.erf(1/(w_bar*self.npa.sqrt(2))) - L/2*self.npa.exp(-1/(2*w_bar**2))) 
 
         match out:
             case "tr":
-                return npa.array([fy_y, fy_phi, fy_vy, fy_vphi, fphi_y, fphi_phi, fphi_vy, fphi_vphi])
+                return self.npa.array([fy_y, fy_phi, fy_vy, fy_vphi, fphi_y, fphi_phi, fphi_vy, fphi_vphi])
             case "rd":
-                return npa.array([fy_y, fy_phi, fphi_y, fphi_phi, fy_vy, fy_vphi, fphi_vy, fphi_vphi])
+                return self.npa.array([fy_y, fy_phi, fphi_y, fphi_phi, fy_vy, fy_vphi, fphi_vy, fphi_vphi])
             case _:
                 raise ValueError("Invalid output format. Must be 'tr' or 'rd'.")
-    
-
+            
     def Eigs(self, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', return_vec: bool = False):
         """
         Calculate eigendecomposition of Jacobian matrix at equilibrium
@@ -1183,28 +1178,55 @@ class TwoBox:
         stiffnesses = self.sail_stiffness(I,m,c1,grad_method,out="tr")
 
         # Build the Jacobian matrix
-        J00=fy_y;   J01=fy_phi;     J02=fy_vy;    J03=fy_vphi
-        J10=fphi_y; J11=fphi_phi;   J12=fphi_vy;  J13=fphi_vphi
-        J=self.npa.array([[0,0,1,0],[0,0,0,1],[J00,J01,J02,J03],[J10,J11,J12,J13]])
+        J = self.npa.array([[0,0,1,0],[0,0,0,1],[*stiffnesses[:4]],[*stiffnesses[4:]]])
 
         # Find the real part of eigenvalues    
-        EIGVALVEC   = self.npa.eig(J)
-        eig         = EIGVALVEC[0]
-        eigReal     = self.npa.real(eig)
-        eigImag     = self.npa.imag(eig)
+        eigvalvec = self.npa.eig(J)
+        eigvals   = eigvalvec[0]
+        eigReal   = self.npa.real(eigvals)
+        eigImag   = self.npa.imag(eigvals)
 
-        # Eigenvectors
-        vec = EIGVALVEC[1]
-        vec1 = vec[:,0]
-        vec2 = vec[:,1]
-        vec3 = vec[:,2]
-        vec4 = vec[:,3]
-        vec_array = (vec1, vec2, vec3, vec4)
+        if return_vec:
+            eigvecs = eigvalvec[1]
+            return eigReal, eigImag, eigvecs
+        else:
+            return eigReal, eigImag
 
-        ## Restore wavelength
+    def lsa_info(self, wavelength, I: float=0.5e9):
+        """
+        Calculate quantities relevant to linear stability analysis (LSA) of the twobox dynamics. Also calculates
+        the radiation pressure cross sections and their derivatives.
+        
+        TODO: Remove wavelength parameter and use self.wavelength instead
+        TODO: why do the returns need to be tuples?
+
+        Parameters
+        ----------
+        wavelength :   Wavelength of incident light
+        I          :   Incident light intensity
+        
+        Returns
+        -------
+        efficiencies :   Radiation pressure cross sections and their derivatives  
+        rest_coeffs  :   Restoring force/torque coefficients
+        damp_coeffs  :   Damping force/torque coefficients
+        eigReal      :   Real component of eigenvalues
+        eigImag      :   Imaginary component of eigenvalues
+        """
+
+        input_wavelength = self.wavelength
+        self.wavelength = wavelength
+
+        efficiencies = tuple(self.return_Qs_auto(return_Q=True))
+        
+        stiffnesses = self.sail_stiffness(I,m,c,grad_method="grad",out="rd")
+        rest_coeffs = tuple([*stiffnesses[:4]])
+        damp_coeffs = tuple([*stiffnesses[4:]])
+
+        eigReal, eigImag, eigvecs = self.Eigs(I,m,c,grad_method="grad",return_vec=True)
+
         self.wavelength = input_wavelength
-        return eff_array, rest_array, damp_array, eigReal, eigImag , vec
-
+        return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs
 
     ##################
     #### Plotting
