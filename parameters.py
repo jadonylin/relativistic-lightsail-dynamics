@@ -88,10 +88,11 @@ return_grad = True  # Return FOM and gradient of FOM
 # The minimum pitch must be set because any smaller pitches would result in the +1 order being cutoff for small rotation angles. 
 # The maximum pitch must be set because any larger pitches would result in the -2 order appearing for small rotation angles. 
 # The +1 and -2 orders are selected because they appear/disappear before the -1/+2 orders (at positive rotation angle)
-max_angle_cutoff1 = 10*np.pi/180  # maximum angle before order +1 is evanescent
-min_angle_cutoff2 = 20*np.pi/180  # minimum angle before order -2 is non-evanescent
-pitch_min = np.round(1/(1 - np.sin(max_angle_cutoff1)), 3)  
-pitch_max = np.round(2/(1 + np.sin(min_angle_cutoff2)), 3)
+wavelength_max = wavelength/D1_ND(final_speed)
+max_angle_cutoff1 = 5*np.pi/180  # maximum angle before order +1 is evanescent
+min_angle_cutoff2 = 15*np.pi/180  # minimum angle before order -2 is non-evanescent
+pitch_min = np.round(1*wavelength_max/(1 - np.sin(max_angle_cutoff1)), 3)  
+pitch_max = np.round(2*wavelength_max/(1 + np.sin(min_angle_cutoff2)), 3)
 
 h1_min = 0.01  # Offset minimum grating thickness from zero to avoid zero Jacobian determinant 
 h1_max = 1.5*pitch_max
@@ -115,12 +116,12 @@ substrate_eps_min = box_eps_min
 substrate_eps_max = box_eps_max
 
 param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
-            (box_width_min, box_width_max), (box_width_min, box_width_max),
-            (box_centre_dist_min, box_centre_dist_max),
-            (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-            (gaussian_width_min, gaussian_width_max),
-            (substrate_depth_min, substrate_depth_max), 
-            (substrate_eps_min, substrate_eps_max)]
+                (box_width_min, box_width_max), (box_width_min, box_width_max),
+                (box_centre_dist_min, box_centre_dist_max),
+                (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
+                (gaussian_width_min, gaussian_width_max),
+                (substrate_depth_min, substrate_depth_max), 
+                (substrate_eps_min, substrate_eps_max)]
 
 
 def Parameters():
