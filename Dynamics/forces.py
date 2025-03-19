@@ -24,7 +24,7 @@ I, L, m, c = Parameters()
 wavelength = 1
 
 
-def load_essential_data(opt_gratings_data_fname: str, output_opt_idx: int, lookup_data_fname: str):
+def load_essential_data(opt_gratings_data_fname: str, num_processes: int, output_opt_idx: int, lookup_data_fname: str):
     """
     Load optimised grating and Qpr lookup table data.
 
@@ -33,6 +33,7 @@ def load_essential_data(opt_gratings_data_fname: str, output_opt_idx: int, looku
     Parameters
     ----------
     opt_gratings_data_fname :   Optimisation data .pkl filename(s). Passed to extract_opt.
+    num_processes           :   Number of processes used in the optimisation whose results were stored in opt_gratings_data_fname
     output_opt_idx          :   Index for the optimised grating twobox object to extract directly. Index 0 
                                 is the best grating out of those stored in opt_gratings_data_fname.
     lookup_data_fname       :   Lookup table data filename.
@@ -42,7 +43,7 @@ def load_essential_data(opt_gratings_data_fname: str, output_opt_idx: int, looku
     gaussian_width :   Gaussian-beam width
     lookup_data    :   Qpr lookup table data
     """
-    _, _, opt_grating = extract_opt(opt_gratings_data_fname, output_opt_idx)
+    _, _, opt_grating = extract_opt(opt_gratings_data_fname, num_processes, output_opt_idx)
     gaussian_width = opt_grating.params[-3]  # TODO: replace with direct self.gaussian_width extraction once this branch is merged with jl
     with open(lookup_data_fname, 'rb') as lookup_file: 
         lookup_data = pickle.load(lookup_file)
@@ -249,9 +250,118 @@ def aM(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, interpolati
     return F
 
 
-def aM_linear(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, interpolation_funcs: callable):
+def aM_linear(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, interpolation_funcs: callable, 
+              damping_scaler: float=1.):
     """
-    Calculate the lightsail state-vector acceleration using the linearised frame M forces.
+    Calculate the lightsail state-vector acceleration using the Jacobian-stiffness-derived forces.
+    See aM for further documentation.
+
+    Parameters
+    ----------
+    t                   :   Time measured in Frame Mn (seconds)
+    yvec                :   State vector measured in Frame Mn - [x, y, phi, vx, vy, vphi]
+    vL                  :   Velocity of Frame Mn relative to Frame L - [vx, vy] (metres/second)
+    i                   :   Input step (for troubleshooting)
+    w                   :   Gaussian-beam width
+    interpolation_funcs :   Interpolation functions for Qprj and their derivatives
+    damping_scaler      :   Factor to scale damping forces. Default is 1 (no scaling, true linear dynamics). 
+                            Set to 0 for undamped dynamics.
+    
+    Returns
+    -------
+    [vx,vy,vphi,fx,fy,fphi] :   The derivative of the state vector with respect to the sail's proper time
+    """
+    
+    # State vector information. Is transferred from Mn to L to Mn+1
+    xM  = yvec[0];     yM = yvec[1];    phiM = yvec[2]
+    vxM = yvec[3];    vyM = yvec[4];   vphiM = yvec[5]
+    vx  = vL[0];       vy = vL[1]
+
+    # Convenience factors in the equations of motion
+    theta = SinCosTheta(vL)[2]
+
+    # Rotation information. Is transferred from Mn directly to Mn+1
+    delta    = theta - phiM
+    sinphi   = np.sin(phiM)
+    cosphi   = np.cos(phiM)
+
+    D   = Dv(vL)
+    g   = Gamma(vL)
+    lam = wavelength / D  # Incident wavelength in Frame Mn
+    w_bar = w/L
+      
+    Q1_call, Q2_call, PD_Q1_delta_call, PD_Q2_delta_call, PD_Q1_lambda_call, PD_Q2_lambda_call = interpolation_funcs
+    try:  
+        # TODO: incorporate these interpolation calculations into a function
+        # TODO: user script shouldn't need to manually catch exceptions, that should all be handled by cmvint. 
+        #       Moving the interpolation calculators into a function might help with that.
+        Q1R = Q1_call(lam);     Q2R =  Q2_call(lam);    
+        Q1L = Q1R;              Q2L = -Q2R;   
+
+        dQ1ddeltaR  =  PD_Q1_delta_call(lam); dQ2ddeltaR  = PD_Q2_delta_call(lam)
+        dQ1ddeltaL  = -dQ1ddeltaR;            dQ2ddeltaL  = dQ2ddeltaR
+
+        dQ1dlambdaR = PD_Q1_lambda_call(lam); dQ2dlambdaR =  PD_Q2_lambda_call(lam)
+        dQ1dlambdaL = dQ1dlambdaR;            dQ2dlambdaL = -dQ2dlambdaR
+    except ValueError as ve:  
+        # Should be caught when interpolator tries to extrapolate outside the lookup table bounds
+        print(f"Failed on delta' = {delta}, lambda' = {lam}")
+        print(f"Failed on i = {i}, t = {t}, v = {vL}")
+        print(f"\nOriginal error: {ve}")
+        raise InterpolateError("Interpolator moved out of bounds")
+    
+    # Transformed Gaussian intensity distribution from Frame L to Frame Mn
+    A_int = yM     * (1 + g**2/(g+1)*vy**2/c**2) + xM     * g**2/(g+1)*vx*vy/c**2 + g*vy*t
+    B_int = cosphi * (1 + g**2/(g+1)*vy**2/c**2) + sinphi * g**2/(g+1)*vx*vy/c**2
+
+    XR = A_int + B_int*L/2
+    XL = A_int - B_int*L/2
+
+    expR = np.exp(-2/w**2 * XR**2)
+    expL = np.exp(-2/w**2 * XL**2)
+    
+    erfR = erf(np.sqrt(2)/w*XR)
+    erfL = erf(np.sqrt(2)/w*XL)
+    
+    expMID = np.exp(-2*A_int**2/w**2)
+    erfMID = erf(np.sqrt(2)/w*A_int)
+
+    # Integrated moments of intensity
+    I0R =  w/(2*B_int) * np.sqrt(np.pi/2) * (erfR - erfMID)
+    I0L = -w/(2*B_int) * np.sqrt(np.pi/2) * (erfL - erfMID)
+    
+    I1R = w/(4*B_int**2) * ( w*(expMID - expR) - np.sqrt(2*np.pi)*A_int*(erfR - erfMID) )
+    I1L = w/(4*B_int**2) * ( w*(expMID - expL) - np.sqrt(2*np.pi)*A_int*(erfL - erfMID) )
+
+    # NOTE: derivatives with respect to lambda differ from derivatives with respect to frequency offset, the latter
+    # being presented in Liam's thesis
+    fy_y    = - D**2 * I/(m*c) * (Q2R - Q2L) * (1 - np.exp(-1/(2*w_bar**2)))
+    fy_phi  = - D**2 * I/(m*c) * (dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * erf(1/(w_bar*np.sqrt(2)))
+    fy_vy   = - D**2 * I/(m*c) * 1/c * (D+1)/(D*(g+1)) * (Q1R + Q1L + dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * erf(1/(w_bar*np.sqrt(2)))
+    fy_vphi =   D**2 * I/(m*c) * 1/c * (2*(Q2R - Q2L) - lam*(dQ2dlambdaR - dQ2dlambdaL)) * (w/2)**2 * (1 - np.exp(-1/(2*w_bar**2)))
+
+    # TODO: generalise for non-flat-geometry moments of inertia
+    fphi_y    =  D**2 * 12*I/(m*c*L**2) * (Q1R + Q1L) * (w/2*np.sqrt(np.pi/2) * erf(1/(w_bar*np.sqrt(2))) - L/2*np.exp(-1/(2*w_bar**2))) 
+    fphi_phi  =  D**2 * 12*I/(m*c*L**2) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - np.exp(-1/(2*w_bar**2)))
+    fphi_vy   =  D**2 * 12*I/(m*c*L**2) * 1/c * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - np.exp(-1/(2*w_bar**2)))
+    fphi_vphi = -D**2 * 12*I/(m*c*L**2) * 1/c * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*np.sqrt(np.pi/2) * erf(1/(w_bar*np.sqrt(2))) - L/2*np.exp(-1/(2*w_bar**2))) 
+
+    # Jacobian-derived forces
+    fx = (1/m)*(D**2*I/c) * ( (Q1R + delta*dQ1ddeltaR - theta*Q2R)*I0R + (Q1L + delta*dQ1ddeltaL - theta*Q2L)*I0L
+                              + (vphiM/c)*((2*Q1R - lam*dQ1dlambdaR)*I1R - (2*Q1L - lam*dQ1dlambdaL)*I1L) 
+                            )
+    fy = fy_y*yM + fy_phi*phiM + damping_scaler*(g*fy_vy*vyM + fy_vphi*vphiM)  # TODO: should there be a gamma factor in front of vyM?
+    fphi = fphi_y*yM + fphi_phi*phiM + damping_scaler*(g*fphi_vy*vyM + fphi_vphi*vphiM)
+
+    F = np.array([vxM,vyM,vphiM,fx,fy,fphi])
+    return F
+
+
+def aM_forces_linear(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, interpolation_funcs: callable):
+    """
+    Calculate the lightsail state-vector acceleration using the linearised frame M forces. Linearisation
+    with respect to position, angle and velocities are applied to the explicit force coefficients, but 
+    not to the intensity distribution.
     See aM for further documentation.
 
     Parameters
