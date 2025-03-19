@@ -3,6 +3,10 @@ A script to generate a lookup table for the efficiencies of a user-input twobox 
 the efficiencies for a range of wavelengths and angles, and saves the data as a pickle file. The 
 calculation is parallelised using the multiprocess module, so set the number of processes before
 running.
+
+IMPORTNT: set the maximum angle for the efficiency data close to the ±1 order grating cutoffs 
+at the maximum Doppler-shifted wavelength. This ensures the dynamics results are physical and 
+that the dynamics simulation terminates if the cutoff angle is exceeded.
 """
 
 import itertools
@@ -19,32 +23,23 @@ import time
 
 from parameters import D1_ND
 from twobox import TwoBox
-
+import Optimisation.opt as opt
 
 t_start = time.time()
 
 ## Initialise grating
-# TODO: extract gratings directly from optimised pkl, and print parameters
-grating_pitch   = 1.4448460868780606
-grating_depth   = 2.0643298724749126
-box1_width      = 0.7418355927658334
-box2_width      = 0.6154206329992875
-box_centre_dist = 0.32392145077748286
-box1_eps        = 4.56512120699494
-box2_eps        = 4.228855153129463
-gaussian_width  = 14.228774249456437
-substrate_depth = 0.01
-substrate_eps   = 3.7022541961011903
+opt_grating_basefname = "./Data/FOM_optimisation_maxfev9000"
+_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, output_opt_idx=0)
+print(_opt_grating.params)
 
+# Set custom parameters, if needed. If not needed, can just set "grating" to the extracted grating above.
 wavelength      = 1.
 angle           = 0.
 Nx              = 100
 numG            = 25
 Qabs            = np.inf
 
-grating = TwoBox(grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, 
-                 gaussian_width, substrate_depth, substrate_eps,
-                 wavelength, angle, Nx, numG, Qabs)
+grating = TwoBox(*_opt_grating.params, wavelength, angle, Nx, numG, Qabs)
 
 
 klambda = 1000  # Number of lambda' points
@@ -53,11 +48,11 @@ lambda_final = 1/D1_ND(v_final)
 lambda_array = np.linspace(wavelength, lambda_final, klambda)
 
 kdelta = 1000  # Number of delta' points
-delta_max = 16*np.pi/180
+delta_max = 13*np.pi/180  # IMPORTANT: must be set according to the grating cutoffs
 delta_min = -delta_max
 delta_array = np.linspace(delta_min, delta_max, kdelta)
 
-runID = "LvRFinalOpt"  # String to add to .pkl filename
+runID = "MdSnpminOpt"  # String to add to .pkl filename
 num_processes = 8
 
 def eff_auto(*args):

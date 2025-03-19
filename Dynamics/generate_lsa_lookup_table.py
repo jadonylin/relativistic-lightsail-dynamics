@@ -3,43 +3,36 @@ sys.path.append('../')
 
 import numpy as np
 import pickle
-from twobox import TwoBox
-from parameters import D1_ND
+
 import time
 
+import Optimisation.opt as opt
+from parameters import D1_ND
+from twobox import TwoBox
 
 t_start = time.time()
 
 ## Initialise grating
-# TODO: extract gratings directly from optimised pkl, and print parameters
-grating_pitch   = 1.4185910181100811
-grating_depth   = 0.49190319526197407
-box1_width      = 0.5719025530222406
-box2_width      = 0.053439272331534775
-box_centre_dist = 0.44458828885168056
-box1_eps        = 11.029595778447616
-box2_eps        = 6.100136959625866
-gaussian_width  = 31.37144885298504
-substrate_depth = 0.43257336002828756
-substrate_eps   = 2.279546035418172
+opt_grating_basefname = "./Data/FOM_optimisation_maxfev9000"
+_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, output_opt_idx=0)
+print(_opt_grating.params)
 
+# Set custom parameters, if needed. If not needed, can just set "grating" to the extracted grating above.
 wavelength      = 1.
 angle           = 0.
 Nx              = 100
 numG            = 25
 Qabs            = np.inf
 
-grating = TwoBox(grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, 
-                 gaussian_width, substrate_depth, substrate_eps,
-                 wavelength, angle, Nx, numG, Qabs)
+grating = TwoBox(*_opt_grating.params, wavelength, angle, Nx, numG, Qabs)
 
 ## Number of lambda' points
 klambda = 1000
-v_final = 5/100 # 5/100
+v_final = 5/100 
 lambda_final = 1/D1_ND(v_final)
 lambda_array = np.linspace( wavelength, lambda_final, klambda )
 
-runID = "test"
+runID = "MdSnpminOpt"
 
 ## Storage arrays
 Q1_array            = np.zeros( klambda )
