@@ -208,6 +208,91 @@ def average_real_eigs(grating, final_speed, goal, return_eigs: bool=False, I: fl
         raise ValueError("input return_eigs must be a bool")
 
 
+## CONSTRAINT FUNCTIONS ##
+# Constraints have the form h(x) <= 0, i.e. the constraint function should return a positive 
+# value if the constraint is violated. Additionally, MMA takes the gradients of the constraints,
+# so the constraint functions should be differentiable with respect to the optimisation parameters. 
+# However, I think the gradients of constrain functions are obtained by MMA internally (likely using
+# finite differences), so autogradability is not needed.
+def box1_too_wide(params,gradn): 
+    """
+    Constraint function to prevent box1 from being wider than the unit cell.
+    """
+    Lam, _, w1, _, _, _, _, _, _, _ = params
+    condition = w1 - Lam 
+    return condition
+
+def box2_too_wide(params,gradn): 
+    """
+    Constraint function to prevent box2 from being wider than the unit cell.
+    """
+    Lam, _, _, w2, _, _, _, _, _, _ = params
+    condition = w2 - Lam 
+    return condition
+
+def bcd_redundant(params,gradn): 
+    """
+    Constraint function containing two conditions to avoid redundant parameter space:
+        Symmetry wrt swapping box1 and box2, avoid by taking box centre distance > 0
+        Unit cell periodicity means boxes with separation >0.5*Lam are equivalent to boxes with separation <0.5*Lam
+    """
+    Lam, _, _, _, bcd, _, _, _, _, _ = params
+    condition = np.abs(bcd - 0.25*Lam) - 0.25*Lam 
+    return condition
+
+def boxes_overlap(params,gradn):
+    """
+    Constraint function to guarantee an asymmetric unit cell by ensuring the distance between two unit cells is larger than zero
+    TODO: The boxes overlapping can still be asymmetric, so this constraint is slightly too restrictive
+            However, would need to find a way to handle gradients in the overlap regime.
+    """
+    _, _, w1, w2, bcd, _, _, _, _, _ = params
+    condition= (w1+w2)/2 - bcd 
+    return condition
+
+def boxes_clip_unit_cell(params,gradn):
+    """
+    Constraint function that avoids the boxes clipping the edge of the unit cell.
+    
+    Boxes clipping the unit cell edges can lead to unexpected objective values (user input box widths may not correspond to the 
+    box width that RCWA receives). Additionally, gradients become expensive to compute in this case.
+    """
+    Lam, _, w1, w2, bcd, _, _, _, _, _ = params
+    condition = (w1+w2)/2 + bcd - 0.98*Lam
+    return condition
+
+# def some_eig_real_avg_positive(params,gradn):
+#     """
+#     Constraint function requiring that the average of all real-part eigenvalues are negative. 
+
+#     TODO: make this function more differentiable
+#     """
+#     grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
+#     avg_eigvals_real = average_real_eigs(grating_check,final_speed,goal,return_eigs=False,I=I0)
+#     largest_avg_Reig = np.max(avg_eigvals_real) 
+#     if largest_avg_Reig == 0:  # Don't want zero-real-part eigenvalues, so set condition to unwanted region 
+#         condition = 1
+#     else:
+#         condition = largest_avg_Reig
+#     return condition
+
+# def some_eig_imag_zero(params,gradn):
+#     """
+#     Constraint function requiring that the imaginary-part eigenvalues are nonzero. 
+
+#     TODO: make this function more differentiable
+#     """
+#     grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
+#     _, eigvals_imag = grating_check.Eigs(I=I0,m=m,c1=c,grad_method="finite")
+#     # probs = softmin(eigvals_imag,sigma=1.)
+#     # smallest_eigval_imag = np.sum(probs*eigvals_imag)
+#     smallest_eigval_imag = np.min(np.abs(eigvals_imag))
+#     if smallest_eigval_imag == 0:  # Don't want zero-imag-part eigenvalues, so set condition to unwanted region 
+#         condition = 1
+#     else:
+#         condition = -smallest_eigval_imag
+#     return condition
+
 def global_optimise(objective, 
                     sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxfev: int=32000,
                     xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[]):
@@ -263,94 +348,6 @@ def global_optimise(objective,
         # print("")
         
         return y
-
-
-    # NOTE: Constraints have the form h(x) <= 0, i.e. the constraint function should return a positive 
-    #       value if the constraint is violated. Additionally, MMA takes the gradients of the constraints,
-    #       so the constraint functions should be differentiable with respect to the optimisation parameters. 
-    #       However, I think the gradients of constrain functions are obtained by MMA internally (likely using
-    #       finite differences), so autogradability is not needed.
-
-    def box1_too_wide(params,gradn): 
-        """
-        Constraint function to prevent box1 from being wider than the unit cell.
-        """
-        Lam, _, w1, _, _, _, _, _, _, _ = params
-        condition = w1 - Lam 
-        return condition
-    
-    def box2_too_wide(params,gradn): 
-        """
-        Constraint function to prevent box2 from being wider than the unit cell.
-        """
-        Lam, _, _, w2, _, _, _, _, _, _ = params
-        condition = w2 - Lam 
-        return condition
-
-    def bcd_redundant(params,gradn): 
-        """
-        Constraint function containing two conditions to avoid redundant parameter space:
-            Symmetry wrt swapping box1 and box2, avoid by taking box centre distance > 0
-            Unit cell periodicity means boxes with separation >0.5*Lam are equivalent to boxes with separation <0.5*Lam
-        """
-        Lam, _, _, _, bcd, _, _, _, _, _ = params
-        condition = np.abs(bcd - 0.25*Lam) - 0.25*Lam 
-        return condition
-
-    def boxes_overlap(params,gradn):
-        """
-        Constraint function to guarantee an asymmetric unit cell by ensuring the distance between two unit cells is larger than zero
-        TODO: The boxes overlapping can still be asymmetric, so this constraint is slightly too restrictive
-              However, would need to find a way to handle gradients in the overlap regime.
-        """
-        _, _, w1, w2, bcd, _, _, _, _, _ = params
-        condition= (w1+w2)/2 - bcd 
-        return condition
-
-    def boxes_clip_unit_cell(params,gradn):
-        """
-        Constraint function that avoids the boxes clipping the edge of the unit cell.
-        
-        Boxes clipping the unit cell edges can lead to unexpected objective values (user input box widths may not correspond to the 
-        box width that RCWA receives). Additionally, gradients become expensive to compute in this case.
-        """
-        Lam, _, w1, w2, bcd, _, _, _, _, _ = params
-        condition = (w1+w2)/2 + bcd - 0.98*Lam
-        return condition
-    
-    # def some_eig_real_avg_positive(params,gradn):
-    #     """
-    #     Constraint function requiring that the average of all real-part eigenvalues are negative. 
-
-    #     TODO: make this function more differentiable
-    #     """
-    #     grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
-    #     avg_eigvals_real = average_real_eigs(grating_check,final_speed,goal,return_eigs=False,I=I0)
-    #     largest_avg_Reig = np.max(avg_eigvals_real) 
-    #     if largest_avg_Reig == 0:  # Don't want zero-real-part eigenvalues, so set condition to unwanted region 
-    #         condition = 1
-    #     else:
-    #         condition = largest_avg_Reig
-    #     return condition
-    
-    # def some_eig_imag_zero(params,gradn):
-    #     """
-    #     Constraint function requiring that the imaginary-part eigenvalues are nonzero. 
-
-    #     TODO: make this function more differentiable
-    #     """
-    #     grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
-    #     _, eigvals_imag = grating_check.Eigs(I=I0,m=m,c1=c,grad_method="finite")
-    #     # probs = softmin(eigvals_imag,sigma=1.)
-    #     # smallest_eigval_imag = np.sum(probs*eigvals_imag)
-    #     smallest_eigval_imag = np.min(np.abs(eigvals_imag))
-    #     if smallest_eigval_imag == 0:  # Don't want zero-imag-part eigenvalues, so set condition to unwanted region 
-    #         condition = 1
-    #     else:
-    #         condition = -smallest_eigval_imag
-    #     return condition
-    
-
 
     if sampling_method == 'sobol':
         global_opt = nlopt.opt(nlopt.G_MLSL_LDS, ndof)
@@ -425,6 +422,39 @@ def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: i
         opt_FOMs.append(data["FOM"])
         opt_gratings.append(data["Optimised grating"])
         opt_params.append(data["Optimised parameters"])
+
+    maxima_and_maximisers = zip(opt_FOMs, opt_params)
+    maxima_and_gratings = zip(opt_FOMs, opt_gratings)
+
+    # Sort the optima based on the FOM value
+    maxima_and_maximisers_sorted = sorted(maxima_and_maximisers, key=itemgetter(0), reverse=True)
+    opt_gratings_sorted = sorted(maxima_and_gratings, key=itemgetter(0), reverse=True)
+    chosen_best_grating = opt_gratings_sorted[output_opt_idx][1]
+
+    return maxima_and_maximisers_sorted, opt_gratings_sorted, chosen_best_grating
+
+def extract_opt_single(data_filename: str, output_opt_idx: int=0):
+    """
+    Extract the optimum gratings stored in a single data file. Optima are ordered by FOM (largest to smallest).
+
+    Parameters
+    ----------
+    data_filename  :   pkl file name relative to working directory
+    output_opt_idx :   Index for the optimal twobox instance (from the ordered list) to return directly
+
+    Returns
+    -------
+    maxima_and_maximisers_sorted :   List of tuples, each tuple being (FOM, optimisation parameters) 
+    opt_gratings_sorted          :   List of tuples, each tuple being (FOM, twobox instance)
+    chosen_best_grating          :   Twobox instance for the output grating chosen by output_opt_idx
+    """
+
+    with open(data_filename, 'rb') as data_file:
+        data = pickle.load(data_file)
+
+    opt_FOMs = data["FOM"]
+    opt_gratings = data["Optimised grating"]
+    opt_params = data["Optimised parameters"] #[0]
 
     maxima_and_maximisers = zip(opt_FOMs, opt_params)
     maxima_and_gratings = zip(opt_FOMs, opt_gratings)
