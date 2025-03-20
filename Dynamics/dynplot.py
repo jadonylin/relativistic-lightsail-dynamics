@@ -100,13 +100,13 @@ def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5
 
 def plot_array_on_same_axes(ax: plt.Axes, x: np.ndarray, y: np.ndarray, **kwargs):
     """
-    Plot y vs x on axes ax. y can have multiple rows, which are all plotted on the same axes.
+    Plot y vs x on axes ax. y can have multiple columns, which are all plotted on the same axes.
 
     Parameters
     ----------
     ax     :   matplotlib axis object
     x      :   1D array of times
-    y      :   Array of features x time. Can be up to 3 dimensions large. Data should be arranged with the 0 axis representing times.
+    y      :   Array of features and times. Can be up to 2 dimensions large. Data should be arranged with the 1 axis representing times.
     kwargs :   kwargs to pass to matplotlib.plt.plot()
     """
     if len(y.shape) == 1:
