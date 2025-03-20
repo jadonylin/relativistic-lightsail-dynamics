@@ -1034,6 +1034,7 @@ class TwoBox:
 
         # phi acceleration terms
         # TODO: generalise for non-flat-geometry moments of inertia
+        # TODO: rename vphi to phidot to avoid confusion with vphi = length*phidot
         fphi_y    =  D**2 * 12*I/(m*c1*L**2) * (Q1R + Q1L) * (w/2*npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2))) - L/2*npa.exp(-1/(2*w_bar**2))) 
         fphi_phi  =  D**2 * 12*I/(m*c1*L**2) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - npa.exp(-1/(2*w_bar**2)))
         fphi_vy   =  D**2 * 12*I/(m*c1*L**2) * 1/c1 * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - npa.exp(-1/(2*w_bar**2)))
