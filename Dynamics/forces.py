@@ -17,7 +17,7 @@ sys.path.append("../")
 from cmvint import InterpolateError
 from Optimisation.opt import extract_opt
 from parameters import Parameters
-from specrel import Gamma, Dv, SinCosTheta, ABSC, E_eps, erf
+from specrel import Gamma, Dv, SinCosTheta, ABSC, E_eps, erf, Lorentz
 
 
 I, L, m, c = Parameters()
@@ -50,8 +50,12 @@ def load_essential_data(opt_gratings_data_fname: str, num_processes: int, output
     return gaussian_width, lookup_data
     
 
-def create_interpolation_funcs(data: dict):
-    """Take Qpr vs angle and wavelength lookup data and return interpolation functions for Qpr and their derivatives"""
+def create_interpolation_funcs(data: dict, has_angle_data: bool=True):
+    """
+    Take Qpr vs angle and wavelength lookup data and return interpolation functions for Qpr and their derivatives.
+    If has_angle_data is False, the interpolation functions will only interpolate over wavelength.
+    """
+    
     Q1 = data['Q1']
     Q2 = data['Q2']
     PD_Q1_delta = data['PD_Q1_delta']
@@ -59,57 +63,44 @@ def create_interpolation_funcs(data: dict):
     PD_Q1_lambda = data['PD_Q1_lambda']
     PD_Q2_lambda = data['PD_Q2_lambda']
     lambda_array = data['lambda array']
-    delta_array = data['delta array']
-
-    interp_Q1           =   RegularGridInterpolator( (lambda_array,delta_array), Q1)
-    interp_Q2           =   RegularGridInterpolator( (lambda_array,delta_array), Q2)
-    interp_PD_Q1_delta  =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q1_delta)
-    interp_PD_Q2_delta  =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q2_delta)
-    interp_PD_Q1_lambda =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q1_lambda)
-    interp_PD_Q2_lambda =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q2_lambda)
-
-    def Q1_call(delta, lam):
-        return interp_Q1( np.array( [lam,delta] ) )[0]
-    def Q2_call(delta, lam):
-        return interp_Q2( np.array( [lam,delta] ) )[0]
-    def PD_Q1_delta_call(delta, lam):
-        return interp_PD_Q1_delta( np.array( [lam,delta] ) )[0]
-    def PD_Q2_delta_call(delta, lam):
-        return interp_PD_Q2_delta( np.array( [lam,delta] ) )[0]
-    def PD_Q1_lambda_call(delta, lam):
-        return interp_PD_Q1_lambda( np.array( [lam,delta] ) )[0]
-    def PD_Q2_lambda_call(delta, lam):
-        return interp_PD_Q2_lambda( np.array( [lam,delta] ) )[0]
+    try:
+        delta_array = data['delta array']
+    except KeyError:
+        pass
     
-    return Q1_call, Q2_call, PD_Q1_delta_call, PD_Q2_delta_call, PD_Q1_lambda_call, PD_Q2_lambda_call
+    if not has_angle_data:
+        interp_Q1           =   RegularGridInterpolator( (lambda_array,delta_array), Q1)
+        interp_Q2           =   RegularGridInterpolator( (lambda_array,delta_array), Q2)
+        interp_PD_Q1_delta  =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q1_delta)
+        interp_PD_Q2_delta  =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q2_delta)
+        interp_PD_Q1_lambda =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q1_lambda)
+        interp_PD_Q2_lambda =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q2_lambda)
 
-
-def create_lsa_interpolation_funcs(data: dict):
-    """
-    Take Qpr vs wavelength (at zero incident angle) lookup data and return interpolation functions for Qpr and their derivatives
-    TODO: combine this function with create_interpolation_funcs
-    """
-
-    Q1 = data['Q1']
-    Q2 = data['Q2']
-    PD_Q1_delta = data['PD_Q1_delta']
-    PD_Q2_delta = data['PD_Q2_delta']
-    PD_Q1_lambda = data['PD_Q1_lambda']
-    PD_Q2_lambda = data['PD_Q2_lambda']
-    lambda_array = data['lambda array']
-    
-    def Q1_call(lam):
-        return np.interp(lam, lambda_array, Q1)
-    def Q2_call(lam):
-        return np.interp(lam, lambda_array, Q2)
-    def PD_Q1_delta_call(lam):
-        return np.interp(lam, lambda_array, PD_Q1_delta)
-    def PD_Q2_delta_call(lam):
-        return np.interp(lam, lambda_array, PD_Q2_delta)
-    def PD_Q1_lambda_call(lam):
-        return np.interp(lam, lambda_array, PD_Q1_lambda)
-    def PD_Q2_lambda_call(lam):
-        return np.interp(lam, lambda_array, PD_Q2_lambda)
+        def Q1_call(delta, lam):
+            return interp_Q1( np.array( [lam,delta] ) )[0]
+        def Q2_call(delta, lam):
+            return interp_Q2( np.array( [lam,delta] ) )[0]
+        def PD_Q1_delta_call(delta, lam):
+            return interp_PD_Q1_delta( np.array( [lam,delta] ) )[0]
+        def PD_Q2_delta_call(delta, lam):
+            return interp_PD_Q2_delta( np.array( [lam,delta] ) )[0]
+        def PD_Q1_lambda_call(delta, lam):
+            return interp_PD_Q1_lambda( np.array( [lam,delta] ) )[0]
+        def PD_Q2_lambda_call(delta, lam):
+            return interp_PD_Q2_lambda( np.array( [lam,delta] ) )[0]
+    else:
+        def Q1_call(lam):
+            return np.interp(lam, lambda_array, Q1)
+        def Q2_call(lam):
+            return np.interp(lam, lambda_array, Q2)
+        def PD_Q1_delta_call(lam):
+            return np.interp(lam, lambda_array, PD_Q1_delta)
+        def PD_Q2_delta_call(lam):
+            return np.interp(lam, lambda_array, PD_Q2_delta)
+        def PD_Q1_lambda_call(lam):
+            return np.interp(lam, lambda_array, PD_Q1_lambda)
+        def PD_Q2_lambda_call(lam):
+            return np.interp(lam, lambda_array, PD_Q2_lambda)
     
     return Q1_call, Q2_call, PD_Q1_delta_call, PD_Q2_delta_call, PD_Q1_lambda_call, PD_Q2_lambda_call
 
@@ -185,6 +176,7 @@ def aM(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, interpolati
     T2L = (A/costheta - E) * dQ2ddeltaL + cosphi * lam * dQ2dlambdaL
 
     # Transformed Gaussian intensity distribution from Frame L to Frame Mn
+    # TODO: move repetitive intensity integrals into a function
     A_int = yM     * (1 + g**2/(g+1)*vy**2/c**2) + xM     * g**2/(g+1)*vx*vy/c**2 + g*vy*t
     B_int = cosphi * (1 + g**2/(g+1)*vy**2/c**2) + sinphi * g**2/(g+1)*vx*vy/c**2
 
@@ -346,14 +338,23 @@ def aM_linear(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, inte
     fphi_vy   =  D**2 * 12*I/(m*c*L**2) * 1/c * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - np.exp(-1/(2*w_bar**2)))
     fphi_vphi = -D**2 * 12*I/(m*c*L**2) * 1/c * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*np.sqrt(np.pi/2) * erf(1/(w_bar*np.sqrt(2))) - L/2*np.exp(-1/(2*w_bar**2))) 
 
-    # Jacobian-derived forces
+    # x-acceleration is unchanged from nonlinear version
     fx = (1/m)*(D**2*I/c) * ( (Q1R + delta*dQ1ddeltaR - theta*Q2R)*I0R + (Q1L + delta*dQ1ddeltaL - theta*Q2L)*I0L
                               + (vphiM/c)*((2*Q1R - lam*dQ1dlambdaR)*I1R - (2*Q1L - lam*dQ1dlambdaL)*I1L) 
                             )
-    fy = fy_y*yM + fy_phi*phiM + damping_scaler*(g*fy_vy*vyM + fy_vphi*vphiM)  # TODO: should there be a gamma factor in front of vyM?
-    fphi = fphi_y*yM + fphi_phi*phiM + damping_scaler*(g*fphi_vy*vyM + fphi_vphi*vphiM)
+    
+    # Jacobian-derived forces
+    phidot = vphiM/L  # Derivatives are with respect to phidot, not the linear velocity vphi
+    spacetime = np.array([t, xM, yM]) 
+    _, _, yL = Lorentz(-vL,spacetime)  # Derivatives are with respect to y'' (U frame), not y' (M frame), so yL must be calculated
+    # Gamma factor in front of the vy derivatives because the vy derivative is the derivative 
+    # with respect to vy in the accelerating-frame U, not L. They are related to each other by
+    # a gamma factor.
+    fy = fy_y*yL + fy_phi*phiM + damping_scaler*(g*fy_vy*vy + fy_vphi*phidot) 
+    fphi = fphi_y*yL + fphi_phi*phiM + damping_scaler*(g*fphi_vy*vy + fphi_vphi*phidot)
 
     F = np.array([vxM,vyM,vphiM,fx,fy,fphi])
+    
     return F
 
 
