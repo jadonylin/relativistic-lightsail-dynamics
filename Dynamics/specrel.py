@@ -32,7 +32,8 @@ def Gamma(v):
     ## Output
     Lorentz gamma factor gamma(v)
     """
-    return (1 - norm_squared(v)/c**2)**(-1/2)
+    g = (1 - norm_squared(v)/c**2)**(-1/2)
+    return g
 
 def Dv(v):
     """
