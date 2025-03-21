@@ -9,11 +9,20 @@ from autograd.scipy.special import erf as autograd_erf
 from autograd.numpy import linalg as npaLA
 import torch
 import functools
+
+# Try to import ArrayBox from autograd, if available.
+try:
+    from autograd.numpy.numpy_boxes import ArrayBox
+except ImportError:
+    ArrayBox = None
+
 # Smoothing if conditionals for backpropagation
 def jacobian_torch(f,argnum=0):
     return torch.func.jacrev(f,argnums=argnum)
-def grad_torch(f,argnum=0):
-    return lambda x: grad_torch_value(f,x,argnum)
+
+# this only really works for a function of a single variable...
+# def grad_torch(f,argnum=0):
+#     return lambda x: grad_torch_value(f,x,argnum)
     # return torch.func.grad(f,argnums=argnum)
 # def grad_torch_value(f,x,argnum=0):
 #     ya=f(x)
@@ -24,11 +33,18 @@ def grad_torch(f,argnum=0):
 #     y.retain_grad()
 #     y.backward()
 #     return x.grad
-def grad_torch_value(f,x,argnum=0):
-     a=f(x)     
-     return torch.autograd.grad(a,x,create_graph=True, materialize_grads=True) # materialize_grads=True to avoid returning None when functino does not depend on x  - added during debugging of PDtNeg1 but may not be needed? 
 
+# def grad_torch_value(f,x,argnum=0):
+#      a=f(x)     
+#      return torch.autograd.grad(a,x,create_graph=True, materialize_grads=True) # materialize_grads=True to avoid returning None when functino does not depend on x  - added during debugging of PDtNeg1 but may not be needed? 
 
+# attempt with torch.func :
+def grad_torch(f,argnum=0):
+    return torch.func.jacrev(f,argnums=argnum)
+
+def autograd_jacobian(f,argnum=0):
+    # return lambda x: jacobian(f,argnum=argnum)(x).squeeze()
+    return jacobian(f,argnum=argnum)
 
 class agfunc:
     """ wrapper class for autograd and torch functions
@@ -43,7 +59,7 @@ class agfunc:
             self.sqrt= npa.sqrt
             self.erf = autograd_erf
             self.norm = npaLA.norm
-            self.jacobian = jacobian
+            self.jacobian = autograd_jacobian
             self.array = npa.array
             self.sin = npa.sin
             self.cos = npa.cos
@@ -70,6 +86,8 @@ class agfunc:
             self.maximum=npa.maximum
             self.int=lambda x: x.astype(int)
             self.zeros=npa.zeros
+            self.dot=npa.dot
+            self.stack=npa.stack
 
         elif lib=="torch":
             self.sqrt = torch.sqrt
@@ -102,13 +120,20 @@ class agfunc:
             self.maximum=torch.maximum
             self.int=lambda x: x.long()
             self.zeros=self.zeros_torch
+            self.dot=torch.dot
+            self.stack=torch.stack
             if precision=="double":
                 self.ctype=torch.complex128
                 self.ftype=torch.float64
+                torch.backends.cuda.matmul.allow_tf32 = False
             elif precision == "single":
                 self.ctype=torch.complex64
                 self.ftype=torch.float32
-    
+            if torch.cuda.is_available() and device=="cuda":
+                device = torch.device('cuda')
+            else:
+                device = torch.device('cpu')
+
     def zeros_torch(self,*args, **kwargs):
         if 'dtype' in kwargs:
             if not isinstance(kwargs['dtype'], torch.dtype):
@@ -128,6 +153,8 @@ class agfunc:
                         elif np.issubdtype(dtype, np.floating):
                             kwargs['dtype']=self.ftype
 
+        else:
+            kwargs['dtype']=self.ftype # by default return array of default float (not complex) type
         return torch.zeros(*args, **kwargs)
             
     def _softmax(self,p,sigma):
@@ -145,7 +172,12 @@ class agfunc:
 
     @functools.wraps(torch.tensor)
     def torch_tensor_with_grad(self,*args, **kwargs):
+        # creates tensor from input args with gradient tracking
         # Force requires_grad to be True (overriding any passed value)
+        # if args[0] is a torch.Tensor, return it directly.
+        # if args[0] is a numpy array, convert it to a torch.Tensor
+        # Beware, if args[0] is a list or tuple of torch tensors, the result will not be autogradable
+        #      Use stack or cat instead
         kwargs['requires_grad'] = True
         kwargs['device'] = self.device
         if 'dtype' in kwargs:
@@ -165,14 +197,57 @@ class agfunc:
                             kwargs['dtype']=self.ctype
                         elif np.issubdtype(dtype, np.floating):
                             kwargs['dtype']=self.ftype
+        else: # type not specified
+            if self.contains_complex(args):
+                kwargs['dtype']=self.ctype
+            else:
+                kwargs['dtype']=self.ftype
         
-        if torch.is_tensor(args[0]):
-            # if(args[0].requires_grad==False):
-            #     print("WARNING: tensor has requires_grad==False")
-            return(args[0])        
+        if isinstance(args[0], torch.Tensor):
+            return args[0]
+
+        # If anything else is provided, convert it to a torch tensor. Note autograd may be lost !
         else:
+            # if isinstance(args[0], (np.ndarray,list,tuple)):            
             return torch.tensor(*args, **kwargs) 
+        
+      
+        
+        
+        
     
+    def contains_complex(self,x):
+        """ written by chatgpt
+        Check if any element in a list, tuple, NumPy array, PyTorch tensor,
+        or autograd ArrayBox is complex.
+        """
+        # For Python lists or tuples:
+        if isinstance(x, (list, tuple)):
+            return any(isinstance(item, complex) for item in x)
+        
+        # For NumPy arrays:
+        elif isinstance(x, np.ndarray):
+            # If the array is of object type, check each element individually.
+            if x.dtype == np.object_:
+                return any(isinstance(item, complex) for item in x)
+            # Otherwise, use NumPy's built-in check.
+            return np.iscomplexobj(x)
+        
+        # For NumPy scalars:
+        elif isinstance(x, np.generic):
+            return np.iscomplexobj(x)
+        
+        # For PyTorch tensors:
+        elif torch.is_tensor(x):
+            return x.is_complex()
+        
+        # For autograd ArrayBox (if autograd is installed):
+        elif ArrayBox is not None and isinstance(x, ArrayBox):
+            # Convert the ArrayBox to a NumPy array and check.
+            return np.iscomplexobj(np.asarray(x))
+        
+        else:
+            raise TypeError("Unsupported type for complex check")
     def numpy_to_torch_dtype(numpy_dtype):
         """ (this funciton written by chatgpt - not currently used
         Convert a NumPy dtype to the corresponding PyTorch dtype.

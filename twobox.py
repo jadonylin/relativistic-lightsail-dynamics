@@ -182,7 +182,12 @@ class TwoBox:
         elif self.RCWA_engine == 'TORCWA':            
             if Nx<nG*2:
                 raise ValueError("Nx must be at least 2*nG for TORCWA")
-            self.npa=agfunc('torch',device=device)
+            if geo_dtype == torch.float64:
+                self.npa=agfunc('torch',device=device,precision='double')
+            elif geo_dtype == torch.float32:
+                self.npa=agfunc('torch',device=device,precision='single')
+            else:
+                raise ValueError("Invalid torch precision. Choose 'double' or 'single'.")
         else:
             raise ValueError("Invalid RCWA engine. Choose 'GRCWA' or 'TORCWA'.")
         self.grating_pitch = self.npa.array(float(grating_pitch ))
@@ -543,7 +548,7 @@ class TwoBox:
         # Q_jacobian = self.npa.jacobian(Q_both, argnum=1)
         params =self.npa.array([ input_angle, input_wavelength] )
 
-        Q_jacobian = self.npa.jacobian(Q_both)(params) # PD_both_Q(self, params)
+        Q_jacobian = self.npa.jacobian(Q_both)(params).squeeze() # PD_both_Q(self, params)
       
 
         PD_Q1_angle = Q_jacobian[0][0]
@@ -1459,9 +1464,9 @@ class TwoBox:
                 efficiencies[:n_orders,idx] = self.to_numpy(Rs)
                 efficiencies[n_orders:,idx] = self.to_numpy(Ts)
             elif efficiency_quantity == "PDr":
-                efficiencies[0,idx] = self.to_numpy(self.PDrNeg1(angle)[0]) # this removes the autograd function -- ok for plotting            
+                efficiencies[0,idx] = self.to_numpy(self.PDrNeg1(angle)) # this removes the autograd function -- ok for plotting            
             elif efficiency_quantity == "PDt":
-                efficiencies[0,idx] = self.to_numpy(self.PDtNeg1(angle)[0]) # this removes the autograd function -- ok for plotting
+                efficiencies[0,idx] = self.to_numpy(self.PDtNeg1(angle)) # this removes the autograd function -- ok for plotting
                 
 
             elif efficiency_quantity == "FoM":
