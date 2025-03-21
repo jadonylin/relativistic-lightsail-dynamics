@@ -1,4 +1,5 @@
 import autograd.numpy as npa
+import numpy as np
 from autograd import grad, jacobian
 from torch.autograd import grad as grad_torch
 # from torch.autograd.functional import jacobian as jacobian_torch_raw
@@ -30,8 +31,12 @@ def grad_torch_value(f,x,argnum=0):
 
 
 class agfunc:
-    """ wrapper class for autograd and torch functions """
-    def __init__(self,lib,device="cpu"):
+    """ wrapper class for autograd and torch functions
+     optional arguments:
+      - device="cpu" or "cuda" 
+      - precision="double" (torch.complex128 and torch.float64 are used) or "single" (torch.complex64 and torch.float32 are used)
+    """
+    def __init__(self,lib,device:str ="cpu",precision:str ="double") -> None:
         self.lib = lib
         self.device=device
         if lib=="autograd":
@@ -96,8 +101,35 @@ class agfunc:
             self.diff=torch.diff
             self.maximum=torch.maximum
             self.int=lambda x: x.long()
-            self.zeros=torch.zeros
+            self.zeros=self.zeros_torch
+            if precision=="double":
+                self.ctype=torch.complex128
+                self.ftype=torch.float64
+            elif precision == "single":
+                self.ctype=torch.complex64
+                self.ftype=torch.float32
+    
+    def zeros_torch(self,*args, **kwargs):
+        if 'dtype' in kwargs:
+            if not isinstance(kwargs['dtype'], torch.dtype):
+                if isinstance(kwargs['dtype'],np.dtype):
+                    if np.issubdtype(np.dtype(kwargs['dtype']), np.complexfloating):
+                        kwargs['dtype']=self.ctype
+                    elif np.issubdtype(np.dtype(kwargs['dtype']), np.floating):
+                        kwargs['dtype']=self.ftype
+                else:
+                    try:
+                        dtype = np.dtype(kwargs['dtype'])
+                    except TypeError:
+                        raise ValueError(f"Unsupported NumPy dtype: {kwargs['dtype']}")
+                    if isinstance(dtype,np.dtype):
+                        if np.issubdtype(dtype, np.complexfloating):
+                            kwargs['dtype']=self.ctype
+                        elif np.issubdtype(dtype, np.floating):
+                            kwargs['dtype']=self.ftype
 
+        return torch.zeros(*args, **kwargs)
+            
     def _softmax(self,p,sigma):
         e_x = npa.exp(sigma*(p - npa.max(p)))
         return e_x/npa.sum(e_x)
@@ -116,6 +148,24 @@ class agfunc:
         # Force requires_grad to be True (overriding any passed value)
         kwargs['requires_grad'] = True
         kwargs['device'] = self.device
+        if 'dtype' in kwargs:
+            if not isinstance(kwargs['dtype'], torch.dtype):
+                if isinstance(kwargs['dtype'],np.dtype):
+                    if np.issubdtype(np.dtype(kwargs['dtype']), np.complexfloating):
+                        kwargs['dtype']=self.ctype
+                    elif np.issubdtype(np.dtype(kwargs['dtype']), np.floating):
+                        kwargs['dtype']=self.ftype
+                else:
+                    try:
+                        dtype = np.dtype(kwargs['dtype'])
+                    except TypeError:
+                        raise ValueError(f"Unsupported NumPy dtype: {kwargs['dtype']}")
+                    if isinstance(dtype,np.dtype):
+                        if np.issubdtype(dtype, np.complexfloating):
+                            kwargs['dtype']=self.ctype
+                        elif np.issubdtype(dtype, np.floating):
+                            kwargs['dtype']=self.ftype
+        
         if torch.is_tensor(args[0]):
             # if(args[0].requires_grad==False):
             #     print("WARNING: tensor has requires_grad==False")
@@ -123,3 +173,38 @@ class agfunc:
         else:
             return torch.tensor(*args, **kwargs) 
     
+    def numpy_to_torch_dtype(numpy_dtype):
+        """ (this funciton written by chatgpt - not currently used
+        Convert a NumPy dtype to the corresponding PyTorch dtype.
+
+        Parameters:
+            numpy_dtype (numpy.dtype or type): A NumPy data type (e.g., np.float32, np.int64, np.complex64).
+
+        Returns:
+            A PyTorch dtype corresponding to the provided NumPy dtype.
+
+        Raises:
+            ValueError: If the provided numpy_dtype is not supported.
+        """
+        # Define a mapping from NumPy dtypes to PyTorch dtypes, including complex types.
+        mapping = {
+            np.dtype('bool'): torch.bool,
+            np.dtype('int8'): torch.int8,
+            np.dtype('int16'): torch.int16,
+            np.dtype('int32'): torch.int32,
+            np.dtype('int64'): torch.int64,
+            np.dtype('uint8'): torch.uint8,
+            np.dtype('float16'): torch.float16,
+            np.dtype('float32'): torch.float32,
+            np.dtype('float64'): torch.float64,
+            np.dtype('complex64'): torch.complex64,
+            np.dtype('complex128'): torch.complex128,
+        }
+        
+        # Normalize the input to a numpy.dtype
+        np_dtype = np.dtype(numpy_dtype)
+        
+        if np_dtype in mapping:
+            return mapping[np_dtype]
+        else:
+            raise ValueError(f"Unsupported NumPy dtype: {numpy_dtype}")

@@ -10,10 +10,10 @@ of merit in a separate module without worrying about the grating simulation.
 """
 
 # IMPORTS ###########################################################################################################################################################################
-from torch import erf as torch_erf
-from torch import linalg as torchLA
-from autograd.scipy.special import erf as self.npa.erf
-from autograd.numpy import linalg as npaLA
+# from torch import erf as torch_erf
+# from torch import linalg as torchLA
+# from autograd.scipy.special import erf as erf
+# from autograd.numpy import linalg as npaLA
 from agfunc import agfunc
 from parameters import Parameters
 try:
@@ -1143,10 +1143,10 @@ class TwoBox:
 
         # phi acceleration terms
         # TODO: generalise for non-flat-geometry moments of inertia
-        fphi_y    =  D**2 * 12*I/(m*c1*L**2) * (Q1R + Q1L) * (w/2*self.npa.sqrt(np.pi/2) * self.npa.erf(1/(w_bar*np.sqrt(2))) - L/2*self.npa.exp(-1/(2*w_bar**2))) 
+        fphi_y    =  D**2 * 12*I/(m*c1*L**2) * (Q1R + Q1L) * (w/2*np.sqrt(np.pi/2) * self.npa.erf(1/(w_bar*np.sqrt(2))) - L/2*self.npa.exp(-1/(2*w_bar**2))) 
         fphi_phi  =  D**2 * 12*I/(m*c1*L**2) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - self.npa.exp(-1/(2*w_bar**2)))
         fphi_vy   =  D**2 * 12*I/(m*c1*L**2) * 1/c1 * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - self.npa.exp(-1/(2*w_bar**2)))
-        fphi_vphi = -D**2 * 12*I/(m*c1*L**2) * 1/c1 * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*np.sqrt(np.pi/2) * self.npa.erf(1/(w_bar*self.npa.sqrt(2))) - L/2*self.npa.exp(-1/(2*w_bar**2))) 
+        fphi_vphi = -D**2 * 12*I/(m*c1*L**2) * 1/c1 * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*np.sqrt(np.pi/2) * self.npa.erf(1/(w_bar*np.sqrt(2))) - L/2*self.npa.exp(-1/(2*w_bar**2))) 
 
         match out:
             case "tr":
@@ -1215,7 +1215,7 @@ class TwoBox:
         """
 
         input_wavelength = self.wavelength
-        self.wavelength = wavelength
+        self.wavelength = self.npa.array(wavelength)
 
         efficiencies = tuple(self.return_Qs_auto(return_Q=True))
         
@@ -1315,7 +1315,7 @@ class TwoBox:
         #     # colors = ["tab:orange", "tab:orange", "tab:orange", "tab:orange"]
         #     ymax = [self.box1_eps, self.box1_eps, self.box2_eps, self.box2_eps]
         #     for v, y in zip(vlines,ymax):
-                axs[0].axvline(v, ymax=y, color="tab:orange", linestyle="--")  
+                # axs[0].axvline(v, ymax=y, color="tab:orange", linestyle="--")  
         plt.show()
         return x0, eps_array_real, fig, axs
     
@@ -1558,7 +1558,7 @@ class TwoBox:
         init_wavelength = self.wavelength  # record user-initialised wavelength
 
         ## CALCULATE EIGS ##
-        eigvals = np.zeros((4,num_plot_points), dtype=np.complex128)
+        eigvals = self.npa.zeros((4,num_plot_points), dtype=np.complex128)
         
         for idx, lam in enumerate(wavelengths):
             # Calculate eigs for each order
@@ -1581,8 +1581,8 @@ class TwoBox:
         colorReal = (0.7, 0, 0)
         colorImag = 'blue'
         for i in range(4):            
-            ax1.plot(wavelengths/p,np.real(eigvals[i,:]), marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-            ax2.plot(wavelengths/p,np.imag(eigvals[i,:]), marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
+            ax1.plot(wavelengths/p,np.real(self.to_numpy(eigvals[i,:])), marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
+            ax2.plot(wavelengths/p,np.imag(self.to_numpy(eigvals[i,:])), marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
             
 
         if eig_real_log_axis:
