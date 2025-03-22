@@ -25,6 +25,8 @@ plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 import numpy as np
 from numpy.linalg import norm as norm
 
+import pickle
+
 from scipy.optimize import curve_fit
 import sys
 sys.path.append("../")
@@ -61,6 +63,129 @@ def t_to_v(t, v_data, t_data):
     """Convert times t to velocities v using polynomial fit on t_data and v_data"""
     popt, pcov = curve_fit(func, t_data, v_data)
     return func(t, *popt)
+
+
+def extract_dynamics(filename: str, start: int=0, end: int=-1, idx_to_print_state: int=0, use_M_time: bool=False):
+    """
+    Extract dynamics data from a .pkl file and return the data over a specified timespan.
+
+    Parameters
+    ----------
+    filename           :   Name of the .pkl file containing the dynamics data relative to the current directory
+    start              :   Start index of the data to extract. Can be an integer index or a float time
+    end                :   End index of the data to extract. Can be an integer index or a float time
+    idx_to_print_state :   Index of the data to print the state vector
+    use_M_time         :   Flag to truncate the time data using frame M time instead of frame L time
+    """
+    
+    # Flag to check if acceleration and aberration data was recorded in the dynamics
+    # of the given pkl data
+    accel_and_theta_recorded = True  
+
+    with open(filename, 'rb') as data_file:
+        data = pickle.load(data_file)
+
+    x0_dyn = data['Initial']
+    h = data['step']
+    I_dyn = data['Intensity']
+    
+    timeL = data['timeL']
+    timeM = data['timeM']
+    x,y,vx,vy = data['YL']
+    phiM = data['phiM']
+    phidotM = data['phidot']
+    
+    eps = data['eps']
+    epsdot = data['epsdot']
+
+    try:
+        accels = data['accel']
+        theta = data['theta']
+    except KeyError:
+        accel_and_theta_recorded = False
+        print("Acceleration and aberration data weren't recorded in the dynamics associated with your chosen pkl file.")
+    
+    print(f"x0 = {x[idx_to_print_state]}")
+    print(f"y0 = {y[idx_to_print_state]}")
+    print(f"phi0 = {phiM[idx_to_print_state]}")
+    print(f"vx0 = {vx[idx_to_print_state]}")
+    print(f"vy0 = {vy[idx_to_print_state]}")
+    print(f"omega0 = {phidotM[idx_to_print_state]}")
+
+
+    t_start = timeL[start]
+    t_end = timeL[end]
+    if isinstance(start, float):
+        t_start = start
+    if isinstance(end, float):
+        t_end = end
+    
+    frame_time = timeL
+    if use_M_time:
+        frame_time = timeM
+    
+    x_trunc = x[(timeL>t_start) & (timeL<=t_end)]
+    y_trunc = y[(frame_time>t_start) & (frame_time<=t_end)]
+    vx_trunc = vx[(timeL>t_start) & (timeL<=t_end)]
+    vy_trunc = vy[(frame_time>t_start) & (frame_time<=t_end)]
+    phiM_trunc = phiM[(timeM>t_start) & (timeM<=t_end)]
+    phidotM_trunc = phidotM[(timeM>t_start) & (timeM<=t_end)]
+
+    timeM_trunc = timeM[(timeM>t_start) & (timeM<=t_end)]
+    timeL_trunc = timeL[(timeL>t_start) & (timeL<=t_end)]
+
+    eps_trunc = eps[(timeM>t_start) & (timeM<=t_end)]
+    epsdot_trunc = epsdot[(timeM>t_start) & (timeM<=t_end)]
+
+    coords = [x0_dyn, h, I_dyn, timeM_trunc, timeL_trunc, 
+              x_trunc, y_trunc, vx_trunc, vy_trunc, phiM_trunc, phidotM_trunc, 
+              eps_trunc, epsdot_trunc]
+
+    if accel_and_theta_recorded:
+        ay_trunc = accels[(timeM>t_start) & (timeM<=t_end),1]
+        aphi_trunc = accels[(timeM>t_start) & (timeM<=t_end),2]
+        theta_trunc = theta[(timeM>t_start) & (timeM<=t_end)]
+        coords += [ay_trunc, aphi_trunc, theta_trunc]
+        
+    return coords
+
+
+
+def hl_envelopes_idx(s: np.ndarray, dmin: int=1, dmax: int=1, split: bool=False):
+    """
+    From https://stackoverflow.com/questions/34235530/how-to-get-high-and-low-envelope-of-a-signal
+    with updated documentation.
+    
+    Parameters
+    ----------
+    s          :   1d-array, data signal from which to extract high and low envelopes
+    dmin, dmax :   Size of chunks in terms of indices. Increase to calculate extrema over a broader range
+    split      :   If True, split the signal in half along its mean, might help to generate the envelope in some cases
+    
+    Returns
+    -------
+    lmin, lmax :   Low/high envelope indices of input signal s
+    """
+
+    # locals min      
+    lmin = (np.diff(np.sign(np.diff(s))) > 0).nonzero()[0] + 1 
+    # locals max
+    lmax = (np.diff(np.sign(np.diff(s))) < 0).nonzero()[0] + 1 
+    
+    if split:
+        # s_mid is zero if s centered around x-axis or more generally mean of signal
+        s_mid = np.mean(s) 
+        # pre-sorting of locals min based on relative position with respect to s_mid 
+        lmin = lmin[s[lmin]<s_mid]
+        # pre-sorting of local max based on relative position with respect to s_mid 
+        lmax = lmax[s[lmax]>s_mid]
+
+    # global min of dmin-chunks of locals min 
+    lmin = lmin[[i+np.argmin(s[lmin[i:i+dmin]]) for i in range(0,len(lmin),dmin)]]
+    # global max of dmax-chunks of locals max 
+    lmax = lmax[[i+np.argmax(s[lmax[i:i+dmax]]) for i in range(0,len(lmax),dmax)]]
+    
+    return lmin, lmax
 
 
 def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5e8, num_points: int=200):
