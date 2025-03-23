@@ -1,0 +1,4 @@
+Final vy (percentage of initial): 43.6106%
+Final vy without damping (percentage of initial): 44.8156%
+Final phidot (percentage of initial): 74.7306%
+Final phidot without damping (percentage of initial): 79.3480%
