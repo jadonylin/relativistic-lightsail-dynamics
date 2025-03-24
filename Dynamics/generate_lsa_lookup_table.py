@@ -13,9 +13,12 @@ from twobox import TwoBox
 t_start = time.time()
 
 ## Initialise grating
-opt_grating_basefname = "./Data/FOM_optimisation_maxfev9000"
-_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, output_opt_idx=0)
+num_cores = 18
+maxfev = 500
+opt_grating_basefname = f"../Optimisation/Data/FOM_optimisation_maxfev{num_cores*maxfev}"
+_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=0)
 print(_opt_grating.params)
+
 
 # Set custom parameters, if needed. If not needed, can just set "grating" to the extracted grating above.
 wavelength      = 1.
@@ -28,11 +31,11 @@ grating = TwoBox(*_opt_grating.params, wavelength, angle, Nx, numG, Qabs)
 
 ## Number of lambda' points
 klambda = 1000
-v_final = 5/100 
+v_final = 20/100 
 lambda_final = 1/D1_ND(v_final)
 lambda_array = np.linspace( wavelength, lambda_final, klambda )
 
-runID = "MdSnpminOpt"
+runID = "MdSnpminOpt20"
 
 ## Storage arrays
 Q1_array            = np.zeros( klambda )

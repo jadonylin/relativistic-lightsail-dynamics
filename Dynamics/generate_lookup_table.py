@@ -28,8 +28,10 @@ import Optimisation.opt as opt
 t_start = time.time()
 
 ## Initialise grating
-opt_grating_basefname = "./Data/FOM_optimisation_maxfev9000"
-_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, output_opt_idx=0)
+num_cores = 18
+maxfev = 500
+opt_grating_basefname = f"../Optimisation/Data/FOM_optimisation_maxfev{num_cores*maxfev}"
+_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=0)
 print(_opt_grating.params)
 
 # Set custom parameters, if needed. If not needed, can just set "grating" to the extracted grating above.
@@ -43,17 +45,17 @@ grating = TwoBox(*_opt_grating.params, wavelength, angle, Nx, numG, Qabs)
 
 
 klambda = 1000  # Number of lambda' points
-v_final = 5/100
+v_final = 20/100
 lambda_final = 1/D1_ND(v_final)
 lambda_array = np.linspace(wavelength, lambda_final, klambda)
 
 kdelta = 1000  # Number of delta' points
-delta_max = 13*np.pi/180  # IMPORTANT: must be set according to the grating cutoffs
+delta_max = 9*np.pi/180  # IMPORTANT: must be set according to the grating cutoffs
 delta_min = -delta_max
 delta_array = np.linspace(delta_min, delta_max, kdelta)
 
 runID = "MdSnpminOpt"  # String to add to .pkl filename
-num_processes = 8
+num_processes = 6
 
 def eff_auto(*args):
     grating.wavelength = args[0][0]
