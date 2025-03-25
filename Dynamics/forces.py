@@ -68,7 +68,7 @@ def create_interpolation_funcs(data: dict, has_angle_data: bool=True):
     except KeyError:
         pass
     
-    if not has_angle_data:
+    if has_angle_data:
         interp_Q1           =   RegularGridInterpolator( (lambda_array,delta_array), Q1)
         interp_Q2           =   RegularGridInterpolator( (lambda_array,delta_array), Q2)
         interp_PD_Q1_delta  =   RegularGridInterpolator( (lambda_array,delta_array), PD_Q1_delta)
