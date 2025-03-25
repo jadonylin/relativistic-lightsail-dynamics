@@ -10,16 +10,42 @@ of merit in a separate module without worrying about the grating simulation.
 """
 
 # IMPORTS ###########################################################################################################################################################################
-import autograd.numpy as npa
-from autograd import grad, jacobian
-from autograd.scipy.special import erf as autograd_erf
-from autograd.numpy import linalg as npaLA
+# from torch import erf as torch_erf
+# from torch import linalg as torchLA
+# from autograd.scipy.special import erf as erf
+# from autograd.numpy import linalg as npaLA
+from agfunc import agfunc
+from parameters import Parameters
+try:
+    from autograd.numpy.numpy_boxes import ArrayBox
+except ImportError:
+    ArrayBox = None
 
-from parameters import D1_ND, Parameters
 I0, L, m, c = Parameters()
 
+
+import torch
+import torcwa
 import grcwa
 grcwa.set_backend('autograd')
+
+# If GPU support TF32 tensor core, the matmul operation is faster than FP32 but with less precision.
+# If you need accurate operation, you have to disable the flag below.
+torch.backends.cuda.matmul.allow_tf32 = False
+# sim_dtype = torch.complex64
+# geo_dtype = torch.float32
+
+sim_dtype = torch.complex128
+geo_dtype = torch.float64
+
+
+if torch.cuda.is_available():
+    device = torch.device('cuda')
+else:
+    device = torch.device('cpu')
+
+
+
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import Locator
@@ -39,15 +65,16 @@ plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 import numpy as np
-from numpy import *
+# from numpy import *
 
 import os
-os.environ["OMP_NUM_THREADS"] = "1" 
-os.environ["OPENBLAS_NUM_THREADS"] = "1" 
-os.environ["MKL_NUM_THREADS"] = "1" 
-os.environ["VECLIB_MAXIMUM_THREADS"] = "1" 
-os.environ["NUMEXPR_NUM_THREADS"] = "1" 
-
+# os.environ["OMP_NUM_THREADS"] = "1" 
+# os.environ["OPENBLAS_NUM_THREADS"] = "1" 
+# os.environ["MKL_NUM_THREADS"] = "1" 
+import grcwa
+grcwa.set_backend('autograd')
+# os.environ["VECLIB_MAXIMUM_THREADS"] = "1" 
+# os.environ["NUMEXPR_NUM_THREADS"] = "1" 
 
 ## Minor ticks on symlog plots ##
 # From: https://stackoverflow.com/questions/20470892/how-to-place-minor-ticks-on-symlog-scale
@@ -90,33 +117,6 @@ class MinorSymLogLocator(Locator):
 
 
 
-def softmax(p,sigma):
-    """
-    Softmax needed for backpropagation by smoothing out the grating unit cell construction    
-    
-    NOTE: The translation by npa.max(p) is to avoid numerical instability when exponentiating 
-          large numbers. Adding the max function doesn't ruin differentiability, because the 
-          softmax expression with and without the max(p) shift are identical. Hence, the 
-          derivative of the max-translated softmax is equivalent to the derivative of the
-          unshifted softmax.
-    
-    Parameters
-    ----------
-    p     :   Array of floats to be converted to probabilities
-    sigma :   Softmax inverse temperature, i.e. inverse smoothing factor. Smaller means smoother grating.
-
-    Returns
-    -------
-    Probability of each element in array p based on its numerical value
-    """
-
-    e_x = npa.exp(sigma*(p - npa.max(p)))
-    return e_x/npa.sum(e_x)
-
-def softmin(p,sigma):
-    """Used to approximate min via expected value of array p with probability distribution given by softmin(p)"""
-    e_x = npa.exp(sigma*(npa.min(p) - p))
-    return e_x/npa.sum(e_x)
 
 
 class TwoBox:
@@ -144,54 +144,91 @@ class TwoBox:
     Nx              :   An integer for the number of grid points in the unit cell
     nG              :   An integer for the number of Fourier components used in the RCWA simulation
     Qabs            :   A float for the relaxation parameter, determining the strength of the imaginary frequency and thus smoothness of resonances
+    RCWA_engine     :   RCWA engine to use - 'GRCWA' or 'TORCWA'
+    torcwa_edge_sharpness: An integer for the sharpness of the edge of the unit cell in TORCWA
+    title           :   A string for the title of plots
     """
 
-    def __init__(self, grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, 
-                 gaussian_width, substrate_depth, substrate_eps, 
+    def __init__(self, grating_pitch: float, grating_depth: float, box1_width: float, box2_width: float, box_centre_dist: float, box1_eps: complex, box2_eps: complex, 
+                 gaussian_width: float, substrate_depth: float, substrate_eps: float, 
                  wavelength: float=1., angle: float=0.,
-                 Nx: float=1000, nG: int=25, Qabs: float=np.inf) -> None:
+                 Nx: float=1000, nG: int=25, Qabs: float=np.inf,RCWA_engine='GRCWA',torcwa_edge_sharpness:int =45,title: str=None) -> None:
+        """
+        Initialise twobox grating, excitation and hyperparameters.
 
-        self.grating_pitch = grating_pitch 
-        self.grating_depth = grating_depth 
-        self.box1_width = box1_width
-        self.box2_width = box2_width
-        self.box_centre_dist = box_centre_dist
-        self.box1_eps = box1_eps
-        self.box2_eps = box2_eps
+        Parameters
+        ----------
+        grating_pitch   :   Grating pitch/period
+        grating_depth   :   Grating layer depth/height/thickness
+        box1_width      :   Left box width 
+        box2_width      :   Right box width
+        box_centre_dist         :   Distance between box centres
+        box1_eps        :   Left box permittivity
+        box2_eps        :   Right box permittivity
+        gaussian_width  :   Width of gaussian beam
+        substrate_depth :   Substrate layer depth/height/thickness
+        substrate_eps   :   Substrate permittiivty (set to zero for no substrate)
+        wavelength      :   Excitation plane wave wavelength (laser-frame wavelength)
+        angle           :   Excitation plane wave angle in radians
+        Nx              :   Number of grid points in the unit cell
+        nG              :   Number of Fourier components
+        Qabs            :   Relaxation parameter
+        RCWA_engine     :   RCWA engine to use - 'GRCWA' or 'TORCWA'
+        """
+        self.RCWA_engine = RCWA_engine
         
-        self.gaussian_width = gaussian_width
-        self.substrate_depth = substrate_depth
-        self.substrate_eps = substrate_eps
+        if self.RCWA_engine == 'GRCWA':
+            self.npa=agfunc('autograd')
+        elif self.RCWA_engine == 'TORCWA':            
+            if Nx<nG*2:
+                raise ValueError("Nx must be at least 2*nG for TORCWA")
+            if geo_dtype == torch.float64:
+                self.npa=agfunc('torch',device=device,precision='double')
+            elif geo_dtype == torch.float32:
+                self.npa=agfunc('torch',device=device,precision='single')
+            else:
+                raise ValueError("Invalid torch precision. Choose 'double' or 'single'.")
+        else:
+            raise ValueError("Invalid RCWA engine. Choose 'GRCWA' or 'TORCWA'.")
+        self.grating_pitch = self.npa.array(float(grating_pitch ))
+        self.grating_depth = self.npa.array(float(grating_depth ))
+        self.box1_width = self.npa.array(float(box1_width))
+        self.box2_width = self.npa.array(float(box2_width))
+        self.box_centre_dist = self.npa.array(float(box_centre_dist))
+        self.box1_eps = self.npa.array(complex(box1_eps))
+        self.box2_eps = self.npa.array(complex(box2_eps))
         
-        self.wavelength = wavelength
-        self.angle = angle
+        self.gaussian_width=self.npa.array(float(gaussian_width))
+        self.substrate_depth = self.npa.array(float(substrate_depth))
+        self.substrate_eps = self.npa.array(float(substrate_eps))
+        
+        self.wavelength = self.npa.array(float(wavelength))
+        self.angle = self.npa.array(float(angle))
 
         self.Nx = Nx
         self.Ny = 1  # 1D grating simulation, only one grid in the y-direction (transverse to the 1D periodicity)
         self.nG = nG
         self.Qabs = Qabs
+        self.torcwa_edge_sharpness=torcwa_edge_sharpness
+
 
         self.invert_unit_cell = False
-        
-        self.init_RCWA()
 
-    @property
-    def params(self):
-        # Manipulate self.params instance variable using getter and setter properties rather than defining
-        # in __init__. Also, need to define self.params here instead of in __init__. Both of these are
-        # needed in order for user changes to instance variables to update self.params (and vice versa). 
-        self._params = [self.grating_pitch, self.grating_depth, 
-                       self.box1_width, self.box2_width, self.box_centre_dist, self.box1_eps, self.box2_eps, 
-                       self.gaussian_width, self.substrate_depth, self.substrate_eps]
-        return self._params
-    @params.setter
-    def params(self, new_params):
-        self._params = new_params
-        (self.grating_pitch, self.grating_depth, 
-        self.box1_width, self.box2_width, self.box_centre_dist, self.box1_eps, self.box2_eps, 
-        self.gaussian_width, self.substrate_depth, self.substrate_eps) = new_params
-        self.build_grating_gradable()  # TODO: I think every instance method calls init_RCWA, so this is not needed
-  
+        if title is None:
+            self.title = self.RCWA_engine
+        else:
+            self.title = title
+
+        if self.RCWA_engine == 'GRCWA':
+            self.init_RCWA()
+
+        elif self.RCWA_engine == 'TORCWA':            
+            if Nx<nG*2:
+                raise ValueError("Nx must be at least 2*nG for TORCWA")
+            self.init_TORCWA()
+        else:
+            raise ValueError("Invalid RCWA engine. Choose 'GRCWA' or 'TORCWA'.")
+
     def build_grating(self):
         """
         Build the grating permittivity grid as an array of permittivities based on initialised box parameters. 
@@ -199,6 +236,7 @@ class TwoBox:
         Does not account for boundary permittivities in the finite grid, so is not correctly differentiable by autograd.
         You can still take the gradient of build_grating, but the results may not be consistent with finite difference
         for a variety of grating cases.
+        CHECK: Not suitable for torcwa either ?
         """
 
         Lam = self.grating_pitch
@@ -208,7 +246,7 @@ class TwoBox:
         x1 = w1/2 + 0.02*Lam  # box1 centre location (offset to avoid left box left edge clipping)    
         x2 = x1 + bcd  # box2 centre location
         
-        x = npa.linspace(0,Lam,self.Nx)
+        x = self.npa.linspace(0,Lam,self.Nx)
         idx_in_box1 = abs(x - x1) <= w1/2
         idx_in_box2 = abs(x - x2) <= w2/2
         
@@ -224,11 +262,11 @@ class TwoBox:
                 grating.append(1)
         
         if self.invert_unit_cell:
-            self.grating_grid = npa.array(grating)[::-1]
+            self.grating_grid = self.npa.array(grating)[::-1]
         else:
-            self.grating_grid = npa.array(grating)
+            self.grating_grid = self.npa.array(grating)
 
-        return npa.array(grating)
+        return self.npa.array(grating)
 
     def build_grating_gradable(self, sigma: float=100.):
         """
@@ -263,7 +301,7 @@ class TwoBox:
         boxes_midpoint = (x1 + w1/2 + x2 - w2/2)/2
 
         dx = Lam/self.Nx  # grid spacing
-        grid_left_boundaries = npa.linspace(0,Lam-dx,self.Nx)  # does not include x = Lam boundary
+        grid_left_boundaries = self.npa.linspace(0,Lam-dx,self.Nx) # does not include x = Lam boundary
         # In this formulation, grid numbers 0, 1, ..., Nx-1 refer to the left boundaries (consistent with x position from 0 to 1*pitch)
         box1_left_boundary = x1-w1/2
         box2_right_boundary = x2+w2/2
@@ -273,26 +311,26 @@ class TwoBox:
         grating = [] 
         for grid_left_boundary in grid_left_boundaries:
             # These floats measure how much the current grid fits each condition
-            grid_in_box1 = w1/2 - npa.abs(grid_left_boundary-x1)
+            grid_in_box1 = w1/2 - self.npa.abs(grid_left_boundary-x1)
             grid_left_of_box1 = box1_left_boundary - grid_left_boundary
-            grid_in_box2 = w2/2 - npa.abs(grid_left_boundary-x2)
-            grid_between_boxes = box_separation/2 - npa.abs(grid_left_boundary - boxes_midpoint)
+            grid_in_box2 = w2/2 - self.npa.abs(grid_left_boundary-x2)
+            grid_between_boxes = box_separation/2 - self.npa.abs(grid_left_boundary - boxes_midpoint)
             grid_right_of_box2 = grid_left_boundary - box2_right_boundary 
 
-            conditions = npa.array([grid_in_box1, grid_in_box2, grid_left_of_box1, grid_between_boxes, grid_right_of_box2])
-            returns = npa.array([eb1, eb2, 1, 1, 1])
+            conditions = self.npa.array([grid_in_box1, grid_in_box2, grid_left_of_box1, grid_between_boxes, grid_right_of_box2])
+            returns = self.npa.array([eb1, eb2, 1, 1, 1])
             
-            probs = softmax(conditions,sigma)
-            eps = npa.sum(probs*returns)
+            probs = self.npa.softmax(conditions,sigma)
+            eps = self.npa.sum(probs*returns)
 
             grating.append(eps)
 
         if self.invert_unit_cell:
-            self.grating_grid = npa.array(grating)[::-1]
+            self.grating_grid = self.npa.array(grating)[::-1]
         else:
-            self.grating_grid = npa.array(grating)
+            self.grating_grid = self.npa.array(grating)
 
-        return npa.array(grating)
+        return self.npa.array(grating)
 
 
     def init_RCWA(self):
@@ -317,8 +355,10 @@ class TwoBox:
         theta = self.angle # radians
         phi = 0.
 
-        obj = grcwa.obj(self.nG,L1,L2,freqcmp,theta,phi,verbose=0)
+        # setup RCWA
+        obj = grcwa.obj(self.nG,L1,L2,freqcmp,theta,phi,verbose=0) # verbose=1 for debugging, prints ng actually used 
 
+        # add layers
 
         eps_vacuum = 1
         vacuum_depth = self.wavelength
@@ -347,57 +387,107 @@ class TwoBox:
         """
         Calculates -1 <= m <= 1 reflection/transmission efficiencies for the twobox.
         """
-        self.init_RCWA()
-        R_byorder,T_byorder = self.RCWA.RT_Solve(normalize=1, byorder=1)
-        Fourier_orders = self.RCWA.G
+        if self.RCWA_engine == 'GRCWA':
+            self.init_RCWA()
+            R_byorder,T_byorder = self.RCWA.RT_Solve(normalize=1, byorder=1)
+            Fourier_orders = self.RCWA.G
 
-        Rs = []
-        Ts = []
-        RT_orders = [-1,0,1]
-        # Have to use append method on lists rather than index assignment to make this autograd differentiable
-        for order in RT_orders:
-            Rs.append(npa.sum(R_byorder[Fourier_orders[:,0]==order]))
-            Ts.append(npa.sum(T_byorder[Fourier_orders[:,0]==order]))
-
+            Rs = []
+            Ts = []
+            RT_orders = [-1,0,1]
+            # IMPORTANT: have to use append method to a list rather than index assignment
+            # Else, autograd will throw a TypeError with float() argument being an ArrayBox
+            for order in RT_orders:
+                Rs.append(self.npa.sum(R_byorder[Fourier_orders[:,0]==order]))
+                Ts.append(self.npa.sum(T_byorder[Fourier_orders[:,0]==order]))
+        elif self.RCWA_engine == 'TORCWA':
+            self.init_TORCWA()
+            RT_orders=self.grating_orders()
+            Rs=self.npa.zeros(len([-1,0,1]))
+            Ts=self.npa.zeros(len([-1,0,1]))
+            orders=[[j,0] for j in RT_orders]
+            lRs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders,direction='forward',port='reflection',polarization='yy',ref_order=[0,0],power_norm=True),2))
+            lTs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders,direction='forward',port='transmission',polarization='yy',ref_order=[0,0],power_norm=True),2))
+            for i,j in enumerate(RT_orders):
+                Rs[1+j]=lRs[i]
+                Ts[1+j]=lTs[i]
         return Rs,Ts
-
+    def Q_trivial(self):
+        """ 
+        returns simple funciton of aguments, for testing jacobian
+        
+        """ 
+        # Q1=self.npa.cos(self.angle)
+        # Q2=self.wavelength**2
+        r,t = self.eff()
+        Q1=r[0]
+        Q2=t[0]
+        print('Q1,Q2',Q1,Q2)
+        # Q1=self.tNeg1(self.angle)
+        # Q2=self.rNeg1(self.angle)
+        
+        if self.RCWA_engine == 'TORCWA':
+            return torch.stack((Q1,Q2))
+        else:
+            return self.npa.array( [Q1, Q2] )
     def diffraction_angle(self, m):
         """
         Calculate the diffraction angle for a given diffraction order m, if it exists.
         """
-        sin_delta_m = npa.sin(self.angle) + m*self.wavelength/self.grating_pitch
-        if abs(sin_delta_m) >= 1:
-            delta_m = "no_diffraction_order"
-        else:
-            delta_m = npa.arcsin(sin_delta_m)
+        sin_delta_m = self.npa.sin(self.npa.array(self.angle)) + m*self.wavelength/self.grating_pitch
+        delta_m = self.npa.arcsin(sin_delta_m)
+
         return delta_m
 
     def Q(self):
         """
-        Calculate efficiency factors Q_{pr,j}'(delta', lambda') for j = 1, 2
+        Calculates efficiency factors Q_{pr,j}'(delta', lambda')
+        todo: check the torch version works...
         """
         r,t = self.eff()
         
-        Q1 = 0
-        Q2 = 0
-        orders = [-1,0,1]
-        for m in range(len(orders)):  # TODO: get rid of the for loop here and use native np vectorisation
-            delta_m = self.diffraction_angle(orders[m])
-            if isinstance(delta_m,str):  # Q_{pr,j}' is unchanged by evanescent orders
+        
+        Q1=self.npa.array(0.0)
+        Q2=self.npa.array(0.0)
+        M=[-1,0,1]
+        
+        # M=self.grating_orders() # this works in pytorch, but not in autograd
+        # begin debugging torch pytorch jacobian returning 0:
+        # M=[0]
+        # end debug
+        if self.RCWA_engine == 'TORCWA':
+            M=self.grating_orders() # this works in pytorch, but not in autograd, which throws an error that int isn't differentiable
+            # however, doing it this way doesn't help with NaN being by  returned for derivatives when only m=0 orders are propagative in torcwa
+        for ord in M:
+            m=1+ord # convert grating order to index of array, assumes -1,0,1
+            delta_m=self.diffraction_angle(ord)
+            # # if isinstance(delta_m,str):
+            if self.npa.isnan(delta_m):
+                """
+                If no diffraction order, Q_{pr,j}' is unchanged
+                """
                 Q1 = Q1 + 0
                 Q2 = Q2 + 0
             else:
-                Q1 = Q1 + r[m]*(1+npa.cos(self.angle+delta_m)) + t[m]*(1-npa.cos(delta_m-self.angle))
-                Q2 = Q2 + r[m]*npa.sin(self.angle+delta_m) + t[m]*npa.sin(delta_m-self.angle)
-        Q1 =  npa.cos(self.angle)*Q1
-        Q2 = -npa.cos(self.angle)*Q2
+            # take back to real as Q are real, complex intermediary only for gradient tracking compatibility
+                Q1 = Q1+ r[m]*(1+self.npa.cos(self.angle+delta_m))+t[m]*(1-self.npa.cos(delta_m-self.angle))
+                Q2 = Q2+ r[m]*self.npa.sin(self.angle+delta_m)+t[m]*self.npa.sin(delta_m-self.angle)
+        Q1 =  self.npa.cos(self.angle)*Q1
+        Q2 = -self.npa.cos(self.angle)*Q2
+        if self.RCWA_engine == 'TORCWA':
+            return torch.stack((Q1,Q2))
+            # return self.npa.array( [Q1, Q2] )  
+        else:
+            return self.npa.array( [Q1, Q2] )
         
-        return npa.array([Q1, Q2])
+    ##################
+    #### 1st derivatives
 
 
     def return_Qs(self, h_angle, h_wavelength):
         """
-        Calculate efficiency factors, and their derivatives using finite differences.
+        Calculate efficiency factors and their derivatives
+        Note: unchanged from pre-torcwa as it doesn't use autograd or grcwa
         """
         
         # Save user-initialised twobox variables
@@ -451,9 +541,15 @@ class TwoBox:
             self.angle = angle
             self.wavelength = wavelength
             return self.Q()
+            # for debuging
+            # return self.Q_trivial()
+            # end debugging
 
-        params = npa.array([input_angle, input_wavelength])
-        Q_jacobian = jacobian(Q_both)(params)
+        # Q_jacobian = self.npa.jacobian(Q_both, argnum=1)
+        params =self.npa.array([ input_angle, input_wavelength] )
+
+        Q_jacobian = self.npa.jacobian(Q_both)(params).squeeze() # PD_both_Q(self, params)
+      
 
         PD_Q1_angle = Q_jacobian[0][0]
         PD_Q2_angle = Q_jacobian[1][0]
@@ -488,6 +584,8 @@ class TwoBox:
         Returns
         -------
         d^2 Q1/ d(), d^2 Q2/ d()
+        NOTE: with TORCWA works with 'grad' automatic differentiation for both angle and wavelength 
+              with GRCWA one of method_one, method_two must be 'finite' or code runs forever        
         """
         allowed_methods = ("grad", "finite")
         if (method_one or method_two) not in allowed_methods:
@@ -548,7 +646,10 @@ class TwoBox:
                 self.angle = angle
                 self.wavelength = wavelength
 
-                return npa.array( [PD_Q1, PD_Q2] )
+                if self.RCWA_engine == 'TORCWA':
+                    return torch.stack((PD_Q1, PD_Q2))
+                else:                    
+                    return self.npa.array( [PD_Q1, PD_Q2] )
 
             if method_one=="grad":
                 def Q_params(angle, wavelength):
@@ -556,7 +657,8 @@ class TwoBox:
                     self.wavelength = wavelength
                     return self.Q()
                 
-                PD = jacobian(Q_params, argnum = var)
+
+                PD = self.npa.jacobian(Q_params, argnum = var)
                 PD_value = PD(angle, wavelength)
 
                 self.angle = angle
@@ -609,7 +711,11 @@ class TwoBox:
                 PD_Q1 = (Q1_forwards - Q1_back) / (2 * h)
                 PD_Q2 = (Q2_forwards - Q2_back) / (2 * h)
 
-                return npa.array( [PD_Q1, PD_Q2] )
+                if self.RCWA_engine == 'TORCWA':
+                    return torch.stack((PD_Q1, PD_Q2))
+                else:                    
+                    return self.npa.array( [PD_Q1, PD_Q2] )
+                
 
             if method_two == "grad":
                 restore()
@@ -617,7 +723,8 @@ class TwoBox:
                 def fun(angle, wavelength):
                     return first(angle, wavelength, method_one)
                 
-                PD2 = jacobian(fun, argnum = var)
+                
+                PD2 = self.npa.jacobian(fun, argnum = var)
                 PD2_value = PD2(input_angle, input_wavelength)
                 restore()
                 return PD2_value
@@ -630,7 +737,7 @@ class TwoBox:
                 h_one, h_two, h_three):
         """
         TODO: update function documentation
-        
+        NOTE: Not curently used, not tested with TORCWA
         ## Inputs
         method_one: derivative method applied first - "grad" or "finite"
         method_two: derivative method applied last - "grad" or "finite"
@@ -641,6 +748,8 @@ class TwoBox:
         h_three: method_three step size 
         ## Outputs
         d^2 Q1/ d(), d^2 Q2/ d()
+        NOTE: this function was designed for cubic interpolation, but is not currently used
+        NOTE: unchanged from pre-torcwa as it is not currently used. Will not work with torcwa
         """
         allowed_methods = ("grad", "finite")
         if (method_one or method_two) not in allowed_methods:
@@ -699,7 +808,7 @@ class TwoBox:
                 PD_Q1 = (Q1_forwards - Q1_back) / (2 * h)
                 PD_Q2 = (Q2_forwards - Q2_back) / (2 * h)
 
-                return npa.array( [PD_Q1, PD_Q2] )
+                return self.npa.array( [PD_Q1, PD_Q2] )
 
             if method_one=="grad":
                 restore( angle, wavelength )
@@ -708,7 +817,7 @@ class TwoBox:
                     self.wavelength = wavelength
                     return self.Q()
                 
-                PD = jacobian(Q_params, argnum = var)
+                PD = self.npa.jacobian(Q_params, argnum = var)
                 PD_value = PD(angle, wavelength)
 
                 restore( angle, wavelength )
@@ -762,7 +871,7 @@ class TwoBox:
                 PD_Q1 = (Q1_forwards - Q1_back) / (2 * h)
                 PD_Q2 = (Q2_forwards - Q2_back) / (2 * h)
 
-                return npa.array( [PD_Q1, PD_Q2] )
+                return self.npa.array( [PD_Q1, PD_Q2] )
 
             if method_two == "grad":
                 restore( angle2, wavelength2 )
@@ -770,7 +879,7 @@ class TwoBox:
                 def fun(angle2, wavelength2):
                     return first(angle2, wavelength2, method_one)
                 
-                PD2 = jacobian(fun, argnum = var)
+                PD2 = self.npa.jacobian(fun, argnum = var)
                 PD2_value = PD2(angle2, wavelength2)
                 
                 restore( angle2, wavelength2 )
@@ -823,7 +932,7 @@ class TwoBox:
                 PD_Q1 = (Q1_forwards - Q1_back) / (2 * h)
                 PD_Q2 = (Q2_forwards - Q2_back) / (2 * h)
 
-                return npa.array( [PD_Q1, PD_Q2] )
+                return self.npa.array( [PD_Q1, PD_Q2] )
 
             if method_three == "grad":
                 restore( input_angle, input_wavelength)
@@ -831,7 +940,7 @@ class TwoBox:
                 def fun(angle, wavelength):
                     return second(angle, wavelength, method_two)
                 
-                PD3 = jacobian(fun, argnum = var)
+                PD3 = self.npa.jacobian(fun, argnum = var)
                 PD3_value = PD3(input_angle, input_wavelength)
                 
                 restore( input_angle, input_wavelength)
@@ -840,6 +949,8 @@ class TwoBox:
 
         return third(method_three)
 
+    ##################
+    #### Optimisation functions
 
     def FoM(self, I:float=1e9, grad_method: str="finite", sigma: float=1.) -> float:
         """
@@ -869,7 +980,7 @@ class TwoBox:
 
         # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
         #          negative eigenvalue with the smallest real part. 
-        FD = npa.min(-eigReal)  # standard minimum
+        FD = self.npa.min(-eigReal)  # standard minimum
         # FD = npa.sum(-eigReal*softmin(-eigReal,1.))  # softened minimum
         
         return FD
@@ -896,6 +1007,7 @@ class TwoBox:
 
     def FoM_LvR(self, I:float=1e9, grad_method: str="finite") -> float:
         """
+        Last FoM implemented by Liam - not working with TORCWA
         Calculate the grating single-wavelength figure of merit FD using LvR's most updated method.
 
         Parameters
@@ -926,13 +1038,13 @@ class TwoBox:
             """
             
             # Sort array to ensure differentiability
-            sorted_x = npa.sort(x.flatten())
-            unique_values = sorted_x[npa.concatenate(([True], npa.diff(sorted_x) != 0))]
+            sorted_x = self.npa.sort(x.flatten())
+            unique_values = sorted_x[self.npa.concatenate(([True], self.npa.diff(sorted_x) != 0))]
 
             # Append filled_value as needed
             k = len(unique_values)
             for i in range(4-k):
-                unique_values = npa.append(unique_values,filled_value)
+                unique_values = self.npa.append(unique_values,filled_value)
 
             return unique_values
     
@@ -943,8 +1055,8 @@ class TwoBox:
         # LvR FoM: Reward all Re(eig) being negative
         # Fill repeated entries in eigReal with -1 so that, after squaring, they don't influence the product
         eig_real_unique     =   unique_filled(eigReal, -1)
-        eig_real_neg_unique =   npa.minimum(0., eig_real_unique)
-        func_real_neg_array =   npa.power(eig_real_neg_unique, 2)
+        eig_real_neg_unique =   self.npa.minimum(0., eig_real_unique)
+        func_real_neg_array =   self.npa.power(eig_real_neg_unique, 2)
         func_real_neg       =   func_real_neg_array[0] * func_real_neg_array[1] * func_real_neg_array[2] * func_real_neg_array[3]
         # func_real_neg       =   npa.prod(func_real_neg_array) 
 
@@ -953,15 +1065,15 @@ class TwoBox:
         # NOTE: This function has zero gradient at x=0, which is bad for stepping away from zero imaginary 
         #       part. Also, the gradient saturates at large x, which doesn't matter in the sense of 
         #       needng the imaginary part to be nonzero.
-        func_imag_array     =   npa.log(1 + npa.power(eigImag,2))
+        func_imag_array     =   self.npa.log(1 + self.npa.power(eigImag,2))
         func_imag           =   func_imag_array[0] * func_imag_array[1] * func_imag_array[2] * func_imag_array[3]
         # func_imag           =   npa.prod(func_imag_array)
 
         # Penalise mixed positive and negative Re(eig)
         # Fill repeated entries in eigReal with 0 so that they don't influence the sum
         real_unique_0       =   unique_filled(eigReal, 0.)
-        neg_array           =   npa.power(npa.minimum(0.,real_unique_0), 2)
-        pos_array           =   npa.power(npa.maximum(0.,real_unique_0), 2)
+        neg_array           =   self.npa.power(self.npa.minimum(0.,real_unique_0), 2)
+        pos_array           =   self.npa.power(self.npa.maximum(0.,real_unique_0), 2)
         # penalty             =   npa.sum(neg_array) * npa.sum(pos_array)
         neg_sum             =   neg_array[0] + neg_array[1] + neg_array[2] + neg_array[3]
         pos_sum             =   pos_array[0] + pos_array[1] + pos_array[2] + pos_array[3]
@@ -970,13 +1082,15 @@ class TwoBox:
         # Penalise all positive Re(eig)
         # Fill repeated entries in eigReal with 1 so that they don't influence the product
         real_unique_1       =   unique_filled(eigReal, 1)
-        all_pos_array       =   npa.power(npa.maximum(0.,real_unique_1), 2)
+        all_pos_array       =   self.npa.power(self.npa.maximum(0.,real_unique_1), 2)
         penalty2            =   all_pos_array[0] * all_pos_array[1] * all_pos_array[2] * all_pos_array[3]
         # penalty2            =   npa.prod(all_pos_array)
 
 
         FD = func_real_neg * func_imag - penalty - penalty2
         return FD
+
+    
 
     def sail_stiffness(self, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', out="tr"):
         """
@@ -1017,7 +1131,7 @@ class TwoBox:
         # Convert velocity factors to wavelength factors
         # TODO: may need to change these factors to account for non-unity starting wavelengths
         D = 1/lam  # Doppler factor assuming starting wavelength is 1
-        g = (npa.power(lam,2) + 1)/(2*lam)  # Lorentz factor
+        g = (self.npa.power(lam,2) + 1)/(2*lam)  # Lorentz factor
    
         # Lightsail reflection-symmetry conditions
         Q1L = Q1R                ; Q2L = -Q2R;   
@@ -1027,28 +1141,27 @@ class TwoBox:
         # y acceleration terms
         # NOTE: derivatives with respect to lambda differ from derivatives with respect to frequency offset, the latter
         # being presented in Liam's thesis
-        fy_y    = - D**2 * I/(m*c1) * (Q2R - Q2L) * (1 - npa.exp(-1/(2*w_bar**2)))
-        fy_phi  = - D**2 * I/(m*c1) * (dQ2ddeltaR + dQ2ddeltaL) * w/2 * npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2)))
-        fy_vy   = - D**2 * I/(m*c1) * 1/c1 * (D+1)/(D*(g+1)) * (Q1R + Q1L + dQ2ddeltaR + dQ2ddeltaL) * w/2 * npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2)))
-        fy_vphi =   D**2 * I/(m*c1) * 1/c1 * (2*(Q2R - Q2L) - lam*(dQ2dlambdaR - dQ2dlambdaL)) * (w/2)**2 * (1 - npa.exp(-1/(2*w_bar**2)))
+        fy_y    = - D**2 * I/(m*c1) * (Q2R - Q2L) * (1 - self.npa.exp(-1/(2*w_bar**2)))
+        fy_phi  = - D**2 * I/(m*c1) * (dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * self.npa.erf(1/(w_bar*np.sqrt(2)))
+        fy_vy   = - D**2 * I/(m*c1) * 1/c1 * (D+1)/(D*(g+1)) * (Q1R + Q1L + dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * self.npa.erf(1/(w_bar*np.sqrt(2)))
+        fy_vphi =   D**2 * I/(m*c1) * 1/c1 * (2*(Q2R - Q2L) - lam*(dQ2dlambdaR - dQ2dlambdaL)) * (w/2)**2 * (1 - self.npa.exp(-1/(2*w_bar**2)))
 
         # phi acceleration terms
         # TODO: generalise for non-flat-geometry moments of inertia
         # TODO: rename vphi to phidot to avoid confusion with vphi = length*phidot
-        fphi_y    =  D**2 * 12*I/(m*c1*L**2) * (Q1R + Q1L) * (w/2*npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2))) - L/2*npa.exp(-1/(2*w_bar**2))) 
-        fphi_phi  =  D**2 * 12*I/(m*c1*L**2) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - npa.exp(-1/(2*w_bar**2)))
-        fphi_vy   =  D**2 * 12*I/(m*c1*L**2) * 1/c1 * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - npa.exp(-1/(2*w_bar**2)))
-        fphi_vphi = -D**2 * 12*I/(m*c1*L**2) * 1/c1 * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*npa.sqrt(np.pi/2) * autograd_erf(1/(w_bar*npa.sqrt(2))) - L/2*npa.exp(-1/(2*w_bar**2))) 
+        fphi_y    =  D**2 * 12*I/(m*c1*L**2) * (Q1R + Q1L) * (w/2*np.sqrt(np.pi/2) * self.npa.erf(1/(w_bar*np.sqrt(2))) - L/2*self.npa.exp(-1/(2*w_bar**2))) 
+        fphi_phi  =  D**2 * 12*I/(m*c1*L**2) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - self.npa.exp(-1/(2*w_bar**2)))
+        fphi_vy   =  D**2 * 12*I/(m*c1*L**2) * 1/c1 * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - self.npa.exp(-1/(2*w_bar**2)))
+        fphi_vphi = -D**2 * 12*I/(m*c1*L**2) * 1/c1 * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*np.sqrt(np.pi/2) * self.npa.erf(1/(w_bar*np.sqrt(2))) - L/2*self.npa.exp(-1/(2*w_bar**2))) 
 
         match out:
             case "tr":
-                return npa.array([fy_y, fy_phi, fy_vy, fy_vphi, fphi_y, fphi_phi, fphi_vy, fphi_vphi])
+                return self.npa.array([fy_y, fy_phi, fy_vy, fy_vphi, fphi_y, fphi_phi, fphi_vy, fphi_vphi])
             case "rd":
-                return npa.array([fy_y, fy_phi, fphi_y, fphi_phi, fy_vy, fy_vphi, fphi_vy, fphi_vphi])
+                return self.npa.array([fy_y, fy_phi, fphi_y, fphi_phi, fy_vy, fy_vphi, fphi_vy, fphi_vphi])
             case _:
                 raise ValueError("Invalid output format. Must be 'tr' or 'rd'.")
-    
-
+            
     def Eigs(self, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', return_vec: bool = False):
         """
         Calculate eigendecomposition of Jacobian matrix at equilibrium
@@ -1071,20 +1184,19 @@ class TwoBox:
         stiffnesses = self.sail_stiffness(I,m,c1,grad_method,out="tr")
 
         # Build the Jacobian matrix
-        J = npa.array([[0,0,1,0],[0,0,0,1],[*stiffnesses[:4]],[*stiffnesses[4:]]])
+        J = self.npa.array([[0,0,1,0],[0,0,0,1],[*stiffnesses[:4]],[*stiffnesses[4:]]])
 
         # Find the real part of eigenvalues    
-        eigvalvec = npaLA.eig(J)
+        eigvalvec = self.npa.eig(J)
         eigvals   = eigvalvec[0]
-        eigReal   = npa.real(eigvals)
-        eigImag   = npa.imag(eigvals)
+        eigReal   = self.npa.real(eigvals)
+        eigImag   = self.npa.imag(eigvals)
 
         if return_vec:
             eigvecs = eigvalvec[1]
             return eigReal, eigImag, eigvecs
         else:
             return eigReal, eigImag
-
 
     def lsa_info(self, wavelength, I: float=0.5e9):
         """
@@ -1109,7 +1221,7 @@ class TwoBox:
         """
 
         input_wavelength = self.wavelength
-        self.wavelength = wavelength
+        self.wavelength = self.npa.array(wavelength)
 
         efficiencies = tuple(self.return_Qs_auto(return_Q=True))
         
@@ -1122,6 +1234,9 @@ class TwoBox:
         self.wavelength = input_wavelength
         return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs
 
+    ##################
+    #### Plotting
+    
 
     def show_permittivity(self, show_analytic_box: bool=False, show_box_edges: bool=False):
         """
@@ -1146,17 +1261,25 @@ class TwoBox:
         axs            :   Permittivity profile axs object
         """ 
 
-        self.init_RCWA()
 
-        x0 = np.linspace(0,self.grating_pitch,self.Nx, endpoint=False)
-    
-        eps_array = self.RCWA.Return_eps(which_layer=1,Nx=self.Nx,Ny=self.Ny,component='xx')
+       
+        # if self.RCWA_engine == 'TORCWA':
+        #     self.init_TORCWA() 
+        #     #Torcwa does not need flipping this array - check x axis conventions?           
+        #     eps_array=self.RCWA.return_layer(0,self.Nx,1)[0].cpu().numpy()
+                
+        # elif self.RCWA_engine == 'GRCWA':
+        #     self.init_RCWA()
+        #     eps_array = self.RCWA.Return_eps(which_layer=1,Nx=self.Nx,Ny=self.Ny,component='xx')
+        #     # flip to match ordering of desired eps vs grid number - 
+        #     eps_array = np.flip(eps_array)
+        x0,eps_array=self.return_epsilon()
+        # eps_array=self.to_numpy(eps_array)
         eps_array_real = eps_array.real
 
-        # Flip displayed GRCWA permittivity profile to match ordering of input permittivity profile
+        # Show actual eps vs grid number 
         grids = np.arange(0, self.Nx, 1)
-        eps_array_real = np.flip(eps_array_real)
-
+       
 
         fig, axs = plt.subplots(2, 1, figsize=(6,10), sharex=True)
 
@@ -1167,30 +1290,38 @@ class TwoBox:
 
         axs[1].plot(grids,eps_array_real)
         axs[1].set(xlabel="Grid no.", ylabel=r"$\varepsilon$")
-        axs[1].set_title(f"GRCWA permittivity profile. nG = {self.nG}, grid points = {self.Nx}")
-
+        axs[1].set_title(f"{self.title} permittivity profile. nG = {self.nG}, grid points = {self.Nx}")
+        p=self.to_numpy(self.grating_pitch)
         if show_analytic_box:
             init_Nx = self.Nx
-            self.Nx = 1000*self.Nx
+            self.Nx = 2000 # 1000*self.Nx
             fine_grids = np.arange(0, self.Nx, 1)
-            analytic_boxes = self.build_grating()
-            axs[0].plot(fine_grids/1000,analytic_boxes)
-            
-            self.Nx = init_Nx
+            if self.RCWA_engine == 'GRCWA':
+                analytic_boxes = self.build_grating()
+                axs[0].plot(fine_grids/2000.0*init_Nx,analytic_boxes)
+                self.Nx = init_Nx
+            elif self.RCWA_engine == 'TORCWA':
+                torcwa.rcwa_geo.nx = self.Nx
+                torcwa.rcwa_geo.grid()
+                analytic_boxes = self.build_grating_torcwa()
+                axs[0].plot(fine_grids/2000.0*init_Nx,analytic_boxes[:])
+                self.Nx = init_Nx
+                torcwa.rcwa_geo.nx = self.Nx            
+                torcwa.rcwa_geo.grid()
 
-        if show_box_edges:
-            box1_left_edge = 0.02*self.grating_pitch  # TODO: save preset 0.02 value (used here and in build_grating()) somewhere accessible
-            box1_right_edge = box1_left_edge + self.box1_width
-            box1_centre = (box1_left_edge + box1_right_edge)/2
-            box2_left_edge = box1_centre + self.box_centre_dist - self.box2_width/2 
-            box2_right_edge = box2_left_edge + self.box2_width
+        # TODO: Needs to be adapted to TORCWA with self.to_numpy
+        #  if show_box_edges
+        #     box1_left_edge = 0.02*p  # TODO: save preset 0.02 value (used here and in build_grating()) somewhere accessible
+        #     box1_right_edge = box1_left_edge + self.to_numpy(self.box1_width)
+        #     box1_centre = (box1_left_edge + box1_right_edge)/2
+        #     box2_left_edge = box1_centre + self.box_centre_dist - self.box2_width/2 
+        #     box2_right_edge = box2_left_edge + self.box2_width
 
-            vlines = self.Nx/self.grating_pitch*np.array([box1_left_edge, box1_right_edge, box2_left_edge, box2_right_edge])
-            # colors = ["tab:orange", "tab:orange", "tab:orange", "tab:orange"]
-            ymax = [self.box1_eps, self.box1_eps, self.box2_eps, self.box2_eps]
-            for v, y in zip(vlines,ymax):
-                axs[0].axvline(v, ymax=y, color="tab:orange", linestyle="--")
-        
+        #     vlines = self.Nx/self.grating_pitch*np.array([box1_left_edge, box1_right_edge, box2_left_edge, box2_right_edge])
+        #     # colors = ["tab:orange", "tab:orange", "tab:orange", "tab:orange"]
+        #     ymax = [self.box1_eps, self.box1_eps, self.box2_eps, self.box2_eps]
+        #     for v, y in zip(vlines,ymax):
+                # axs[0].axvline(v, ymax=y, color="tab:orange", linestyle="--")  
         plt.show()
         return x0, eps_array_real, fig, axs
     
@@ -1217,11 +1348,13 @@ class TwoBox:
 
         efficiencies = np.zeros((6,num_plot_points), dtype=float)
         for idx, theta in enumerate(inc_angles):
-            self.angle = theta
+            # Calculate efficiencies for each order
+            self.angle = self.npa.array(theta)
             Rs,Ts = self.eff()
-            efficiencies[:3,idx] = Rs
-            efficiencies[3:,idx] = Ts
-        self.angle = init_angle  # reset user-initialised angle
+            efficiencies[:3,idx] = self.to_numpy(Rs)
+            efficiencies[3:,idx] = self.to_numpy(Ts)
+            
+        self.angle = init_angle # reset user-initialised angle
 
 
         fig, ax = plt.subplots(1)           
@@ -1244,7 +1377,7 @@ class TwoBox:
         eff_sum = np.sum(efficiencies[:6,:],axis=0)
         ax.plot(inc_angles, eff_sum, color=(0, 0.7, 0), linestyle='-', label=r"$\Sigma (r_i + t_i)$", lw = LINE_WIDTH) 
 
-        ax.set(title=rf"$\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda$, \
+        ax.set(title=rf"{self.title} $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda$, \
                $h_1' = {self.grating_depth/self.wavelength:.3f}\lambda$, $\lambda$ = {self.wavelength:.7f}~$\mu$m"
             , xlabel=r"Incident angle, $\delta$ (°)"
             , ylabel="Efficiency")
@@ -1262,7 +1395,32 @@ class TwoBox:
         
         return fig, ax
 
-    def show_spectrum(self, angle: float=0., efficiency_quantity: str="PDr", wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9):
+# the following functions for plotting and debugging autograd/torch
+    def rNeg1(self, angle):
+        self.angle = angle
+        ra,_ = self.eff()
+        # r = ra[1]
+        r = ra[0]
+        return r
+
+
+    def tNeg1(self, angle):
+        self.angle = angle
+        _,ta= self.eff()
+        t=ta[0]
+        return t
+
+    def PDrNeg1(self, angle):
+        a=self.npa.grad(self.rNeg1)(self.npa.array(angle))
+        return a
+
+
+    def PDtNeg1(self, angle):
+        a=self.npa.grad(self.tNeg1)(self.npa.array(angle))
+        return a
+# end debug functions
+
+    def show_spectrum(self, angle: float=0., efficiency_quantity: str="PDr", wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9, grad_method: str="grad"):
         """
         Show spectrum of various efficiency quantities for the twobox.
 
@@ -1292,6 +1450,7 @@ class TwoBox:
         wavelengths = np.linspace(*wavelength_range, num_plot_points)
         init_wavelength = self.wavelength  # record user-initialised wavelength
         inc_angle_deg = angle*180/np.pi
+     
 
 
         RT_orders = [-1,0,1]
@@ -1302,13 +1461,15 @@ class TwoBox:
             self.wavelength = lam
             
             if efficiency_quantity == "r" or efficiency_quantity == "t":
-                Rs,Ts = self.eff()
-                efficiencies[:n_orders,idx] = Rs
-                efficiencies[n_orders:,idx] = Ts
+                Rs,Ts = self.RT()
+                efficiencies[:n_orders,idx] = self.to_numpy(Rs)
+                efficiencies[n_orders:,idx] = self.to_numpy(Ts)
             elif efficiency_quantity == "PDr":
-                efficiencies[0,idx] = self.PDrNeg1(angle)
+                efficiencies[0,idx] = self.to_numpy(self.PDrNeg1(angle)) # this removes the autograd function -- ok for plotting            
             elif efficiency_quantity == "PDt":
-                efficiencies[0,idx] = self.PDtNeg1(angle)
+                efficiencies[0,idx] = self.to_numpy(self.PDtNeg1(angle)) # this removes the autograd function -- ok for plotting
+                
+
             elif efficiency_quantity == "FoM":
                 efficiencies[0,idx] = self.FoM(I=I, grad_method="grad")
 
@@ -1317,8 +1478,8 @@ class TwoBox:
 
 
         fig, ax = plt.subplots(1)         
-        p = self.grating_pitch
-        ax.set_xlim(np.array(wavelength_range)/p)  # normalise wavelength to grating pitch
+        p = self.to_numpy(self.grating_pitch)
+        ax.set_xlim(wavelength_range/p)  # normalise wavelength to grating pitch
         legend_needed = ("r", "t")
         symlog_needed = ("PDr", "PDt")
 
@@ -1331,7 +1492,7 @@ class TwoBox:
             # 1 order
             ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$r_1'$", lw = LINE_WIDTH) 
             ax.set_ylim([-0.01, 1.01]) 
-            ylabel = rf"Reflection at $\theta' = {inc_angle_deg}°$"
+            ylabel = rf"Reflection at $\theta' = {inc_angle_deg:.2f}°$"
         elif efficiency_quantity == "t":
             # -1 order
             ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$r_{-1}'$", lw = LINE_WIDTH)
@@ -1343,13 +1504,13 @@ class TwoBox:
             ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$r_1'$", lw = LINE_WIDTH) 
             ax.plot(wavelengths/p, efficiencies[5], color=(0, 0, 0.7), linestyle='-.', label="$t_1'$", lw = LINE_WIDTH) 
             ax.set_ylim([-0.01, 1.01]) 
-            ylabel = rf"Efficiency at $\theta' = {inc_angle_deg}°$"
+            ylabel = rf"Efficiency at $\theta' = {inc_angle_deg:.2f}°$"
         elif efficiency_quantity == "PDr":
             ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', lw = LINE_WIDTH) 
-            ylabel = rf"$\frac{{\partial r_{{-1}}'}}{{\partial\theta'}}({inc_angle_deg}°)$"
+            ylabel = rf"$\frac{{\partial r_{{-1}}'}}{{\partial\theta'}}({inc_angle_deg:.2f}°)$"
         elif efficiency_quantity == "PDt":
             ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', lw = LINE_WIDTH) 
-            ylabel = rf"$\frac{{\partial t_{{-1}}'}}{{\partial\theta'}}({inc_angle_deg}°)$"
+            ylabel = rf"$\frac{{\partial t_{{-1}}'}}{{\partial\theta'}}({inc_angle_deg:.2f}°)$"
 
         elif efficiency_quantity=="FoM":
             ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', lw = LINE_WIDTH) 
@@ -1369,7 +1530,7 @@ class TwoBox:
 
         ax.axhline(y=0, color='black', linestyle='-', lw = '1')
         ax.tick_params(axis='both', which='both', direction='in') # ticks inside box
-        ax.set(title=rf"$h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$", xlabel=r"$\lambda'/\Lambda'$", ylabel=ylabel)
+        ax.set(title=rf"{self.title} $h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$", xlabel=r"$\lambda'/\Lambda'$", ylabel=ylabel)
 
 
         cm_to_inch = 0.393701
@@ -1403,11 +1564,11 @@ class TwoBox:
         init_wavelength = self.wavelength  # record user-initialised wavelength
 
         ## CALCULATE EIGS ##
-        eigvals = np.zeros((4,num_plot_points), dtype=np.complex128)
+        eigvals = self.npa.zeros((4,num_plot_points), dtype=np.complex128)
         
         for idx, lam in enumerate(wavelengths):
             # Calculate eigs for each order
-            self.wavelength = lam
+            self.wavelength = self.npa.array(lam)
             real, imag = self.Eigs(I=I,m=m,c1=c, grad_method="grad", return_vec=False)
             eigvals[:,idx] = real + 1j*imag
             
@@ -1417,18 +1578,17 @@ class TwoBox:
         # I'm assuming the dummy subplot creates spacing between the two other subplots
         fig, (ax1, dummy, ax2) = plt.subplots(nrows=1, ncols=3, width_ratios=(1,0.1,1))
         dummy.axis('off')
-        p = self.grating_pitch
-        
-        ax1.set_xlim(np.array(wavelength_range)/p) 
-        ax2.set_xlim(np.array(wavelength_range)/p) 
+        p = self.to_numpy(self.grating_pitch)
+        ax1.set_xlim(np.array(wavelength_range)/p) # normalise to grating pitch
+        ax2.set_xlim(np.array(wavelength_range)/p) # normalise to grating pitch
         ax2.yaxis.tick_right()
         ax2.yaxis.set_label_position("right")
 
         colorReal = (0.7, 0, 0)
         colorImag = 'blue'
         for i in range(4):            
-            ax1.plot(wavelengths/p,np.real(eigvals[i,:]), marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-            ax2.plot(wavelengths/p,np.imag(eigvals[i,:]), marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
+            ax1.plot(wavelengths/p,np.real(self.to_numpy(eigvals[i,:])), marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
+            ax2.plot(wavelengths/p,np.imag(self.to_numpy(eigvals[i,:])), marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
             
 
         if eig_real_log_axis:
@@ -1476,6 +1636,7 @@ class TwoBox:
         efficiency_quantity :   Which efficiency quantity you want spectrum for ("r" - reflection, "PDr" - reflection angular derivative, "t" - transmission, "PDr" - transmission angular derivative)
         depth_range         :   Depth range to plot spectrum (normalised to wavelength)
         num_plot_points     :   Number of points to plot
+        NOTE: unchaned for Torcwa as no GRCWA/autograd used
         """
         ### Setup ###
         allowed_quantities = ("r", "t", "PDr", "PDt")
@@ -1500,12 +1661,12 @@ class TwoBox:
             self.grating_depth = d
             if efficiency_quantity == "r" or efficiency_quantity == "t":
                 Rs,Ts = self.eff()
-                efficiencies[:n_orders,idx] = Rs
-                efficiencies[n_orders:,idx] = Ts
+                efficiencies[:n_orders,idx] = self.to_numpy(Rs)
+                efficiencies[n_orders:,idx] = self.to_numpy(Ts)
             elif efficiency_quantity == "PDr":
-                efficiencies[0,idx] = self.PDrNeg1(angle)
+                efficiencies[0,idx] =self.to_numpy(self.PDrNeg1(angle))
             elif efficiency_quantity == "PDt":
-                efficiencies[0,idx] = self.PDtNeg1(angle)
+                efficiencies[0,idx] = self.to_numpy(self.PDtNeg1(angle))
         self.grating_depth = init_depth # restore user-initialised wavelength
 
 
@@ -1525,7 +1686,7 @@ class TwoBox:
             # 1 order
             ax.plot(heights, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$r_1'$", lw = LINE_WIDTH) 
             ax.set_ylim([-0.01, 1.01]) # displace from zero to see the transition to evanescence
-            ylabel = rf"Reflection at $\theta' = {inc_angle_deg}°$"
+            ylabel = rf"Reflection at $\theta' = {inc_angle_deg:.2f}°$"
         elif efficiency_quantity == "t":
             # -1 order
             ax.plot(heights, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$r_{-1}'$", lw = LINE_WIDTH)
@@ -1537,13 +1698,13 @@ class TwoBox:
             ax.plot(heights, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$r_1'$", lw = LINE_WIDTH) 
             ax.plot(heights, efficiencies[5], color=(0, 0, 0.7), linestyle='-.', label="$t_1'$", lw = LINE_WIDTH) 
             ax.set_ylim([-0.01, 1.01]) # displace from zero to see the transition to evanescence
-            ylabel = rf"Efficiency at $\theta' = {inc_angle_deg}°$"
+            ylabel = rf"Efficiency at $\theta' = {inc_angle_deg:.2f}°$"
         elif efficiency_quantity == "PDr":
             ax.plot(heights, efficiencies[0], color=(0.7, 0, 0), linestyle='-', lw = LINE_WIDTH) 
-            ylabel = rf"$\frac{{\partial r_{{-1}}'}}{{\partial\theta'}}({inc_angle_deg}°)$"
+            ylabel = rf"$\frac{{\partial r_{{-1}}'}}{{\partial\theta'}}({inc_angle_deg:.2f}°)$"
         elif efficiency_quantity == "PDt":
             ax.plot(heights, efficiencies[0], color=(0.7, 0, 0), linestyle='-', lw = LINE_WIDTH) 
-            ylabel = rf"$\frac{{\partial t_{{-1}}'}}{{\partial\theta'}}({inc_angle_deg}°)$"
+            ylabel = rf"$\frac{{\partial t_{{-1}}'}}{{\partial\theta'}}({inc_angle_deg:.2f}°)$"
 
         # Optional plotting
         if efficiency_quantity in legend_needed:
@@ -1559,7 +1720,7 @@ class TwoBox:
         # Axis labels
         ax.axhline(y=0, color='black', linestyle='-', lw = '1')
         ax.tick_params(axis='both', which='both', direction='in') # ticks inside box
-        ax.set(title=rf"$\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda$", xlabel=r"$h_1'/\lambda$", ylabel=ylabel)
+        ax.set(title=rf"{self.title} Efficiencies at $\theta' = {inc_angle_deg:.2f}°$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda$", xlabel=r"$h_1'/\lambda$", ylabel=ylabel)
 
         # Modify axes
         cm_to_inch = 0.393701
@@ -1572,21 +1733,29 @@ class TwoBox:
 
     def calculate_y_fields(self, height):
         """
-        Calculate Ey fields on the grid at a fixed z height
+        Return Ey on the grid at a fixed height
 
         Parameters
         ----------
         height :   Height to calculate field
-
-        Returns
-        -------
-        Ey :   y-component of electric field 
+        TODO: check TORCWA returns same orientation/order as GRCWA
         """
-
-        self.init_RCWA()
-        fields = self.RCWA.Solve_FieldOnGrid(1,height)
-        Efield = fields[0]
-        Ey = np.transpose(Efield[1])
+        if self.RCWA_engine == 'GRCWA':
+            self.init_RCWA()
+            if(height<=self.grating_depth and height>=0): # in grating layer
+                fields = self.RCWA.Solve_FieldOnGrid(1,height) # above grating
+                Efield = fields[0]
+                Ey = np.transpose(Efield[1])
+            elif(height>self.grating_depth): # above  grating
+                Ey = np.zeros((self.Nx,1)) # self.RCWA.Solve_FieldOnGrid(2,height) 
+            else:            # below grating
+                Ey = np.zeros((self.Nx,1)) # self.RCWA.Solve_FieldOnGrid(0,height)
+            
+        elif self.RCWA_engine == 'TORCWA':
+            self.init_TORCWA()
+            self.RCWA.source_planewave(amplitude=[0,1.],direction='forward')
+            z=self.npa.array([height])
+            [Ex, Ey, Ez], [Hx, Hy, Hz] = self.to_numpy(self.RCWA.field_xz(torcwa.rcwa_geo.x,z,0))
         return Ey
 
     def show_fields(self, heights: np.ndarray, field_output: str="real", fill_style: str="gouraud", show_eps_profile: bool=False):
@@ -1599,6 +1768,7 @@ class TwoBox:
         heights          :   z heights to calculate fields
         fill_style       :   Field plot shading style (passed to pcolormesh)
         show_eps_profile :   Overlay permittivity profile onto fields 
+        NOTE: unchaned for Torcwa as no GRCWA/autograd used
 
         Returns
         -------
@@ -1608,7 +1778,7 @@ class TwoBox:
 
         Eys = np.zeros((len(heights), self.Nx), dtype=np.complex128)  # must be complex to assign complex Ey to Eys
         for idx, d in enumerate(heights):
-            Eys[idx,:] = self.calculate_y_fields(d)
+            Eys[idx,:] = self.calculate_y_fields(d).flatten()
 
         if field_output == "real":
             Eys = np.real(Eys)
@@ -1639,6 +1809,8 @@ class TwoBox:
 
         fig, axs = plt.subplots(nrows=1, ncols=1)
         
+        p=self.to_numpy(self.grating_pitch)
+        grating_depth=self.to_numpy(self.grating_depth)
         if show_eps_profile:
             axs2 = axs.twinx()
             
@@ -1654,8 +1826,7 @@ class TwoBox:
             axs2.set(ylabel=r"$\varepsilon$")
             axs2.set_ylim(bottom=eps_min, top=eps_max)
             axs2.yaxis.label.set_color(eps_color)
-        
-        E_mesh = axs.pcolormesh(x0, heights/self.grating_pitch, Eys, vmin=vmin, vmax=vmax, shading=fill_style, cmap='hot')
+        E_mesh = axs.pcolormesh(x0, heights/p, Eys, vmin=vmin, vmax=vmax, shading=fill_style, cmap='hot')
 
 
         # Create an axes on the right side of ax. The width of cax will be x%
@@ -1669,16 +1840,176 @@ class TwoBox:
         fig.colorbar(E_mesh, label=cbar_label, cax=cax)
 
 
-        axs.set_title(label=rf"$\Lambda'={self.grating_pitch:.4f}\lambda_0$")
+        axs.set_title(label=rf"{self.title}$\Lambda'={p:.4f}\lambda_0$")
         axs.set(xlabel=r"$x'/\Lambda'$", ylabel=r"$z'/\Lambda'$")
-
+        axs.set_ylim(bottom=np.min(heights), top=np.max(heights))
+        axs.set_aspect('equal')
         
         fig_mult = 4
         fig_width = 9
-        if self.grating_depth/self.grating_pitch < 0.2:
-            fig_height = 3*self.grating_depth/self.grating_pitch*fig_mult
-        else:
-            fig_height = self.grating_depth/self.grating_pitch*fig_mult
-        fig.set_size_inches(fig_width, fig_height)
+        
+        
+        # if grating_depth/p < 0.2:
+        #     fig_height = 3*grating_depth/p*fig_mult
+        # else:
+        #     fig_height = grating_depth/p*fig_mult
+        # fig.set_size_inches(fig_width, fig_height)
         
         return fig, axs
+    
+# TORCWA methods
+    def init_TORCWA(self):
+        """
+        Initialise the TORCWA solver
+        """
+        # empty GPU cache to avoid memory issues
+        # torch.cuda.empty_cache()
+        # Grating
+        # To simulate a 1D grating, take a small periodicity in the y-direction. 
+        # The grating is in the x-direction.
+        dy = 1e-4 
+        L1 = [1.,0]
+        L2 = [0,dy] 
+        # testing if this helps with jacobian
+        # self.wavelength=self.npa.array(self.wavelength) #,dtype=geo_dtype,device=device)
+        # end test
+        freq = self.npa.array(1/self.wavelength,dtype=geo_dtype,device=device) # freq = 1/wavelength when c = 1
+        # freq=1.0/self.wavelength
+        freqcmp = freq*(1+1j/2/self.Qabs)
+
+        # Incoming wave
+        theta = self.angle # radians
+        phi = 0.
+
+        # setup TORCWA
+        # geometry
+        L = [self.grating_pitch, dy]            # nm / nm size of unit cell
+        torcwa.rcwa_geo.dtype = geo_dtype
+        torcwa.rcwa_geo.device = device
+        torcwa.rcwa_geo.Lx = L[0]
+        torcwa.rcwa_geo.Ly = L[1]
+        torcwa.rcwa_geo.nx = self.Nx
+        torcwa.rcwa_geo.ny = 2 # np.min(self.Ny,2) # 2 minimum for 2d simulation displaying ? 
+        torcwa.rcwa_geo.grid()
+        torcwa.rcwa_geo.edge_sharpness = self.torcwa_edge_sharpness
+        sim = torcwa.rcwa(freq=freq,order=[self.nG,0],L=L,dtype=sim_dtype,device=device,stable_eig_grad=False) # 4/3/25 added stable_eig_grad=False to debug jacobian not working 
+            # Without this flag, self.Eig doesn't work, but with it, grad sometmies returns ill defined eigenvector error when calling grad, instead of NaN - both it seems only for orders past cutoff (tbc)
+        
+        ## CREATE LAYERS ##
+        eps_vacuum = 1        
+        sim.add_input_layer(eps=eps_vacuum) # input and output layers are eps=mu=1 by default, so this line not needed
+        sim.set_incident_angle(inc_ang=theta,azi_ang=phi)     # for some reason throws an error in solve_global_smatrix if this line is before defining input layer   
+        self.build_grating_torcwa()
+        sim.add_layer(thickness=self.grating_depth,eps=self.grating_grid_torcwa)
+        sim.add_layer(thickness=self.substrate_depth,eps=self.substrate_eps)
+        sim.solve_global_smatrix()
+        self.RCWA = sim
+        
+
+    def build_grating_torcwa(self):
+        """
+        Build the grating for the TORCWA solver using the twobox parameters
+        no care taken for autograd, assuming torcwa/torch will handle this
+        """
+        # layers
+        dy=1e-4
+        L = [self.grating_pitch, dy]                    
+        Lam = self.grating_pitch
+        w1 = self.box1_width
+        w2 = self.box2_width
+        bcd = self.box_centre_dist
+        x1 = w1/2 + 0.02*Lam # box1 centre location (offset to avoid left box left edge clipping)    
+        x2 = x1 + bcd # box2 centre location    
+        eb1 = self.box1_eps
+        eb2 = self.box2_eps
+        box1_bool = torcwa.rcwa_geo.rectangle(Wx=w1,Wy=L[1],Cx=x1,Cy=L[1]/2.) # width, heigh, centerx, centery
+        box2_bool = torcwa.rcwa_geo.rectangle(Wx=w2,Wy=L[1],Cx=x2,Cy=L[1]/2.) # width, heigh, centerx, centery
+        layer0_bool=torcwa.rcwa_geo.union(box1_bool,box2_bool)
+        layer0_eps =eb1*box1_bool+eb2*box2_bool + (1.-layer0_bool)
+        self.grating_grid_torcwa = layer0_eps
+        try: # when called to calculate gradient functions rather than values, tensors are virtual - do not copy to grating_grid
+            self.grating_grid = self.to_numpy(layer0_eps)
+        except:
+            self.grating_grid =np.zeros((self.Nx,0))
+        return self.grating_grid
+
+    def return_epsilon(self):
+        p=self.to_numpy(self.grating_pitch)
+        x0 = np.linspace(0,p,self.Nx, endpoint=False)
+    
+        if self.RCWA_engine == 'TORCWA':
+            self.init_TORCWA() 
+            #Torcwa does not need flipping this array - check x axis conventions?           
+            eps_array=self.to_numpy(self.RCWA.return_layer(0,self.Nx,1)[0])
+                
+        elif self.RCWA_engine == 'GRCWA':
+            self.init_RCWA()
+            eps_array = self.RCWA.Return_eps(which_layer=1,Nx=self.Nx,Ny=self.Ny,component='xx')
+            # flip to match ordering of desired eps vs grid number - 
+            eps_array = np.flip(eps_array)
+
+        return x0,eps_array
+    def to_numpy(self,x):
+        """ Converts tensors, autograd arrays or numpy arrays, or list or tuples of these
+          (including mixed tuples) to numpy arrays (or tuples of these). For scalars, output are native python, not numpy, for 
+          easier readability in print statements,
+          All results are separated from gradient information.
+        """        
+        if isinstance(x,(list,tuple)):        
+            result = []
+            for item in x:
+                if isinstance(item, torch.Tensor):
+                    # Convert tensor to numpy array.
+                    if item.numel()==1:
+                        result.append(item.item())
+                    else:
+                        result.append(item.detach().cpu().numpy())
+                elif(isinstance(item, (tuple,list))):
+                    # nested tuple -> recurse
+                    result.append(self.to_numpy(item)) # recurse for nested tuples
+                elif ArrayBox is not None and isinstance(x, ArrayBox):
+                    # autograd array
+                    if item.size==1:
+                        result.append(np.asarray(x).item())
+                    else:
+                        result.append(np.array(item))
+                    
+                elif isinstance(item, (np.ndarray)):
+                    result.append(np.array(item))
+                elif np.isscalar(item):
+                    result.append(item)
+                else:
+                    raise TypeError(f"to_numpy Unsupported type: {type(item)}")
+            if isinstance(x,tuple):
+                if len(result)==1:
+                    return result[0]
+                else:
+                    return tuple(result)        
+            else:
+                return result
+        else:        
+            if(isinstance(x, torch.Tensor)):
+                return x.detach().cpu().numpy()
+            else:
+                return np.array(x)
+        
+    def grating_orders(self):
+        """ return list of grating orders given current wavelenth and incident angle """
+        # if np.isnan(self.to_numpy(wavelength)): wavelength=self.to_numpy(self.wavelength) 
+        # if np.isnan(self.to_numpy(angle)): angle=self.to_numpy(self.angle)
+        angle=self.angle
+        wavelength=self.wavelength
+        p=self.grating_pitch
+        # Calculate the maximum possible diffraction order
+        m_max = self.npa.int(((p / wavelength) * (1 - self.npa.sin(angle))))
+        # Initialize a list to store the valid diffraction orders
+        orders = []
+        # Iterate over possible diffraction orders from -m_max to m_max
+        for m in range(-m_max-1, m_max + 1):
+            # Calculate sin(θ_m) using the grating equation
+            sin_theta_m = (m * wavelength / p) + self.npa.sin(angle)
+            # Check if sin(θ_m) is within the valid range [-1, 1]
+            if -1 <= sin_theta_m <= 1:
+                orders.append(m)
+        return orders
+    
