@@ -1,7 +1,7 @@
 """
 Script for running local optimisation on a given starting twobox grating.
 
-In particular, the local optimisation is designated to run on a chosen grating that comes from the global optimisation 
+In particular, the local optimisation is best suited to run on a chosen grating that comes from the global optimisation 
 in run_parallel.py. It is good practice to run the local optimiser on the results produced by the global optimiser
 to polish/hone the FOM to higher precision and eek out slightly better FOM values.
 
@@ -28,7 +28,6 @@ sys.path.append('../')
 
 import parameters
 import opt
-import run_parallel
 
 
 # EXTRACT OPTIMISATION RESULT ####################################################################################################################################################################################
@@ -37,7 +36,7 @@ num_cores = 18
 global_maxfev = 500
 pkl_fname = f'./Data/FOM_optimisation_maxfev{num_cores*global_maxfev}'
 txt_fname = f'./Data/MdSnpminOpt_maxfev{num_cores*global_maxfev}_LO.txt'  # save results to text file
-_, _, opt_grating = opt.extract_opt(pkl_fname, num_processes=18, output_opt_idx=0)  
+_, _, opt_grating = opt.extract_opt(pkl_fname, num_processes=num_cores, output_opt_idx=0)  
 
 
 # PARAMETERS ####################################################################################################################################################################################
@@ -47,7 +46,8 @@ init_grating = deepcopy(opt_grating)
 # so it shouldn't get caught on unphysical optima (this was a problem for non-rotation optimisation,
 # but I haven't seen it since then)
 init_grating.Qabs = np.inf 
-wavelength, angle, Nx, nG, _, goal, final_speed, return_grad = parameters.opt_Parameters()
+final_speed = 20.  # percentage of c
+wavelength, angle, Nx, nG, _, goal, _, return_grad = parameters.opt_Parameters()
 
 xtol_rel = 1e-7
 ftol_rel = 1e-14
@@ -59,7 +59,21 @@ ndof = 10
 param_bounds = parameters.param_bounds
 init = init_grating.params
 
-objective = run_parallel.objective
+def objective(params):
+    grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = params
+    init_grating.grating_pitch   = grating_pitch
+    init_grating.grating_depth   = grating_depth
+    init_grating.box1_width      = box1_width
+    init_grating.box2_width      = box2_width
+    init_grating.box_centre_dist = box_centre_dist
+    init_grating.box1_eps        = box1_eps
+    init_grating.box2_eps        = box2_eps
+    init_grating.gaussian_width  = gaussian_width
+    init_grating.substrate_depth = substrate_depth
+    init_grating.substrate_eps   = substrate_eps
+
+    return opt.FOM_uniform(init_grating, final_speed, goal, return_grad)
+
 init_objective = objective(init)[0]
 
 
@@ -77,7 +91,6 @@ def fun_nlopt(params,gradn):
     bcd_redundancy = opt.bcd_redundant(params,gradn)
     box_overlap = opt.boxes_overlap(params,gradn)
     box_clipping = opt.boxes_clip_unit_cell(params,gradn) 
-    
     
     step = (ctrl, y, params, box1_wide, box2_wide, bcd_redundancy, box_overlap, box_clipping)
     steps.append(step)
