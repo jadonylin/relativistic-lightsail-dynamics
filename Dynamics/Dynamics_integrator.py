@@ -23,8 +23,9 @@ wavelength = 1
 # The efficiency factors are too expensive to calculate in real time, so pre-calculated tables are used.
 klambda = 1000
 kdelta = 1000
-runID_load = "MdSnpminOpt20_lsa"
-nonlinear_run = False  # Flag to load the nonlinear data and acceleration function
+runID_load = "MdSnpminOpt20"
+nonlinear_run = True  # Flag to load the nonlinear data and acceleration function
+damping_scaler = 0.
 
 if nonlinear_run:
     lookup_data_fname = f'./Data/{runID_load}_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
@@ -42,7 +43,7 @@ if nonlinear_run:
     accel_args = (w, interpolation_funcs)  # Passed to accel
 else:
     accel = forces.aM_linear  
-    accel_args = (w, interpolation_funcs, 1.)  
+    accel_args = (w, interpolation_funcs, damping_scaler)  
 
 ## Optimisation parameters and initial conditions ##
 x0 = 0
@@ -73,11 +74,11 @@ omega0  = -0.05*2*np.pi  # revolutions per second converted to radians per secon
 
 
 Y0 = np.array([x0,y0,phi0,vx0,vy0,omega0])
-time_MAX = 24.*60*60  # Maximum runtime (seconds)
+time_MAX = 0.25*60*60  # Maximum runtime (seconds)
 # time_MAX = 1  # Maximum runtime (seconds)
 velocity_MAX = 0.2*c
-h = 1e-4   # Step size  
-runID = "MdSnpminOpt20_lsa"  # Added to the output data filename
+h = 1e-2   # Step size  
+runID = "MdSnpminOpt20_lsa_no_damping"  # Added to the output data filename
 
 positions, angles, times, accels, loop_data = odecmvint(accel, Y0, time_MAX, velocity_MAX, args=accel_args, hstep=h)
 
