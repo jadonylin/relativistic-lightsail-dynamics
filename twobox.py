@@ -195,8 +195,8 @@ class TwoBox:
         self.box1_width = self.npa.array(float(box1_width))
         self.box2_width = self.npa.array(float(box2_width))
         self.box_centre_dist = self.npa.array(float(box_centre_dist))
-        self.box1_eps = self.npa.array(complex(box1_eps))
-        self.box2_eps = self.npa.array(complex(box2_eps))
+        self.box1_eps = self.npa.array(float(box1_eps)) # complex causes problems with FOM (adaptive? gradient? not clear)
+        self.box2_eps = self.npa.array(float(box2_eps))  # complex causes problems with FOM (adaptive? gradient? not clear)
         
         self.gaussian_width=self.npa.array(float(gaussian_width))
         self.substrate_depth = self.npa.array(float(substrate_depth))
@@ -1008,8 +1008,8 @@ class TwoBox:
         # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
         #          negative eigenvalue with the smallest real part. 
         FD = self.npa.min(-eigReal)  # standard minimum
-        # FD = npa.sum(-eigReal*softmin(-eigReal,1.))  # softened minimum
-        
+        # FD = self.npa.sum(-eigReal*self.npa.softmin(-eigReal,1.))  # softened minimum
+        # FD=eigReal[0]
         return FD
 
     def FoM_quality_factor(self, I:float=1e9, grad_method: str="finite") -> float:
@@ -1182,9 +1182,14 @@ class TwoBox:
 
         match out:
             case "tr":
-                return self.npa.array([fy_y, fy_phi, fy_vy, fy_vphi, fphi_y, fphi_phi, fphi_vy, fphi_vphi])
+                return self.npa.stack((fy_y, fy_phi, fy_vy, fy_vphi, fphi_y, fphi_phi, fphi_vy, fphi_vphi))
             case "rd":
-                return self.npa.array([fy_y, fy_phi, fphi_y, fphi_phi, fy_vy, fy_vphi, fphi_vy, fphi_vphi])
+                return self.npa.stack((fy_y, fy_phi, fphi_y, fphi_phi, fy_vy, fy_vphi, fphi_vy, fphi_vphi))
+            case "mat":
+                row1=self.npa.stack((fy_y, fy_phi,fy_vy, fy_vphi ))
+                row2=self.npa.stack(( fphi_y, fphi_phi, fphi_vy, fphi_vphi))                                    
+                mat=self.npa.stack((row1,row2))
+                return mat
             case _:
                 raise ValueError("Invalid output format. Must be 'tr' or 'rd'.")
             
@@ -1207,10 +1212,13 @@ class TwoBox:
         eigvecs :   Eigenvectors of Jacobian matrix
         """
 
-        stiffnesses = self.sail_stiffness(I,m,c1,grad_method,out="tr")
+        # stiffnesses = self.sail_stiffness(I,m,c1,grad_method,out="tr")
+        stiffnesses = self.sail_stiffness(I,m,c1,grad_method,out="mat")
 
         # Build the Jacobian matrix
-        J = self.npa.array([[0,0,1,0],[0,0,0,1],[*stiffnesses[:4]],[*stiffnesses[4:]]])
+        # J = self.npa.array([[0,0,1,0],[0,0,0,1],[*stiffnesses[:4]],[*stiffnesses[4:]]])
+        J=self.npa.concatenate((self.npa.array([[0,0,1,0],[0,0,0,1]]),stiffnesses))
+        # J = self.npa.concatenate([[0,0,1,0],[0,0,0,1],[*stiffnesses[:4]],[*stiffnesses[4:]]])
 
         # Find the real part of eigenvalues    
         eigvalvec = self.npa.eig(J)
@@ -2039,3 +2047,32 @@ class TwoBox:
                 orders.append(m)
         return orders
     
+    # needed for pickling - removes autograd information, written by chatgpt
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # remove parts that can't be pickled
+        if 'RCWA' in state:
+            del state['RCWA']
+            del state['npa']
+        return self.detach_tensors(state)
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # may need to add RCWA/TORCWA init, and redefine npa as these are not pickled.
+    
+    def detach_tensors(self,obj):
+        if isinstance(obj, torch.Tensor):
+            return obj.detach()
+        elif isinstance(obj, list):
+            return [self.detach_tensors(x) for x in obj]
+        elif isinstance(obj, tuple):
+            return tuple(self.detach_tensors(x) for x in obj)
+        elif isinstance(obj, dict):
+            return {k: self.detach_tensors(v) for k, v in obj.items()}
+        elif hasattr(obj, '__dict__'):
+            # If the object is a custom class instance, create a shallow copy
+            # and recursively detach tensors in its __dict__
+            new_obj = obj.__class__.__new__(obj.__class__)
+            new_obj.__dict__ = self.detach_tensors(obj.__dict__)
+            return new_obj
+        else:
+            return obj
