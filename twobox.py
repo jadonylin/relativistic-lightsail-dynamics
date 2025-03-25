@@ -229,6 +229,24 @@ class TwoBox:
         else:
             raise ValueError("Invalid RCWA engine. Choose 'GRCWA' or 'TORCWA'.")
 
+    @property
+    def params(self):
+        # Manipulate self.params instance variable using getter and setter properties rather than defining
+        # in __init__. Also, need to define self.params here instead of in __init__. Both of these are
+        # needed in order for user changes to instance variables to update self.params (and vice versa). 
+        self._params = [self.grating_pitch, self.grating_depth, 
+                       self.box1_width, self.box2_width, self.box_centre_dist, self.box1_eps, self.box2_eps, 
+                       self.gaussian_width, self.substrate_depth, self.substrate_eps]
+        return self._params
+    
+    @params.setter
+    def params(self, new_params):
+        self._params = new_params
+        (self.grating_pitch, self.grating_depth, 
+        self.box1_width, self.box2_width, self.box_centre_dist, self.box1_eps, self.box2_eps, 
+        self.gaussian_width, self.substrate_depth, self.substrate_eps) = new_params
+        self.build_grating_gradable()  # TODO: I think every instance method calls init_RCWA, so this is not needed
+
     def build_grating(self):
         """
         Build the grating permittivity grid as an array of permittivities based on initialised box parameters. 
@@ -269,6 +287,15 @@ class TwoBox:
         return self.npa.array(grating)
 
     def build_grating_gradable(self, sigma: float=100.):
+        if self.RCWA_engine == 'GRCWA':
+            self.build_grating_GRCWA(sigma)
+
+        elif self.RCWA_engine == 'TORCWA':            
+            self.build_grating_torcwa()
+        else:
+            raise ValueError("Invalid RCWA engine. Choose 'GRCWA' or 'TORCWA'.")
+        
+    def build_grating_GRCWA(self, sigma: float=100.):
         """
         Build the grating permittivity grid as an array of permittivities based on initialised box parameters. 
         

@@ -30,7 +30,7 @@ sys.path.append("../")
 from parameters import Parameters, D1_ND, Initial_bigrating, opt_Parameters
 I0, L, m, c = Parameters()
 _, angle, Nx, nG, Qabs, goal, final_speed, _ = opt_Parameters()
-from twobox import TwoBox, softmin
+from twobox import TwoBox
 
 
 

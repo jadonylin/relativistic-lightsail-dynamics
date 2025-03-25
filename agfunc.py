@@ -70,6 +70,8 @@ class agfunc:
             self.softmax = self._softmax
             self.linspace=npa.linspace
             self.minimum=npa.minimum
+            self.min=npa.min
+            self.max=npa.max
             self.sort=npa.sort
             self.diff=npa.diff
             self.append=npa.append
@@ -104,6 +106,8 @@ class agfunc:
             self.softmax = self._softmax_torch
             self.linspace=torch.linspace
             self.minimum=torch.minimum
+            self.min=torch.min
+            self.max=torch.max
             self.sort=lambda x: torch.sort(x)[0]
             self.diff=torch.diff
             self.append=lambda x,y: torch.cat((x,y),dim=0)
