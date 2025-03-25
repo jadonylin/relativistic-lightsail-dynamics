@@ -393,7 +393,8 @@ def global_optimise(objective,
 
 def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: int=0):
     """
-    Extract the optimum gratings stored in a data file. Optima are ordered by FOM (largest to smallest).
+    Extract the optimum gratings stored in multiple data files, each file corresponding to the output of an optimisation core. 
+    Optima are ordered by FOM (largest to smallest).
 
     Parameters
     ----------
