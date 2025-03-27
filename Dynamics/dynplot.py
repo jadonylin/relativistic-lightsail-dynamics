@@ -123,7 +123,7 @@ def extract_dynamics(filename: str, start: int=0, end: int=-1, idx_to_print_stat
     frame_time = timeL
     if use_M_time:
         frame_time = timeM
-    t_end = 2298
+
     x_trunc = x[(timeL>t_start) & (timeL<=t_end)]
     y_trunc = y[(frame_time>t_start) & (frame_time<=t_end)]
     vx_trunc = vx[(timeL>t_start) & (timeL<=t_end)]
