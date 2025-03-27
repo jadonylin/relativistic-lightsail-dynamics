@@ -104,7 +104,13 @@ def update_finite_difference(current_value: float, all_values: list, iteration: 
     """Calculate finite difference on an updating array"""
     if iteration == 1:
         derivative = (current_value - 0)/hstep
-    else:    
+    else:
+        # TODO: epsn at time 0 is the same for any step size, hence the derivative is 
+        # inversely proportional to the step size. This means the wigner rotation and
+        # wigner time derivative are not consistent across different step sizes. 
+        # We could try to calculate the wigner time derivative analytically, but the 
+        # expression contains velocities in frame L, which would also require finite
+        # differences to calculate.
         derivative = (current_value - all_values[iteration-2])/(2*hstep)
     return derivative
 
