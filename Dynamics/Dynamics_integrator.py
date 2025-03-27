@@ -26,12 +26,13 @@ kdelta = 1000
 runID_load = "MdSnpminOpt20"
 nonlinear_run = True  # Flag to load the nonlinear data and acceleration function
 damping_scaler = 0.
+fname_preamble = '/Users/jadonlin/Library/CloudStorage/OneDrive-TheUniversityofSydney(Students)/Doppler Damping - Jadon Lin/Documentation/Data/relativistic-lightsail-dynamics'
 
 if nonlinear_run:
-    lookup_data_fname = f'./Data/{runID_load}_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
+    lookup_data_fname = fname_preamble + f'/Dynamics/{runID_load}_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
 else:
-    lookup_data_fname = f'./Data/{runID_load}_Lookup_table_lambda_{klambda}.pkl'
-opt_gratings_data_fname = f'../Optimisation/Data/FOM_optimisation_maxfev9000'
+    lookup_data_fname = fname_preamble + f'/Dynamics/{runID_load}_Lookup_table_lambda_{klambda}.pkl'
+opt_gratings_data_fname = fname_preamble + f'/Optimisation/FOM_optimisation_maxfev9000'
 num_processes = 18  # number of processes used in the optimisation to produce opt_gratings_data_fname.pkl
 output_opt_idx = 0  # Index of the optimum grating to output, lower corresponding to larger FOM
 
@@ -74,11 +75,11 @@ omega0  = -0.05*2*np.pi  # revolutions per second converted to radians per secon
 
 
 Y0 = np.array([x0,y0,phi0,vx0,vy0,omega0])
-time_MAX = 0.25*60*60  # Maximum runtime (seconds)
+time_MAX = 1.*60*60  # Maximum runtime (seconds)
 # time_MAX = 1  # Maximum runtime (seconds)
 velocity_MAX = 0.2*c
-h = 1e-2   # Step size  
-runID = "MdSnpminOpt20_lsa_no_damping"  # Added to the output data filename
+h = 1e-3   # Step size  
+runID = f"MdSnpminOpt20_step{h:.1E}"  # Added to the output data filename
 
 positions, angles, times, accels, loop_data = odecmvint(accel, Y0, time_MAX, velocity_MAX, args=accel_args, hstep=h)
 
@@ -101,7 +102,7 @@ save_data = {'YL': positions, 'phiM': phi_nparray, 'phidot': omega_nparray,
              'accel': accels,
              'step': h, 'Runtime (sec)': runtime, 'i': steps, 'Stopped': STOPPED,
              'Initial': Y0, 'Intensity': I}
-save_fname = f'./Data/{runID}_Dynamics.pkl'
+save_fname = fname_preamble + f'/Dynamics/{runID}_Dynamics.pkl'
 
 # Save result
 with open(save_fname, 'wb') as data_file:
