@@ -54,20 +54,7 @@ def FD(grating: TwoBox) -> float:
 
 
 def FD_params_func(grating, params):
-    grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = params
-    
-    grating.grating_pitch = grating_pitch
-    grating.grating_depth = grating_depth
-    grating.box1_width = box1_width
-    grating.box2_width = box2_width
-    grating.box_centre_dist = box_centre_dist
-    grating.box1_eps = box1_eps
-    grating.box2_eps = box2_eps
-    
-    grating.gaussian_width = gaussian_width
-    grating.substrate_depth = substrate_depth
-    grating.substrate_eps = substrate_eps
-
+    grating.params=params
     return FD(grating)
 
 
@@ -97,9 +84,8 @@ def FOM_uniform(grating: TwoBox, final_speed: float=20., goal: float=0.1, return
     
     # Define a single-argument function, needed when passing to learner
     def weighted_FD(l):
-        grating.wavelength = grating.npa.array(l)*laser_wavelength # l*laser_wavelength
-        lFOM=FD(grating)
-        return PDF_unif*grating.to_numpy(lFOM) # losing autograd here by calling to_numpy, but torch tensors are not compatible with adaptive
+        grating.wavelength =  l*laser_wavelength 
+        return PDF_unif*grating.to_numpy(FD(grating)) # losing autograd here by calling to_numpy, but torch tensors are not compatible with adaptive
     
     FD_learner = adp.Learner1D(weighted_FD, bounds=l_range)
     if isinstance(goal, int):
@@ -120,27 +106,12 @@ def FOM_uniform(grating: TwoBox, final_speed: float=20., goal: float=0.1, return
         the gradient over wavelength
         """
         FD_grad = grating.npa.grad(FD_params_func, argnum=1)
-        # Need to copy the following immutable parameters to pass to FD_grad, otherwise get UFuncTypeError
-        # grating_pitch   = grating.grating_pitch
-        # grating_depth   = grating.grating_depth
-        # box1_width      = grating.box1_width
-        # box2_width      = grating.box2_width
-        # box_centre_dist = grating.box_centre_dist
-        # box1_eps        = grating.box1_eps
-        # box2_eps        = grating.box2_eps
-        # gaussian_width  = grating.gaussian_width
-        # substrate_depth = grating.substrate_depth
-        # substrate_eps   = grating.substrate_eps
-
-        # params = [grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps,
-        #           gaussian_width, substrate_depth, substrate_eps]
         params=grating.params
         # Define a single-argument function, needed when passing to learner
         def weighted_FD_grad(l):
-            grating.wavelength = grating.npa.array(l)*laser_wavelength
-            test=grating.to_numpy(FD_grad(grating, params))
-            return PDF_unif*test
-            # return PDF_unif*grating.to_numpy(FD_grad(grating, params))
+            grating.wavelength = l*laser_wavelength            
+            return PDF_unif*grating.to_numpy(FD_grad(grating, params))
+
 
         # Adaptive sample FD_grad
         FD_grad_learner = adp.Learner1D(weighted_FD_grad, bounds=l_range)
@@ -153,69 +124,6 @@ def FOM_uniform(grating: TwoBox, final_speed: float=20., goal: float=0.1, return
         FD_grad_data = FD_grad_learner.to_numpy()
         l_vals = FD_grad_data[:,0]
         weighted_FD_grads = FD_grad_data[:,1:]
-        
-        FOM_grad = np.trapezoid(weighted_FD_grads,l_vals, axis=0)
-
-        grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
-        return [FOM,FOM_grad] 
-    else:
-        grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
-        return FOM
-
-def FOM_uniform_noadaptive(grating: TwoBox, final_speed: float=20., goal: float=0.1, return_grad: bool=True) -> float:
-    """
-    for debuging purposes, this function is the same as FOM_uniform but does not use adaptive sampling.
-    Calculate the figure of merit (FOM) for the given grating over a fixed wavelength range determined by the final speed.
-    
-    The figure of merit we defined is the expectation value of FD over wavelength. Assumes a uniform probability 
-    density over wavelength for weighting FD.
-
-    Parameters
-    ----------
-    grating     :   TwoBox instance containing the grating parameters
-    final_speed :   Final sail speed as percentage of light speed
-    goal        :   Stopping goal for wavelength integration passed to adaptive runner. If int, use npoints_goal; if float, use loss_goal.
-    return_grad :   Return [FOM, FOM gradient] instead of just FOM
-    """
-
-    # Starting wavelength is copied into laser_wavelength just in case grating.wavelength is unexpectedly modified
-    laser_wavelength = grating.wavelength 
-    Doppler = D1_ND([final_speed/100,0])
-    l_min = 1  # l = grating frame wavelength normalised to laser frame wavelength
-    l_max = l_min/Doppler    
-    l_range = (l_min, l_max)
-    l_array= np.linspace(l_min, l_max, 10)
-    PDF_unif = 1/(l_max-l_min)  # Perturbation probability density function (PDF)
-    
-    # Define a single-argument function, needed when passing to learner
-    def weighted_FD(l):
-        grating.wavelength = grating.npa.array(l)*laser_wavelength # l*laser_wavelength
-        lFOM=FD(grating)
-        return PDF_unif*grating.to_numpy(lFOM) # losing autograd here by calling to_numpy, but torch tensors are not compatible with adaptive
-    
-    
-    FD_data = [weighted_FD(l) for l in l_array]
-    l_vals = l_range
-    weighted_FDs = FD_data
-    FOM = np.trapezoid(weighted_FDs,l_vals)
-
-    if return_grad:
-        """
-        Calculate FOM gradient by calculating the gradient of FD for the given grating at all wavelengths then averaging 
-        the gradient over wavelength
-        """
-        FD_grad = grating.npa.grad(FD_params_func, argnum=1)      
-        params=grating.params
-        # Define a single-argument function, needed when passing to learner
-        def weighted_FD_grad(l):
-            grating.wavelength = grating.npa.array(l)*laser_wavelength
-            before_numpy=FD_grad(grating, params)
-            test=grating.to_numpy(before_numpy)
-            return PDF_unif*test
-            # return PDF_unif*grating.to_numpy(FD_grad(grating, params))
-
-        FD_grad_data = [weighted_FD_grad(l) for l in l_array]
-        weighted_FD_grads = FD_grad_data
         
         FOM_grad = np.trapezoid(weighted_FD_grads,l_vals, axis=0)
 
@@ -255,21 +163,10 @@ def FOM_single(grating: TwoBox, final_speed: float=20., goal: float=0.1, return_
         the gradient over wavelength
         """
         FD_grad = grating.npa.grad(FD_params_func, argnum=1)
-        # Need to copy the following immutable parameters to pass to FD_grad, otherwise get UFuncTypeError
-        grating_pitch   = grating.grating_pitch
-        grating_depth   = grating.grating_depth
-        box1_width      = grating.box1_width
-        box2_width      = grating.box2_width
-        box_centre_dist = grating.box_centre_dist
-        box1_eps        = grating.box1_eps
-        box2_eps        = grating.box2_eps
-        gaussian_width  = grating.gaussian_width
-        substrate_depth = grating.substrate_depth
-        substrate_eps   = grating.substrate_eps
+        # Need to copy the following immutable parameters to pass to FD_grad, otherwise get UFuncTypeError       
 
 
-        params = [grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps,
-                  gaussian_width, substrate_depth, substrate_eps]
+        params = grating.params
         # Define a single-argument function, needed when passing to learner
         def weighted_FD_grad(l):
             grating.wavelength = l*laser_wavelength
