@@ -2019,6 +2019,11 @@ class TwoBox:
                     return result[0]
                 else:
                     return tuple(result)        
+            if isinstance(x,list):
+                try:
+                    return np.array(result)
+                except:
+                    return result
             else:
                 return result
         else:        
