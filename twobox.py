@@ -871,6 +871,8 @@ class TwoBox:
         #          negative eigenvalue with the smallest real part. 
         FD = npa.min(-eigReal)  # standard minimum
         # FD = npa.sum(-eigReal*softmin(-eigReal,1.))  # softened minimum
+
+        # FD = npa.min(-eigReal) + npa.max(-eigReal)
         
         return FD
 
