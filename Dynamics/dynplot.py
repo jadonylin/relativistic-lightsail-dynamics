@@ -259,7 +259,7 @@ def show_standard_axes(ax: plt.Axes, x: np.ndarray, xlabel: str, ylabel: str, sh
         ax.set_xlim(x[0],x[-1])
     ax.set(xlabel=xlabel, ylabel=ylabel)
     if show_zero_line:
-        ax.axhline(0, linestyle="--", color=color)
+        ax.axhline(0, color="black", linewidth=ax_width)
     ax.tick_params(which="both", axis='both', width=ax_width, direction='in')
     for axis in ['top','bottom','left','right']:
         ax.spines[axis].set_linewidth(ax_width)
