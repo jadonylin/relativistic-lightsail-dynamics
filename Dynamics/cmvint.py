@@ -7,6 +7,8 @@ odeint.
 
 import numpy as np
 
+import pickle
+
 import time
 
 from specrel import vadd, SinCosEpsilon, Lorentz, SinCosTheta
@@ -115,22 +117,34 @@ def update_finite_difference(current_value: float, all_values: list, iteration: 
     return derivative
 
 
-def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, args: tuple=(), hstep: float=1e-4):
+def store_results(coordinate_arrays: list[list], filename: str):
+    with open(filename, "rb") as storage:
+        existing_coordinate_arrays = pickle.load(storage)
+    with open(filename, "wb") as storage:
+        for ls, els in zip(coordinate_arrays, existing_coordinate_arrays):
+            els += ls
+        pickle.dump(existing_coordinate_arrays, storage)
+    return coordinate_arrays
+
+
+def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, args: tuple=(), hstep: float=1e-4, save_idx: int=1000):
     """
     Integrate func over time by passing between the comoving reference frame (frame M) and
     the light source reference frame (frame L).
 
     Parameters
     ----------
-    func   :   callable(t,y,vL,i,args). Computes the derivative of M-frame-state-vector, y, at time t
-                measured in the comoving M-frame.
-                vL is the velocity of the object in frame L, needed for Lorentz transformation. 
-                The integration step, i, is used for debugging.
-    state0 :   Initial conditions for the state vector ([x, y, phi, vx, vy, vphi])
-    t_max  :   Maximum integration runtime (seconds)
-    v_max  :   Maximum object velocity before stopping integration (metres/second)
-    args   :   Extra arguments to pass to func
-    hstep  :   Integration step size
+    func     :   callable(t,y,vL,i,args). Computes the derivative of M-frame-state-vector, y, at time t
+                            measured in the comoving M-frame.
+                            vL is the velocity of the object in frame L, needed for Lorentz transformation. 
+                            The integration step, i, is used for debugging.
+    state0   :   Initial conditions for the state vector ([x, y, phi, vx, vy, vphi])
+    t_max    :   Maximum integration runtime (seconds)
+    v_max    :   Maximum object velocity before stopping integration (metres/second)
+    args     :   Extra arguments to pass to func
+    hstep    :   Integration step size
+    save_idx :   Save the data after every n loops. This is more memory efficient and safer
+                           for long runs to avoid losing data.
     
     Returns
     -------
@@ -183,6 +197,10 @@ def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, ar
     coordinate_arrays = append_coordinate_arrays(coordinate_arrays, coordinates)
 
     timeSTART = time.time()
+
+    fname = "cmvint_tmp.pkl"
+    with open(fname, "wb") as storage:
+        pickle.dump(coordinate_arrays, storage)
     
     i = 1
     while (vn[0] < v_max):
@@ -219,7 +237,8 @@ def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, ar
             
             phiNew = YNew[2]
             omegaNew = YNew[5]
-            eps_raten = update_finite_difference(epsn, eps_array, i, hstep)
+            # eps_raten = update_finite_difference(epsn, eps_array, i, hstep)
+            eps_raten = 0.
             timeMn, YMn = update_frame_M_state(zM_NEXT, vM_NEXT, phiNew, omegaNew, epsn, eps_raten)
 
             vn = vLNew
@@ -233,8 +252,19 @@ def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, ar
             coordinates = [zLNew[1], zLNew[2], *vLNew, 
                             timeMn, taun, zLNew[0], phiM2, omegaM2, epsn, eps_raten, thetan, acceln]
             append_coordinate_arrays(coordinate_arrays, coordinates)
+            
+            if i % save_idx == 0:
+                store_results(coordinate_arrays, fname)
+                coordinate_arrays.clear()
+                append_coordinate_arrays(coordinate_arrays, coordinates)
         
         i += 1
+
+    with open(fname, "rb") as storage:
+        coordinate_arrays = pickle.load(storage)
+    x_array, y_array, vx_array, vy_array, timeM_array, tau_array, timeL_array,\
+    phi_array, omega_array, eps_array, eps_rate_array, theta_array,\
+    accels = coordinate_arrays
 
     positions = np.array([x_array, y_array, vx_array, vy_array])  # Frame L
     angles    = np.array([phi_array, eps_array, omega_array, eps_rate_array, theta_array])  # Frame M

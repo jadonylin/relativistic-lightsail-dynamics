@@ -75,13 +75,13 @@ omega0  = -0.05*2*np.pi  # revolutions per second converted to radians per secon
 
 
 Y0 = np.array([x0,y0,phi0,vx0,vy0,omega0])
-time_MAX = 1.*60*60  # Maximum runtime (seconds)
-# time_MAX = 1  # Maximum runtime (seconds)
+# time_MAX = 1.*60*60  # Maximum runtime (seconds)
+time_MAX = 300  # Maximum runtime (seconds)
 velocity_MAX = 0.2*c
 h = 1e-3   # Step size  
-runID = f"MdSnpminOpt20_step{h:.1E}"  # Added to the output data filename
+runID = f"MdSnpminOpt20_cached_RAM_test"  # Added to the output data filename
 
-positions, angles, times, accels, loop_data = odecmvint(accel, Y0, time_MAX, velocity_MAX, args=accel_args, hstep=h)
+positions, angles, times, accels, loop_data = odecmvint(accel, Y0, time_MAX, velocity_MAX, args=accel_args, hstep=h, save_idx=1000)
 
 phi_nparray      = angles[0,:]
 eps_nparray      = angles[1,:]
