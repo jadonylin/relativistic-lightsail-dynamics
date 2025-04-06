@@ -25,7 +25,7 @@ klambda = 1000
 kdelta = 1000
 runID_load = "MdSnpminOpt20"
 nonlinear_run = True  # Flag to load the nonlinear data and acceleration function
-damping_scaler = 0.
+damping_scaler = 1.  # Only applies if nonlinear_run is False. Set to 0 to disable damping.
 fname_preamble = '/Users/jadonlin/Library/CloudStorage/OneDrive-TheUniversityofSydney(Students)/Doppler Damping - Jadon Lin/Documentation/Data/relativistic-lightsail-dynamics'
 
 if nonlinear_run:
@@ -76,7 +76,7 @@ omega0  = -0.05*2*np.pi  # revolutions per second converted to radians per secon
 
 Y0 = np.array([x0,y0,phi0,vx0,vy0,omega0])
 # time_MAX = 1.*60*60  # Maximum runtime (seconds)
-time_MAX = 300  # Maximum runtime (seconds)
+time_MAX = 2  # Maximum runtime (seconds)
 velocity_MAX = 0.2*c
 h = 1e-3   # Step size  
 runID = f"MdSnpminOpt20_cached_RAM_test"  # Added to the output data filename
