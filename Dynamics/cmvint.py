@@ -3,6 +3,10 @@ cmvint - comoving integrator
 
 A module containing the comoving integrator function. Similar syntax to scipy's 
 odeint.
+
+TODO: I'm still not sure if finite difference is valid for wigner rotation derivative calculations.
+      Also, using finite differences requires saving previous 2 elements of the wigner array, which
+      further requires hard-coding the wigner index into saving methods.
 """
 
 import numpy as np
@@ -41,16 +45,60 @@ def create_coordinate_arrays():
     # Accelerations
     accels = []
 
-    return [x_array, y_array, vx_array, vy_array, 
-            timeM_array, tau_array, timeL_array, 
-            phi_array, omega_array, eps_array, eps_rate_array, theta_array,
-            accels]
+    coordinate_arrays = [x_array, y_array, vx_array, vy_array, 
+                         timeM_array, tau_array, timeL_array, 
+                         phi_array, omega_array, eps_array, eps_rate_array, theta_array,
+                         accels]
+
+    return coordinate_arrays
 
 def append_coordinate_arrays(coordinate_arrays: list[list], items: list[float]):
     """Append items to coordinate arrays element by element"""
     for item, arr in zip(items,coordinate_arrays):
         arr.append(item)
     return coordinate_arrays
+
+def store_coordinate_arrays(coordinate_arrays: list[list], filename: str, final_save: bool):
+    """Store coordinate arrays in a pre-existing file"""
+    wigner_idx = 9  # index of wigner rotation angle list in coordinate_arrays list
+    with open(filename, "rb") as storage:
+        existing_coordinate_arrays = pickle.load(storage)
+    with open(filename, "wb") as storage:
+        for idx, (arr, earr) in enumerate(zip(coordinate_arrays, existing_coordinate_arrays)):
+            if final_save:  # TODO: don't use nested if statements
+                earr += arr
+            else:
+                if idx == wigner_idx:
+                    earr += arr[:-2]
+                else:
+                    earr += arr[:-1]
+        pickle.dump(existing_coordinate_arrays, storage)
+    return coordinate_arrays
+
+def clear_coordinate_arrays(coordinate_arrays: list[list]):
+    """Clear all items except for 1 (possibly more) in coordinate arrays"""
+    wigner_idx = 9  # index of wigner rotation angle list in coordinate_arrays list
+    for idx, arr in enumerate(coordinate_arrays):
+        if idx == wigner_idx:
+            coordinate_arrays[idx] = arr[-2:]  # keep the last 2 values for central difference
+        else:
+            coordinate_arrays[idx] = arr[-1:]
+    return coordinate_arrays
+
+def reformat_coordinate_arrays(coordinate_arrays: list[list]):
+    """Reformat coordinate arrays into a physically meaningful list of np arrays"""
+    x_array, y_array, vx_array, vy_array, timeM_array, tau_array, timeL_array,\
+    phi_array, omega_array, eps_array, eps_rate_array, theta_array,\
+    accels = coordinate_arrays
+
+    print(len(phi_array))
+    print(len(eps_array))
+    positions = np.array([x_array, y_array, vx_array, vy_array])  # Frame L
+    angles    = np.array([phi_array, eps_array, omega_array, eps_rate_array, theta_array])  # Frame M
+    times     = np.array([timeM_array,tau_array,timeL_array])
+    accels    = np.array(accels)
+    
+    return positions, angles, times, accels
 
 
 def _func(func, tn, yn, vL, i, args):  
@@ -117,34 +165,27 @@ def update_finite_difference(current_value: float, all_values: list, iteration: 
     return derivative
 
 
-def store_results(coordinate_arrays: list[list], filename: str):
-    with open(filename, "rb") as storage:
-        existing_coordinate_arrays = pickle.load(storage)
-    with open(filename, "wb") as storage:
-        for ls, els in zip(coordinate_arrays, existing_coordinate_arrays):
-            els += ls
-        pickle.dump(existing_coordinate_arrays, storage)
-    return coordinate_arrays
 
-
-def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, args: tuple=(), hstep: float=1e-4, save_idx: int=1000):
+def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, args: tuple=(), hstep: float=1e-4, 
+              save_idx: int=1000, save_file: str="odecmvint_tmp"):
     """
     Integrate func over time by passing between the comoving reference frame (frame M) and
     the light source reference frame (frame L).
 
     Parameters
     ----------
-    func     :   callable(t,y,vL,i,args). Computes the derivative of M-frame-state-vector, y, at time t
-                            measured in the comoving M-frame.
-                            vL is the velocity of the object in frame L, needed for Lorentz transformation. 
-                            The integration step, i, is used for debugging.
-    state0   :   Initial conditions for the state vector ([x, y, phi, vx, vy, vphi])
-    t_max    :   Maximum integration runtime (seconds)
-    v_max    :   Maximum object velocity before stopping integration (metres/second)
-    args     :   Extra arguments to pass to func
-    hstep    :   Integration step size
-    save_idx :   Save the data after every n loops. This is more memory efficient and safer
-                           for long runs to avoid losing data.
+    func      :   callable(t,y,vL,i,args). Computes the derivative of M-frame-state-vector, y, at time t
+                  measured in the comoving M-frame.
+                  vL is the velocity of the object in frame L, needed for Lorentz transformation. 
+                  The integration step, i, is used for debugging.
+    state0    :   Initial conditions for the state vector ([x, y, phi, vx, vy, vphi])
+    t_max     :   Maximum integration runtime (seconds)
+    v_max     :   Maximum object velocity before stopping integration (metres/second)
+    args      :   Extra arguments to pass to func
+    hstep     :   Integration step size
+    save_idx  :   Save the data after every save_idx loops. This is more memory efficient and safer
+                 for long integration times to avoid losing data. Must be larger than 3.
+    save_file :   Filename to save the data to during runtime. The filetype is added automatically.
     
     Returns
     -------
@@ -154,20 +195,20 @@ def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, ar
                   each coordinate an array measured in frame M
     times     :   Array containing times [t_M, tau, t_L], each an array of times measured in certain 
                   frames (M, centre-of-mass frame, L)
+    accels    :   Array containing accelerations [ax, ay, aphi], each an array of accelerations 
+                  measured in frame M
     loop_data :   Dictionary with keywords 
                     "Runtime" - float, total integration time (seconds)
                     "Steps" - int, total number of steps
-                    "Stopped" - bool, if the integrator ran out of time or encountered a force-calculation 
-                    error
+                    "Stopped" - bool, if the integrator ran out of time or encountered a force-
+                    calculation error
     """
     
     # Flag for if the optimisation took too long or an integration step failed
     STOPPED = False
 
     coordinate_arrays = create_coordinate_arrays()
-    x_array, y_array, vx_array, vy_array, timeM_array, tau_array, timeL_array,\
-    phi_array, omega_array, eps_array, eps_rate_array, theta_array,\
-    accels = coordinate_arrays
+    wigner_idx = 9  # index of wigner rotation angle list in coordinate_arrays list
 
     timeLn = 0.  # starting time
     x0, y0, phi0, vx0, vy0, omega0 = state0
@@ -198,7 +239,7 @@ def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, ar
 
     timeSTART = time.time()
 
-    fname = "cmvint_tmp.pkl"
+    fname = save_file + "_temp.pkl"
     with open(fname, "wb") as storage:
         pickle.dump(coordinate_arrays, storage)
     
@@ -237,8 +278,7 @@ def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, ar
             
             phiNew = YNew[2]
             omegaNew = YNew[5]
-            # eps_raten = update_finite_difference(epsn, eps_array, i, hstep)
-            eps_raten = 0.
+            eps_raten = update_finite_difference(epsn, coordinate_arrays[wigner_idx], i, hstep)
             timeMn, YMn = update_frame_M_state(zM_NEXT, vM_NEXT, phiNew, omegaNew, epsn, eps_raten)
 
             vn = vLNew
@@ -254,22 +294,16 @@ def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, ar
             append_coordinate_arrays(coordinate_arrays, coordinates)
             
             if i % save_idx == 0:
-                store_results(coordinate_arrays, fname)
-                coordinate_arrays.clear()
-                append_coordinate_arrays(coordinate_arrays, coordinates)
+                store_coordinate_arrays(coordinate_arrays, fname, final_save=False)
+                clear_coordinate_arrays(coordinate_arrays)
         
         i += 1
-
+    
+    # TODO: handle edge case where final save happens immediately after previous save
+    store_coordinate_arrays(coordinate_arrays, fname, final_save=True)  # Final save
     with open(fname, "rb") as storage:
         coordinate_arrays = pickle.load(storage)
-    x_array, y_array, vx_array, vy_array, timeM_array, tau_array, timeL_array,\
-    phi_array, omega_array, eps_array, eps_rate_array, theta_array,\
-    accels = coordinate_arrays
-
-    positions = np.array([x_array, y_array, vx_array, vy_array])  # Frame L
-    angles    = np.array([phi_array, eps_array, omega_array, eps_rate_array, theta_array])  # Frame M
-    times     = np.array([timeM_array,tau_array,timeL_array])
-    accels    = np.array(accels)
+    positions, angles, times, accels = reformat_coordinate_arrays(coordinate_arrays)
     loop_data = {'Runtime': round(timeDIFF), 'Steps': i, 'Stopped': STOPPED}
     
     return positions, angles, times, accels, loop_data
