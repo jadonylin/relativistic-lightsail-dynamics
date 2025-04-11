@@ -65,9 +65,11 @@ def store_coordinate_arrays(coordinate_arrays: list[list], filename: str, final_
         existing_coordinate_arrays = pickle.load(storage)
     with open(filename, "wb") as storage:
         for idx, (arr, earr) in enumerate(zip(coordinate_arrays, existing_coordinate_arrays)):
-            if final_save:  # TODO: don't use nested if statements
+            if final_save:  # TODO: can we avoid nested if statements?
                 earr += arr
             else:
+                # TODO: need wigner array to have the same length as other arrays. To fix,
+                #       store up to [:-1], but don't discard the -2 element.
                 if idx == wigner_idx:
                     earr += arr[:-2]
                 else:
@@ -91,8 +93,6 @@ def reformat_coordinate_arrays(coordinate_arrays: list[list]):
     phi_array, omega_array, eps_array, eps_rate_array, theta_array,\
     accels = coordinate_arrays
 
-    print(len(phi_array))
-    print(len(eps_array))
     positions = np.array([x_array, y_array, vx_array, vy_array])  # Frame L
     angles    = np.array([phi_array, eps_array, omega_array, eps_rate_array, theta_array])  # Frame M
     times     = np.array([timeM_array,tau_array,timeL_array])
@@ -152,22 +152,32 @@ def update_frame_M_state(zM_NEXT: np.ndarray, vM_NEXT: np.ndarray, phiNew: float
 
 def update_finite_difference(current_value: float, all_values: list, iteration: int, hstep: float):
     """Calculate finite difference on an updating array"""
+    # Still need to pass iteration to this function so that the first-iteration derivative 
+    # is calculated as an edge case separately from the central differences.
     if iteration == 1:
         derivative = (current_value - 0)/hstep
     else:
-        # TODO: epsn at time 0 is the same for any step size, hence the derivative is 
-        # inversely proportional to the step size. This means the wigner rotation and
-        # wigner time derivative are not consistent across different step sizes. 
-        # We could try to calculate the wigner time derivative analytically, but the 
-        # expression contains velocities in frame L, which would also require finite
-        # differences to calculate.
-        derivative = (current_value - all_values[iteration-2])/(2*hstep)
+        # TODO: epsn at time 0 is the same for any step size (for a given set of initial 
+        #       conditions), hence the derivative is inversely proportional to the step size. 
+        #       This means the wigner rotation and wigner time derivative are not consistent 
+        #       across different step sizes. We could try to calculate the wigner time 
+        #       derivative analytically, but the expression contains velocities in frame L, 
+        #       which would also require finite differences to calculate.
+        # TODO: since all_values is updating after every save, I've hard-coded the index to
+        #       -2 (two spaces back from the current index). Is there a way to do it 
+        #       without hard coding?
+        # TODO: When I compare this derivative with np.gradient, I get consistent results.
+        #       This indicates that we are calculating central differences (with the factor 2 
+        #       in the denominator). However, since we are calculating the derivative at 
+        #       "iteration", this looks more like backward difference, which shouldn't have 
+        #       the factor 2 in the denominator. Which one is correct?
+        derivative = (current_value - all_values[-2])/(2*hstep)
     return derivative
 
 
 
-def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, args: tuple=(), hstep: float=1e-4, 
-              save_idx: int=1000, save_file: str="odecmvint_tmp"):
+def odecmvint(func: callable, state0: np.ndarray, t0: float, t_max: float, v_max: float, args: tuple=(), hstep: float=1e-4, 
+              save_idx: int=1000, save_file: str="odecmvint"):
     """
     Integrate func over time by passing between the comoving reference frame (frame M) and
     the light source reference frame (frame L).
@@ -179,6 +189,9 @@ def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, ar
                   vL is the velocity of the object in frame L, needed for Lorentz transformation. 
                   The integration step, i, is used for debugging.
     state0    :   Initial conditions for the state vector ([x, y, phi, vx, vy, vphi])
+    t0        :   Initial time in frame L (seconds), corresponds to the initial condition. 
+                  NOTE: Must be nonzero when your initial condition comes from partway through some other 
+                        dynamics run.
     t_max     :   Maximum integration runtime (seconds)
     v_max     :   Maximum object velocity before stopping integration (metres/second)
     args      :   Extra arguments to pass to func
@@ -210,7 +223,7 @@ def odecmvint(func: callable, state0: np.ndarray, t_max: float, v_max: float, ar
     coordinate_arrays = create_coordinate_arrays()
     wigner_idx = 9  # index of wigner rotation angle list in coordinate_arrays list
 
-    timeLn = 0.  # starting time
+    timeLn = t0  # starting time
     x0, y0, phi0, vx0, vy0, omega0 = state0
     vn = np.array([vx0, vy0])
 
