@@ -105,6 +105,7 @@ def extract_dynamics(filename: str, start: int=0, end: int=-1, idx_to_print_stat
         accel_and_theta_recorded = False
         print("Acceleration and aberration data weren't recorded in the dynamics associated with your chosen pkl file.")
     
+    print(f"t0 = {timeL[idx_to_print_state]}")
     print(f"x0 = {x[idx_to_print_state]}")
     print(f"y0 = {y[idx_to_print_state]}")
     print(f"phi0 = {phiM[idx_to_print_state]}")
@@ -215,10 +216,7 @@ def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5
         real_eigvals[i,:] = real
         imag_eigvals[i,:] = imag
 
-        _eigvec_norms = norm(eigvecs, axis=0).T
-        eigvec_norms = _eigvec_norms[:,None]
-
-        eigvec_moduli[i,:,:] = np.abs(eigvecs)/norm(eigvecs, axis=0)[:,None]
+        eigvec_moduli[i,:,:] = np.abs(eigvecs)**2  # Eigenvectors are already normalised
 
     return restoring_coeffs, damping_coeffs, real_eigvals, imag_eigvals, eigvec_moduli
 

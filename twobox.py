@@ -1067,7 +1067,7 @@ class TwoBox:
         -------
         eigReal :   Real part of Jacobian eigenvalues
         eigImag :   Imaginary part of Jacobian eigenvalues
-        eigvecs :   Eigenvectors of Jacobian matrix
+        eigvecs :   Eigenvectors of Jacobian matrix, normalised to unit length
         """
 
         stiffnesses = self.sail_stiffness(I,m,c1,grad_method,out="tr")
