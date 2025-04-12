@@ -43,12 +43,14 @@ def create_coordinate_arrays():
     theta_array = []
 
     # Accelerations
-    accels = []
+    ax_array = []
+    ay_array = []
+    aphi_array = []
 
     coordinate_arrays = [x_array, y_array, vx_array, vy_array, 
                          timeM_array, tau_array, timeL_array, 
                          phi_array, omega_array, eps_array, eps_rate_array, theta_array,
-                         accels]
+                         ax_array, ay_array, aphi_array]
 
     return coordinate_arrays
 
@@ -61,42 +63,58 @@ def append_coordinate_arrays(coordinate_arrays: list[list], items: list[float]):
 def store_coordinate_arrays(coordinate_arrays: list[list], filename: str, final_save: bool):
     """Store coordinate arrays in a pre-existing file"""
     wigner_idx = 9  # index of wigner rotation angle list in coordinate_arrays list
-    with open(filename, "rb") as storage:
-        existing_coordinate_arrays = pickle.load(storage)
-    with open(filename, "wb") as storage:
-        for idx, (arr, earr) in enumerate(zip(coordinate_arrays, existing_coordinate_arrays)):
+    with open(filename, "ab+") as storage:
+        arr_to_store = coordinate_arrays[:]
+        for idx, arr in enumerate(arr_to_store):
             if final_save:  # TODO: can we avoid nested if statements?
-                earr += arr
+                break
             else:
                 # TODO: need wigner array to have the same length as other arrays. To fix,
                 #       store up to [:-1], but don't discard the -2 element.
-                if idx == wigner_idx:
-                    earr += arr[:-2]
+                if idx == wigner_idx or idx == wigner_idx+1:
+                    arr_to_store[idx] = arr[:-2]
                 else:
-                    earr += arr[:-1]
-        pickle.dump(existing_coordinate_arrays, storage)
+                    arr_to_store[idx] = arr[:-1]
+        pickle.dump(arr_to_store, storage)
     return coordinate_arrays
 
 def clear_coordinate_arrays(coordinate_arrays: list[list]):
     """Clear all items except for 1 (possibly more) in coordinate arrays"""
     wigner_idx = 9  # index of wigner rotation angle list in coordinate_arrays list
     for idx, arr in enumerate(coordinate_arrays):
-        if idx == wigner_idx:
+        if idx == wigner_idx or idx == wigner_idx+1:  # keep wigner derivative at same step as wigner angle
             coordinate_arrays[idx] = arr[-2:]  # keep the last 2 values for central difference
         else:
             coordinate_arrays[idx] = arr[-1:]
+    return coordinate_arrays
+
+def load_coordinate_arrays(filename: str):
+    """Clear all items except for 1 (possibly more) in coordinate arrays"""
+    data = []
+    with open(filename, 'rb') as storage:
+        try:
+            while True:
+                data.append(pickle.load(storage))
+        except EOFError:
+            pass
+    coordinate_arrays = data[0]
+    num_coordinates = len(coordinate_arrays)
+    for chunk in data[1:]:
+        for n in range(num_coordinates):
+            coordinate_arrays[n] += chunk[n]
+    
     return coordinate_arrays
 
 def reformat_coordinate_arrays(coordinate_arrays: list[list]):
     """Reformat coordinate arrays into a physically meaningful list of np arrays"""
     x_array, y_array, vx_array, vy_array, timeM_array, tau_array, timeL_array,\
     phi_array, omega_array, eps_array, eps_rate_array, theta_array,\
-    accels = coordinate_arrays
+    ax_array, ay_array, aphi_array = coordinate_arrays
 
     positions = np.array([x_array, y_array, vx_array, vy_array])  # Frame L
     angles    = np.array([phi_array, eps_array, omega_array, eps_rate_array, theta_array])  # Frame M
     times     = np.array([timeM_array,tau_array,timeL_array])
-    accels    = np.array(accels)
+    accels    = np.array([ax_array, ay_array, aphi_array])
     
     return positions, angles, times, accels
 
@@ -220,7 +238,10 @@ def odecmvint(func: callable, state0: np.ndarray, t0: float, t_max: float, v_max
     # Flag for if the optimisation took too long or an integration step failed
     STOPPED = False
 
+    fname = save_file + "_temp.pkl"
     coordinate_arrays = create_coordinate_arrays()
+    with open(fname, "wb") as storage:  # needed to overwrite temp file if it exists
+        pickle.dump(coordinate_arrays, storage)
     wigner_idx = 9  # index of wigner rotation angle list in coordinate_arrays list
 
     timeLn = t0  # starting time
@@ -245,16 +266,11 @@ def odecmvint(func: callable, state0: np.ndarray, t0: float, t_max: float, v_max
     
     i = 0  # Integrator iteration index
     _, _, _, ax0, ay0, aphi0 = _func(func, timeMn, YMn, vn, i, args)
-    acceln = [ax0,ay0,aphi0]
 
-    coordinates = [x0, y0, vx0, vy0, timeMn, taun, timeLn, phi0, omega0, epsn, eps_raten, thetan, acceln]
+    coordinates = [x0, y0, vx0, vy0, timeMn, taun, timeLn, phi0, omega0, epsn, eps_raten, thetan, ax0,ay0,aphi0]
     coordinate_arrays = append_coordinate_arrays(coordinate_arrays, coordinates)
 
     timeSTART = time.time()
-
-    fname = save_file + "_temp.pkl"
-    with open(fname, "wb") as storage:
-        pickle.dump(coordinate_arrays, storage)
     
     i = 1
     while (vn[0] < v_max):
@@ -301,9 +317,8 @@ def odecmvint(func: callable, state0: np.ndarray, t0: float, t_max: float, v_max
             #       This should also simplify the number of subfunction arguments.
             phiM2 = YMn[2]
             omegaM2 = YMn[5]
-            acceln = [*YdotNew[3:]]
             coordinates = [zLNew[1], zLNew[2], *vLNew, 
-                            timeMn, taun, zLNew[0], phiM2, omegaM2, epsn, eps_raten, thetan, acceln]
+                            timeMn, taun, zLNew[0], phiM2, omegaM2, epsn, eps_raten, thetan, *YdotNew[3:]]
             append_coordinate_arrays(coordinate_arrays, coordinates)
             
             if i % save_idx == 0:
@@ -314,8 +329,7 @@ def odecmvint(func: callable, state0: np.ndarray, t0: float, t_max: float, v_max
     
     # TODO: handle edge case where final save happens immediately after previous save
     store_coordinate_arrays(coordinate_arrays, fname, final_save=True)  # Final save
-    with open(fname, "rb") as storage:
-        coordinate_arrays = pickle.load(storage)
+    coordinate_arrays = load_coordinate_arrays(fname)
     positions, angles, times, accels = reformat_coordinate_arrays(coordinate_arrays)
     loop_data = {'Runtime': round(timeDIFF), 'Steps': i, 'Stopped': STOPPED}
     
