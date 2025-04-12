@@ -77,10 +77,6 @@ def extract_dynamics(filename: str, start: int=0, end: int=-1, idx_to_print_stat
     idx_to_print_state :   Index of the data to print the state vector
     use_M_time         :   Flag to truncate the time data using frame M time instead of frame L time
     """
-    
-    # Flag to check if acceleration and aberration data was recorded in the dynamics
-    # of the given pkl data
-    accel_and_theta_recorded = True  
 
     with open(filename, 'rb') as data_file:
         data = pickle.load(data_file)
@@ -98,8 +94,15 @@ def extract_dynamics(filename: str, start: int=0, end: int=-1, idx_to_print_stat
     eps = data['eps']
     epsdot = data['epsdot']
 
+    # Flag to check if acceleration and aberration data was recorded in the dynamics
+    # of the given pkl data
+    accel_and_theta_recorded = True 
     try:
-        accels = data['accel']
+        accel_shape = data['accel'].shape
+        if accel_shape[0] > accel_shape[1]:
+            # Transpose the acceleration data if it is in the wrong shape, only applies to older data
+            data['accel'] = data['accel'].T
+        ax, ay, aphi = data['accel']
         theta = data['theta']
     except KeyError:
         accel_and_theta_recorded = False
@@ -143,8 +146,8 @@ def extract_dynamics(filename: str, start: int=0, end: int=-1, idx_to_print_stat
               eps_trunc, epsdot_trunc]
 
     if accel_and_theta_recorded:
-        ay_trunc = accels[(timeM>t_start) & (timeM<=t_end),1]
-        aphi_trunc = accels[(timeM>t_start) & (timeM<=t_end),2]
+        ay_trunc = ay[(timeM>t_start) & (timeM<=t_end)]
+        aphi_trunc = aphi[(timeM>t_start) & (timeM<=t_end)]
         theta_trunc = theta[(timeM>t_start) & (timeM<=t_end)]
         coords += [ay_trunc, aphi_trunc, theta_trunc]
         
