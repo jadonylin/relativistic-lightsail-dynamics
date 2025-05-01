@@ -64,6 +64,24 @@ def t_to_v(t, v_data, t_data):
     popt, pcov = curve_fit(func, t_data, v_data)
     return func(t, *popt)
 
+def KE_transverse(v: np.ndarray, omega: np.ndarray, m: float=1e-3, L: float=10.):
+    """
+    Calculate the transverse kinetic energy (translational and rotational) of a sail 
+    with given mass, length and velocities. 
+    
+    Parameters
+    ----------
+    v     :   Velocity of the sail
+    omega :   Angular velocity of the sail
+    m     :   Mass of the sail
+    L     :   Length of the sail
+
+    Returns
+    -------
+    KE :   Transverse kinetic energy of the sail
+    """
+    I = 1/12*m*L**2
+    return 1/2*m*v**2 + 1/2*I*omega**2
 
 def extract_dynamics(filename: str, start: int=0, end: int=-1, idx_to_print_state: int=0, use_M_time: bool=False):
     """
@@ -72,8 +90,10 @@ def extract_dynamics(filename: str, start: int=0, end: int=-1, idx_to_print_stat
     Parameters
     ----------
     filename           :   Name of the .pkl file containing the dynamics data relative to the current directory
-    start              :   Start index of the data to extract. Can be an integer index or a float time
-    end                :   End index of the data to extract. Can be an integer index or a float time
+    start              :   Start index of the data to extract. Indexes frame L time larger than timeL[start]. 
+                           Can be an integer index or a float time
+    end                :   End index of the data to extract. Indexes frame L time smaller than timeL[end].
+                           Can be an integer index or a float time
     idx_to_print_state :   Index of the data to print the state vector
     use_M_time         :   Flag to truncate the time data using frame M time instead of frame L time
     """
@@ -190,6 +210,105 @@ def hl_envelopes_idx(s: np.ndarray, dmin: int=1, dmax: int=1, split: bool=False)
     lmax = lmax[[i+np.argmax(s[lmax[i:i+dmax]]) for i in range(0,len(lmax),dmax)]]
     
     return lmin, lmax
+
+
+def coordinates_to_envelopes(coordinate_arrays: list[list], envelope_idx: int=10000):
+    """
+    Calculate the envelopes of a list of coordinate arrays. 
+    The envelopes are calculated by taking the high and low envelope indices 
+    of the coordinate arrays.
+    
+    Parameters
+    ----------
+    coordinate_arrays :   List of coordinate arrays to calculate envelopes for
+    envelope_idx      :   Size of chunks in terms of indices. Increase to 
+                          calculate extrema over a broader range
+    
+    Returns
+    -------
+    min_indices, max_indices :   Low/high envelope indices of input signal s
+    """
+    
+    num_coordinates = len(coordinate_arrays)
+    min_times = []
+    max_times = []
+    # TODO: Avoid hard coding the indices. Can we check which coordinates are 
+    #       monotonic and avoid calculating the envelope for those?
+    # Avoid calculating the envelopes for x, vx or frame times
+    ignore_indices = [0,2,4,5,6]  # Of coordinate_arrays
+    timeM = coordinate_arrays[4]
+    timeL = coordinate_arrays[6]
+    times = [timeL, timeL, timeL, timeL, timeM, timeM, timeL, 
+             timeM, timeM, timeM, timeM, timeL, timeL, timeM, timeM]  # Frame associated with each coordinate
+    min_coordinates = []
+    max_coordinates = []
+    
+    for n in range(num_coordinates):
+        coord = coordinate_arrays[n]
+        if n in ignore_indices:
+            min_idx = -1
+            max_idx = -1
+        else:
+            min_idx, max_idx = hl_envelopes_idx(coord, dmin=envelope_idx, dmax=envelope_idx)
+        min_times.append(times[n][min_idx])
+        max_times.append(times[n][max_idx])
+        min_coordinates.append(coord[min_idx])
+        max_coordinates.append(coord[max_idx])
+    
+    return min_coordinates, max_coordinates
+
+
+def load_coordinate_array_envelopes(filename: str, chunks_to_load: int=100, envelope_idx: int=10000):
+    """
+    The data is saved as coordinate arrays in chunks of time (e.g. 100000 time points).
+    Here, we load the data in a number of chunks chunks_to_load, concatenate the data, 
+    then calculate the envelope of the data to reduce the array size.
+    """
+    min_coordinate_arrays = []
+    max_coordinate_arrays = []
+    with open(filename, 'rb') as storage:
+        try:
+            while True:
+                data = []
+                
+                # Load chunks of data sequentially but limited by chunks_to_load to avoid memory issues
+                for chunk_idx in range(chunks_to_load):
+                    data.append(pickle.load(storage))
+                
+                # Combine the data into coordinate-array standard for output
+                coordinate_arrays = data[0]
+                num_coordinates = len(coordinate_arrays)
+                for chunk in data[1:]:
+                    for n in range(num_coordinates):
+                        coordinate_arrays[n] += chunk[n]
+
+                # Truncate data to envelopes    
+                min_coordinates, max_coordinates = coordinates_to_envelopes(coordinate_arrays, envelope_idx)
+                min_coordinate_arrays.append(min_coordinates)
+                max_coordinate_arrays.append(max_coordinates)
+        except EOFError:
+            pass
+    
+    return min_coordinate_arrays, max_coordinate_arrays
+
+# def load_coordinate_arrays(filename: str):
+#     """Load all coordinate arrays. Useful to extract data from unfinished runs"""
+#     data = []
+#     with open(filename, 'rb') as storage:
+#         try:
+#             i = 0
+#             while i<3:
+#                 data.append(pickle.load(storage))
+#                 i += 1
+#         except EOFError:
+#             pass
+#     coordinate_arrays = data
+#     # num_coordinates = len(coordinate_arrays)
+#     # for chunk in data[1:]:
+#     #     for n in range(num_coordinates):
+#     #         coordinate_arrays[n] += chunk[n]
+    
+#     return coordinate_arrays
 
 
 def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5e8, num_points: int=200):
