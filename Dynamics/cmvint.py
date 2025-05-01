@@ -79,7 +79,7 @@ def store_coordinate_arrays(coordinate_arrays: list[list], filename: str, final_
     return coordinate_arrays
 
 def clear_coordinate_arrays(coordinate_arrays: list[list]):
-    """Clear all items except for 1 (possibly more) in coordinate arrays"""
+    """Clear all entries except for 1 (possibly more) in coordinate arrays"""
     wigner_idx = 9  # index of wigner rotation angle list in coordinate_arrays list
     for idx, arr in enumerate(coordinate_arrays):
         if idx == wigner_idx or idx == wigner_idx+1:  # keep wigner derivative at same step as wigner angle
@@ -89,7 +89,7 @@ def clear_coordinate_arrays(coordinate_arrays: list[list]):
     return coordinate_arrays
 
 def load_coordinate_arrays(filename: str):
-    """Clear all items except for 1 (possibly more) in coordinate arrays"""
+    """Load all coordinate arrays. Useful to extract data from unfinished runs"""
     data = []
     with open(filename, 'rb') as storage:
         try:
