@@ -136,13 +136,14 @@ def extract_dynamics(filename: str, start: int=0, end: int=-1, idx_to_print_stat
     print(f"vy0 = {vy[idx_to_print_state]}")
     print(f"omega0 = {phidotM[idx_to_print_state]}")
 
-
-    t_start = timeL[start]
-    t_end = timeL[end]
     if isinstance(start, float):
         t_start = start
+    else:
+        t_start = timeL[start]
     if isinstance(end, float):
         t_end = end
+    else:
+        t_end = timeL[end]
     
     frame_time = timeL
     if use_M_time:
@@ -230,8 +231,10 @@ def coordinates_to_envelopes(coordinate_arrays: list[list], envelope_idx: int=10
     """
     
     num_coordinates = len(coordinate_arrays)
-    min_times = []
-    max_times = []
+    min_times = [[] for _ in range(num_coordinates)]
+    max_times = [[] for _ in range(num_coordinates)]
+    min_coordinates = [[] for _ in range(num_coordinates)]
+    max_coordinates = [[] for _ in range(num_coordinates)]
     # TODO: Avoid hard coding the indices. Can we check which coordinates are 
     #       monotonic and avoid calculating the envelope for those?
     # Avoid calculating the envelopes for x, vx or frame times
@@ -240,75 +243,79 @@ def coordinates_to_envelopes(coordinate_arrays: list[list], envelope_idx: int=10
     timeL = coordinate_arrays[6]
     times = [timeL, timeL, timeL, timeL, timeM, timeM, timeL, 
              timeM, timeM, timeM, timeM, timeL, timeL, timeM, timeM]  # Frame associated with each coordinate
-    min_coordinates = []
-    max_coordinates = []
     
     for n in range(num_coordinates):
-        coord = coordinate_arrays[n]
+        time = np.array(times[n])
+        coord = np.array(coordinate_arrays[n])
+
         if n in ignore_indices:
             min_idx = -1
             max_idx = -1
+            min_times[n] += [time[min_idx]]
+            max_times[n] += [time[max_idx]]
+            min_coordinates[n] += [coord[min_idx]]
+            max_coordinates[n] += [coord[max_idx]]
         else:
             min_idx, max_idx = hl_envelopes_idx(coord, dmin=envelope_idx, dmax=envelope_idx)
-        min_times.append(times[n][min_idx])
-        max_times.append(times[n][max_idx])
-        min_coordinates.append(coord[min_idx])
-        max_coordinates.append(coord[max_idx])
-    
-    return min_coordinates, max_coordinates
+            min_times[n] += list(time[min_idx])
+            max_times[n] += list(time[max_idx])
+            min_coordinates[n] += list(coord[min_idx])
+            max_coordinates[n] = max_coordinates[n] + list(coord[max_idx])
+    return min_times, max_times, min_coordinates, max_coordinates
 
 
-def load_coordinate_array_envelopes(filename: str, chunks_to_load: int=100, envelope_idx: int=10000):
+def load_coordinate_array_envelopes(filename: str, n_sets: int=7, n_chunks_per_set: int=100, envelope_idx: int=10000):
     """
     The data is saved as coordinate arrays in chunks of time (e.g. 100000 time points).
-    Here, we load the data in a number of chunks chunks_to_load, concatenate the data, 
+    Here, we load the data in a number of chunks n_chunks_per_set, concatenate the data, 
     then calculate the envelope of the data to reduce the array size.
     """
-    min_coordinate_arrays = []
-    max_coordinate_arrays = []
+    num_coordinates = 15  # TODO: how to avoid hard coding this?
+    min_time_arrays = [[] for _ in range(num_coordinates)]
+    max_time_arrays = [[] for _ in range(num_coordinates)]
+    min_coordinate_arrays = [[] for _ in range(num_coordinates)]
+    max_coordinate_arrays = [[] for _ in range(num_coordinates)]
     with open(filename, 'rb') as storage:
         try:
-            while True:
-                data = []
+            load_count = 0
+            while load_count < n_sets:
+                chunks_of_coords = []
                 
-                # Load chunks of data sequentially but limited by chunks_to_load to avoid memory issues
-                for chunk_idx in range(chunks_to_load):
-                    data.append(pickle.load(storage))
+                # Load n_chunks_per_set chunks of coordinate arrays sequentially to avoid memory issues
+                # E.g. if cmvint saved coordinate arrays after every 10000 iterations, then:
+                #   chunk n = [[coord 1, 10000 floats], [coord 2, 10000 floats], ..., [coord 15, 10000 floats]]
+                #   chunks_of_coords = [chunk 1, chunk 2, ..., chunk n_chunks_per_set]
+                for chunk_idx in range(n_chunks_per_set):
+                    chunks_of_coords.append(pickle.load(storage))
                 
-                # Combine the data into coordinate-array standard for output
-                coordinate_arrays = data[0]
+                # Combine the chunks into coordinate-array standard for output
+                #   coordinate_arrays = [[coord 1, 10000*n_chunks_per_set floats], [coord 2, 10000*n_chunks_per_set floats], 
+                #                       ..., [coord 15, 10000*n_chunks_per_set floats]]
+                coordinate_arrays = chunks_of_coords[0]
                 num_coordinates = len(coordinate_arrays)
-                for chunk in data[1:]:
+                for chunk in chunks_of_coords[1:]:
                     for n in range(num_coordinates):
                         coordinate_arrays[n] += chunk[n]
-
-                # Truncate data to envelopes    
-                min_coordinates, max_coordinates = coordinates_to_envelopes(coordinate_arrays, envelope_idx)
-                min_coordinate_arrays.append(min_coordinates)
-                max_coordinate_arrays.append(max_coordinates)
+                
+                # Truncate coordinate arrays of size (10000*n_chunks_per_set) to envelopes of size ni (1 <= i <= 15)
+                #   LHS arrays = [[coord 1 envelopes, n1 floats], [coord 2 envelopes], ..., [coord 15 envelopes]]
+                min_times, max_times, min_coordinates, max_coordinates = coordinates_to_envelopes(coordinate_arrays, envelope_idx)
+                
+                # Add to existing set of chunks to create coordinate arrays
+                for n in range(num_coordinates):
+                    min_time_arrays[n] += min_times[n]
+                    max_time_arrays[n] += max_times[n]
+                    min_coordinate_arrays[n] += min_coordinates[n]
+                    max_coordinate_arrays[n] += max_coordinates[n]
+                
+                load_count += 1
+                print(f"Loaded {n_chunks_per_set} chunks (set #{load_count}) with {n_chunks_per_set*len(coordinate_arrays[1])} points.")
         except EOFError:
             pass
     
-    return min_coordinate_arrays, max_coordinate_arrays
-
-# def load_coordinate_arrays(filename: str):
-#     """Load all coordinate arrays. Useful to extract data from unfinished runs"""
-#     data = []
-#     with open(filename, 'rb') as storage:
-#         try:
-#             i = 0
-#             while i<3:
-#                 data.append(pickle.load(storage))
-#                 i += 1
-#         except EOFError:
-#             pass
-#     coordinate_arrays = data
-#     # num_coordinates = len(coordinate_arrays)
-#     # for chunk in data[1:]:
-#     #     for n in range(num_coordinates):
-#     #         coordinate_arrays[n] += chunk[n]
-    
-#     return coordinate_arrays
+    # Output arrays = [[coord 1 envelopes, n_sets*n1 floats], [coord 2 envelopes, n_sets*n2 floats], 
+    #                 ..., [coord 15 envelopes, n_sets*n15 floats]]
+    return min_time_arrays, max_time_arrays, min_coordinate_arrays, max_coordinate_arrays
 
 
 def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5e8, num_points: int=200):
