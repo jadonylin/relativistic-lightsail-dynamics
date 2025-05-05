@@ -64,24 +64,6 @@ def t_to_v(t, v_data, t_data):
     popt, pcov = curve_fit(func, t_data, v_data)
     return func(t, *popt)
 
-def KE_transverse(v: np.ndarray, omega: np.ndarray, m: float=1e-3, L: float=10.):
-    """
-    Calculate the transverse kinetic energy (translational and rotational) of a sail 
-    with given mass, length and velocities. 
-    
-    Parameters
-    ----------
-    v     :   Velocity of the sail
-    omega :   Angular velocity of the sail
-    m     :   Mass of the sail
-    L     :   Length of the sail
-
-    Returns
-    -------
-    KE :   Transverse kinetic energy of the sail
-    """
-    I = 1/12*m*L**2
-    return 1/2*m*v**2 + 1/2*I*omega**2
 
 def extract_dynamics(filename: str, start: int=0, end: int=-1, idx_to_print_state: int=0, use_M_time: bool=False):
     """
@@ -378,7 +360,7 @@ def plot_twinx_array(ax: plt.Axes, x: np.ndarray, y: np.ndarray, **kwargs):
     sec_ax = plot_array_on_same_axes(sec_ax, x, y, **kwargs)
     return ax, sec_ax
 
-def show_standard_axes(ax: plt.Axes, x: np.ndarray, xlabel: str, ylabel: str, show_zero_line: bool, color: str, ax_width: float=2.5):
+def show_standard_axes(ax: plt.Axes, x: np.ndarray, xlabel: str, ylabel: str, show_zero_line: bool=True, ax_width: float=2.5):
     """
     Show standard plot features on the axes of ax. 
     """
@@ -437,14 +419,14 @@ def show_dynamics(nrows: int, ncols: int, times: list, coords: list,
             ax.axis('off')
         else:
             ax = plot_array_on_same_axes(ax, t, q, color=col, linewidth=linewidth)
-            ax = show_standard_axes(ax, t, xlabels[ax_idx], ylabels[ax_idx], show_zero_line[ax_idx], col, ax_width)
+            ax = show_standard_axes(ax, t, xlabels[ax_idx], ylabels[ax_idx], show_zero_line[ax_idx], ax_width)
 
             if len(second_yaxis_coords) != 0:
                 q2 = second_yaxis_coords[ax_idx]
                 if q2 is not None:  # Handle secondary Y-axis plot
                     col2 = second_yaxis_colors[ax_idx]
                     ax, sec_ax = plot_twinx_array(ax, t, q2, color=col2, linewidth=linewidth)
-                    sec_ax = show_standard_axes(sec_ax, t, xlabels[ax_idx], second_yaxis_ylabels[ax_idx], show_zero_line[ax_idx], col2, ax_width)
+                    sec_ax = show_standard_axes(sec_ax, t, xlabels[ax_idx], second_yaxis_ylabels[ax_idx], show_zero_line[ax_idx], ax_width)
                     sec_ax = color_yaxis(sec_ax, col2)
                     ax = color_yaxis(ax, col)
     
