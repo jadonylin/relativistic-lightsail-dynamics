@@ -2,50 +2,30 @@
 A class to create and simulate a TwoBox grating, storing all grating parameters and hyperparameters.
 
 Contains plotting methods to show: grating permittivity profile, spectra, fields and angle dependence.
-
-TODO: Move functions containing intensity, speed of light and mass to a separate module. These functions
-rely on parameters that are not relevant to the grating simulation and should be kept separate. This module
-should only contain bigrating simulation functions, enabling the user to easily implement their own figures
-of merit in a separate module without worrying about the grating simulation.
 """
 
 # IMPORTS ###########################################################################################################################################################################
-# from torch import erf as torch_erf
-# from torch import linalg as torchLA
-# from autograd.scipy.special import erf as erf
-# from autograd.numpy import linalg as npaLA
-from agfunc import agfunc
-from parameters import Parameters
 try:
     from autograd.numpy.numpy_boxes import ArrayBox
 except ImportError:
     ArrayBox = None
 
-I0, L, m, c = Parameters()
-
-
-import torch
-import torcwa
 import grcwa
 grcwa.set_backend('autograd')
 
+import torch
+import torcwa
 # If GPU support TF32 tensor core, the matmul operation is faster than FP32 but with less precision.
 # If you need accurate operation, you have to disable the flag below.
 torch.backends.cuda.matmul.allow_tf32 = False
 # sim_dtype = torch.complex64
 # geo_dtype = torch.float32
-
 sim_dtype = torch.complex128
 geo_dtype = torch.float64
-
-
 if torch.cuda.is_available():
     device = torch.device('cuda')
 else:
     device = torch.device('cpu')
-
-
-
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import Locator
@@ -65,16 +45,11 @@ plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 import numpy as np
-# from numpy import *
 
-import os
-# os.environ["OMP_NUM_THREADS"] = "1" 
-# os.environ["OPENBLAS_NUM_THREADS"] = "1" 
-# os.environ["MKL_NUM_THREADS"] = "1" 
-import grcwa
-grcwa.set_backend('autograd')
-# os.environ["VECLIB_MAXIMUM_THREADS"] = "1" 
-# os.environ["NUMEXPR_NUM_THREADS"] = "1" 
+from agfunc import agfunc
+from parameters import Parameters
+I0, L, m, c = Parameters()
+
 
 ## Minor ticks on symlog plots ##
 # From: https://stackoverflow.com/questions/20470892/how-to-place-minor-ticks-on-symlog-scale
@@ -114,8 +89,6 @@ class MinorSymLogLocator(Locator):
     def tick_values(self, vmin, vmax):
         raise NotImplementedError('Cannot get tick locations for a '
                                   '%s type.' % type(self))
-
-
 
 
 
@@ -170,6 +143,7 @@ class TwoBox:
                 raise ValueError("Invalid torch precision. Choose 'double' or 'single'.")
         else:
             raise ValueError("Invalid RCWA engine. Choose 'GRCWA' or 'TORCWA'.")
+        
         self.grating_pitch = self.npa.array(float(grating_pitch))
         self.grating_depth = self.npa.array(float(grating_depth))
         self.box1_width = self.npa.array(float(box1_width))
@@ -408,34 +382,17 @@ class TwoBox:
                 Ts.append(self.npa.sum(T_byorder[Fourier_orders[:,0]==order]))
         elif self.RCWA_engine == 'TORCWA':
             self.init_TORCWA()
-            RT_orders=self.grating_orders()
-            Rs=self.npa.zeros(len([-1,0,1]))
-            Ts=self.npa.zeros(len([-1,0,1]))
-            orders=[[j,0] for j in RT_orders]
-            lRs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders,direction='forward',port='reflection',polarization='yy',ref_order=[0,0],power_norm=True),2))
-            lTs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders,direction='forward',port='transmission',polarization='yy',ref_order=[0,0],power_norm=True),2))
+            RT_orders = self.grating_orders()
+            Rs = self.npa.zeros(len([-1,0,1]))
+            Ts = self.npa.zeros(len([-1,0,1]))
+            orders = [[j,0] for j in RT_orders]
+            lRs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders, direction='forward', port='reflection', polarization='yy', ref_order=[0,0], power_norm=True),2))
+            lTs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders, direction='forward', port='transmission', polarization='yy', ref_order=[0,0], power_norm=True),2))
             for i,j in enumerate(RT_orders):
                 Rs[1+j]=lRs[i]
                 Ts[1+j]=lTs[i]
         return Rs,Ts
-    def Q_trivial(self):
-        """ 
-        returns simple funciton of aguments, for testing jacobian
-        
-        """ 
-        # Q1=self.npa.cos(self.angle)
-        # Q2=self.wavelength**2
-        r,t = self.eff()
-        Q1=r[0]
-        Q2=t[0]
-        print('Q1,Q2',Q1,Q2)
-        # Q1=self.tNeg1(self.angle)
-        # Q2=self.rNeg1(self.angle)
-        
-        if self.RCWA_engine == 'TORCWA':
-            return torch.stack((Q1,Q2))
-        else:
-            return self.npa.array( [Q1, Q2] )
+
     def diffraction_angle(self, m):
         """
         Calculate the diffraction angle for a given diffraction order m, if it exists.
@@ -485,15 +442,12 @@ class TwoBox:
             # return self.npa.array( [Q1, Q2] )  
         else:
             return self.npa.array( [Q1, Q2] )
-        
-    ##################
-    #### 1st derivatives
 
 
     def return_Qs(self, h_angle, h_wavelength):
         """
         Calculate efficiency factors and their derivatives
-        Note: unchanged from pre-torcwa as it doesn't use autograd or grcwa
+        NOTE: unchanged from pre-torcwa as it doesn't use autograd or grcwa
         """
         
         # Save user-initialised twobox variables
@@ -573,6 +527,204 @@ class TwoBox:
         else:
             return PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength
     
+    # TORCWA methods
+    def init_TORCWA(self):
+        """
+        Initialise the TORCWA solver
+        """
+
+        # Empty GPU cache to avoid memory issues
+        # torch.cuda.empty_cache()
+        # Grating
+        # To simulate a 1D grating, take a small periodicity in the y-direction. 
+        # The grating is in the x-direction.
+        dy = 1e-4 
+        L1 = [1.,0]
+        L2 = [0,dy] 
+        
+        # testing if this helps with jacobian
+        # self.wavelength=self.npa.array(self.wavelength) #,dtype=geo_dtype,device=device)
+        # end test
+        freq = self.npa.array(1/self.wavelength, dtype=geo_dtype, device=device) # freq = 1/wavelength when c = 1
+        freqcmp = freq*(1+1j/2/self.Qabs)
+
+        # Incoming wave
+        theta = self.angle # radians
+        phi = 0.
+
+        # Setup TORCWA
+        # geometry
+        L = [self.grating_pitch, dy]            # nm / nm size of unit cell
+        torcwa.rcwa_geo.dtype = geo_dtype
+        torcwa.rcwa_geo.device = device
+        torcwa.rcwa_geo.Lx = L[0]
+        torcwa.rcwa_geo.Ly = L[1]
+        torcwa.rcwa_geo.nx = self.Nx
+        torcwa.rcwa_geo.ny = 2 # np.min(self.Ny,2) # 2 minimum for 2d simulation displaying ? 
+        torcwa.rcwa_geo.grid()
+        torcwa.rcwa_geo.edge_sharpness = self.torcwa_edge_sharpness
+        sim = torcwa.rcwa(freq=freq, order=[self.nG,0], L=L, dtype=sim_dtype, device=device, stable_eig_grad=False) 
+        # 4/3/25 added stable_eig_grad=False to debug jacobian not working. Without this flag, 
+        # self.Eig doesn't work, but with it, grad sometmies returns ill defined eigenvector error 
+        # when calling grad, instead of NaN - both it seems only for orders past cutoff (tbc)
+        
+        eps_vacuum = 1        
+        sim.add_input_layer(eps=eps_vacuum)  # input and output layers are eps=mu=1 by default, so this line not needed
+        sim.set_incident_angle(inc_ang=theta, azi_ang=phi)  # for some reason throws an error in solve_global_smatrix if this line is before defining input layer   
+        self.build_grating_torcwa()
+        sim.add_layer(thickness=self.grating_depth, eps=self.grating_grid_torcwa)
+        sim.add_layer(thickness=self.substrate_depth, eps=self.substrate_eps)
+        sim.solve_global_smatrix()
+        self.RCWA = sim
+        
+    def build_grating_torcwa(self):
+        """
+        Build the grating for the TORCWA solver using the twobox parameters
+        no care taken for autograd, assuming torcwa/torch will handle this
+        """
+        
+        dy = 1e-4
+        Lam = self.grating_pitch
+        L = [Lam, dy]
+        w1 = self.box1_width
+        w2 = self.box2_width
+        bcd = self.box_centre_dist
+        x1 = w1/2 + 0.02*Lam # box1 centre location (offset to avoid left box left edge clipping)
+        x2 = x1 + bcd # box2 centre location    
+        eb1 = self.box1_eps
+        eb2 = self.box2_eps
+        
+        box1_bool = torcwa.rcwa_geo.rectangle(Wx=w1, Wy=L[1], Cx=x1, Cy=L[1]/2.)  # width, height, centerx, centery
+        box2_bool = torcwa.rcwa_geo.rectangle(Wx=w2, Wy=L[1], Cx=x2, Cy=L[1]/2.) # width, height, centerx, centery
+        layer0_bool = torcwa.rcwa_geo.union(box1_bool,box2_bool)
+        layer0_eps = eb1*box1_bool + eb2*box2_bool + (1. - layer0_bool)
+        self.grating_grid_torcwa = layer0_eps
+        
+        try: # when called to calculate gradient functions rather than values, tensors are virtual - do not copy to grating_grid
+            self.grating_grid = self.to_numpy(layer0_eps)
+        except:  # TODO: catch specific error
+            self.grating_grid = np.zeros((self.Nx,0))
+        return self.grating_grid
+
+    def return_epsilon(self):
+        p = self.to_numpy(self.grating_pitch)
+        x0 = np.linspace(0, p, self.Nx, endpoint=False)
+        
+        if self.RCWA_engine == 'TORCWA':
+            self.init_TORCWA()
+            # Torcwa does not need flipping this array - check x axis conventions?
+            eps_array = self.to_numpy(self.RCWA.return_layer(0,self.Nx,1)[0])
+        elif self.RCWA_engine == 'GRCWA':
+            self.init_RCWA()
+            eps_array = self.RCWA.Return_eps(which_layer=1,Nx=self.Nx,Ny=self.Ny,component='xx')
+            # flip to match ordering of desired eps vs grid number - 
+            eps_array = np.flip(eps_array)
+        
+        return x0,eps_array
+
+    def to_numpy(self,x):
+        """ 
+        Converts tensors, autograd arrays or numpy arrays, or list or tuples of these 
+        (including mixed tuples) to numpy arrays (or tuples of these). For scalars, 
+        output are native python, not numpy, for easier readability in print statements.
+        All results are separated from gradient information.
+        """        
+        if isinstance(x,(list,tuple)):        
+            result = []
+            for item in x:
+                if isinstance(item, torch.Tensor):
+                    # Convert tensor to numpy array.
+                    if item.numel()==1:
+                        result.append(item.item())
+                    else:
+                        result.append(item.detach().cpu().numpy())
+                elif(isinstance(item, (tuple,list))):
+                    # nested tuple -> recurse
+                    result.append(self.to_numpy(item)) # recurse for nested tuples
+                elif ArrayBox is not None and isinstance(x, ArrayBox):
+                    # autograd array
+                    if item.size==1:
+                        result.append(np.asarray(x).item())
+                    else:
+                        result.append(np.array(item))
+                elif isinstance(item, (np.ndarray)):
+                    result.append(np.array(item))
+                elif np.isscalar(item):
+                    result.append(item)
+                else:
+                    raise TypeError(f"to_numpy Unsupported type: {type(item)}")
+            
+            if isinstance(x,tuple):
+                if len(result)==1:
+                    return result[0]
+                else:
+                    return tuple(result)        
+            
+            if isinstance(x,list):
+                try:
+                    return np.array(result)
+                except:
+                    return result
+            else:
+                return result
+        else:        
+            if(isinstance(x, torch.Tensor)):
+                return x.detach().cpu().numpy()
+            else:
+                return np.array(x)
+        
+    def grating_orders(self):
+        """Return list of grating orders given current wavelenth and incident angle"""
+        # if np.isnan(self.to_numpy(wavelength)): wavelength=self.to_numpy(self.wavelength) 
+        # if np.isnan(self.to_numpy(angle)): angle=self.to_numpy(self.angle)
+        angle = self.angle
+        wavelength = self.wavelength
+        p = self.grating_pitch
+        
+        # Calculate the maximum possible diffraction order
+        m_max = self.npa.int((p/wavelength * (1 - self.npa.sin(angle))))
+        
+        # Iterate over possible diffraction orders from -m_max to m_max
+        orders = []
+        for m in range(-m_max-1, m_max+1):
+            # Calculate sin(θ_m) using the grating equation
+            sin_theta_m = (m * wavelength / p) + self.npa.sin(angle)
+            # Check if sin(θ_m) is within the valid range [-1, 1]
+            if -1 <= sin_theta_m <= 1:
+                orders.append(m)
+        return orders
+    
+    # Needed for pickling - removes autograd information, written by chatgpt
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Remove parts that can't be pickled
+        if 'RCWA' in state:
+            del state['RCWA']
+            del state['npa']
+        return self.detach_tensors(state)
+    
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # TODO: may need to add RCWA/TORCWA init, and redefine npa as these are not pickled.
+    
+    def detach_tensors(self,obj):
+        if isinstance(obj, torch.Tensor):
+            return obj.detach()
+        elif isinstance(obj, list):
+            return [self.detach_tensors(x) for x in obj]
+        elif isinstance(obj, tuple):
+            return tuple(self.detach_tensors(x) for x in obj)
+        elif isinstance(obj, dict):
+            return {k: self.detach_tensors(v) for k, v in obj.items()}
+        elif hasattr(obj, '__dict__'):
+            # If the object is a custom class instance, create a shallow copy
+            # and recursively detach tensors in its __dict__
+            new_obj = obj.__class__.__new__(obj.__class__)
+            new_obj.__dict__ = self.detach_tensors(obj.__dict__)
+            return new_obj
+        else:
+            return obj
+
 
     def show_permittivity(self, show_analytic_box: bool=False, show_box_edges: bool=False):
         """
@@ -738,7 +890,6 @@ class TwoBox:
         # r = ra[1]
         r = ra[0]
         return r
-
 
     def tNeg1(self, angle):
         self.angle = angle
@@ -1097,194 +1248,3 @@ class TwoBox:
         # fig.set_size_inches(fig_width, fig_height)
         
         return fig, axs
-    
-# TORCWA methods
-    def init_TORCWA(self):
-        """
-        Initialise the TORCWA solver
-        """
-        # empty GPU cache to avoid memory issues
-        # torch.cuda.empty_cache()
-        # Grating
-        # To simulate a 1D grating, take a small periodicity in the y-direction. 
-        # The grating is in the x-direction.
-        dy = 1e-4 
-        L1 = [1.,0]
-        L2 = [0,dy] 
-        # testing if this helps with jacobian
-        # self.wavelength=self.npa.array(self.wavelength) #,dtype=geo_dtype,device=device)
-        # end test
-        freq = self.npa.array(1/self.wavelength,dtype=geo_dtype,device=device) # freq = 1/wavelength when c = 1
-        # freq=1.0/self.wavelength
-        freqcmp = freq*(1+1j/2/self.Qabs)
-
-        # Incoming wave
-        theta = self.angle # radians
-        phi = 0.
-
-        # setup TORCWA
-        # geometry
-        L = [self.grating_pitch, dy]            # nm / nm size of unit cell
-        torcwa.rcwa_geo.dtype = geo_dtype
-        torcwa.rcwa_geo.device = device
-        torcwa.rcwa_geo.Lx = L[0]
-        torcwa.rcwa_geo.Ly = L[1]
-        torcwa.rcwa_geo.nx = self.Nx
-        torcwa.rcwa_geo.ny = 2 # np.min(self.Ny,2) # 2 minimum for 2d simulation displaying ? 
-        torcwa.rcwa_geo.grid()
-        torcwa.rcwa_geo.edge_sharpness = self.torcwa_edge_sharpness
-        sim = torcwa.rcwa(freq=freq,order=[self.nG,0],L=L,dtype=sim_dtype,device=device,stable_eig_grad=False) # 4/3/25 added stable_eig_grad=False to debug jacobian not working 
-            # Without this flag, self.Eig doesn't work, but with it, grad sometmies returns ill defined eigenvector error when calling grad, instead of NaN - both it seems only for orders past cutoff (tbc)
-        
-        ## CREATE LAYERS ##
-        eps_vacuum = 1        
-        sim.add_input_layer(eps=eps_vacuum) # input and output layers are eps=mu=1 by default, so this line not needed
-        sim.set_incident_angle(inc_ang=theta,azi_ang=phi)     # for some reason throws an error in solve_global_smatrix if this line is before defining input layer   
-        self.build_grating_torcwa()
-        sim.add_layer(thickness=self.grating_depth,eps=self.grating_grid_torcwa)
-        sim.add_layer(thickness=self.substrate_depth,eps=self.substrate_eps)
-        sim.solve_global_smatrix()
-        self.RCWA = sim
-        
-
-    def build_grating_torcwa(self):
-        """
-        Build the grating for the TORCWA solver using the twobox parameters
-        no care taken for autograd, assuming torcwa/torch will handle this
-        """
-        # layers
-        dy=1e-4
-        L = [self.grating_pitch, dy]                    
-        Lam = self.grating_pitch
-        w1 = self.box1_width
-        w2 = self.box2_width
-        bcd = self.box_centre_dist
-        x1 = w1/2 + 0.02*Lam # box1 centre location (offset to avoid left box left edge clipping)    
-        x2 = x1 + bcd # box2 centre location    
-        eb1 = self.box1_eps
-        eb2 = self.box2_eps
-        box1_bool = torcwa.rcwa_geo.rectangle(Wx=w1,Wy=L[1],Cx=x1,Cy=L[1]/2.) # width, heigh, centerx, centery
-        box2_bool = torcwa.rcwa_geo.rectangle(Wx=w2,Wy=L[1],Cx=x2,Cy=L[1]/2.) # width, heigh, centerx, centery
-        layer0_bool=torcwa.rcwa_geo.union(box1_bool,box2_bool)
-        layer0_eps =eb1*box1_bool+eb2*box2_bool + (1.-layer0_bool)
-        self.grating_grid_torcwa = layer0_eps
-        try: # when called to calculate gradient functions rather than values, tensors are virtual - do not copy to grating_grid
-            self.grating_grid = self.to_numpy(layer0_eps)
-        except:
-            self.grating_grid =np.zeros((self.Nx,0))
-        return self.grating_grid
-
-    def return_epsilon(self):
-        p=self.to_numpy(self.grating_pitch)
-        x0 = np.linspace(0,p,self.Nx, endpoint=False)
-    
-        if self.RCWA_engine == 'TORCWA':
-            self.init_TORCWA() 
-            #Torcwa does not need flipping this array - check x axis conventions?           
-            eps_array=self.to_numpy(self.RCWA.return_layer(0,self.Nx,1)[0])
-                
-        elif self.RCWA_engine == 'GRCWA':
-            self.init_RCWA()
-            eps_array = self.RCWA.Return_eps(which_layer=1,Nx=self.Nx,Ny=self.Ny,component='xx')
-            # flip to match ordering of desired eps vs grid number - 
-            eps_array = np.flip(eps_array)
-
-        return x0,eps_array
-    def to_numpy(self,x):
-        """ Converts tensors, autograd arrays or numpy arrays, or list or tuples of these
-          (including mixed tuples) to numpy arrays (or tuples of these). For scalars, output are native python, not numpy, for 
-          easier readability in print statements,
-          All results are separated from gradient information.
-        """        
-        if isinstance(x,(list,tuple)):        
-            result = []
-            for item in x:
-                if isinstance(item, torch.Tensor):
-                    # Convert tensor to numpy array.
-                    if item.numel()==1:
-                        result.append(item.item())
-                    else:
-                        result.append(item.detach().cpu().numpy())
-                elif(isinstance(item, (tuple,list))):
-                    # nested tuple -> recurse
-                    result.append(self.to_numpy(item)) # recurse for nested tuples
-                elif ArrayBox is not None and isinstance(x, ArrayBox):
-                    # autograd array
-                    if item.size==1:
-                        result.append(np.asarray(x).item())
-                    else:
-                        result.append(np.array(item))
-                    
-                elif isinstance(item, (np.ndarray)):
-                    result.append(np.array(item))
-                elif np.isscalar(item):
-                    result.append(item)
-                else:
-                    raise TypeError(f"to_numpy Unsupported type: {type(item)}")
-            if isinstance(x,tuple):
-                if len(result)==1:
-                    return result[0]
-                else:
-                    return tuple(result)        
-            if isinstance(x,list):
-                try:
-                    return np.array(result)
-                except:
-                    return result
-            else:
-                return result
-        else:        
-            if(isinstance(x, torch.Tensor)):
-                return x.detach().cpu().numpy()
-            else:
-                return np.array(x)
-        
-    def grating_orders(self):
-        """ return list of grating orders given current wavelenth and incident angle """
-        # if np.isnan(self.to_numpy(wavelength)): wavelength=self.to_numpy(self.wavelength) 
-        # if np.isnan(self.to_numpy(angle)): angle=self.to_numpy(self.angle)
-        angle=self.angle
-        wavelength=self.wavelength
-        p=self.grating_pitch
-        # Calculate the maximum possible diffraction order
-        m_max = self.npa.int(((p / wavelength) * (1 - self.npa.sin(angle))))
-        # Initialize a list to store the valid diffraction orders
-        orders = []
-        # Iterate over possible diffraction orders from -m_max to m_max
-        for m in range(-m_max-1, m_max + 1):
-            # Calculate sin(θ_m) using the grating equation
-            sin_theta_m = (m * wavelength / p) + self.npa.sin(angle)
-            # Check if sin(θ_m) is within the valid range [-1, 1]
-            if -1 <= sin_theta_m <= 1:
-                orders.append(m)
-        return orders
-    
-    # needed for pickling - removes autograd information, written by chatgpt
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        # remove parts that can't be pickled
-        if 'RCWA' in state:
-            del state['RCWA']
-            del state['npa']
-        return self.detach_tensors(state)
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        # may need to add RCWA/TORCWA init, and redefine npa as these are not pickled.
-    
-    def detach_tensors(self,obj):
-        if isinstance(obj, torch.Tensor):
-            return obj.detach()
-        elif isinstance(obj, list):
-            return [self.detach_tensors(x) for x in obj]
-        elif isinstance(obj, tuple):
-            return tuple(self.detach_tensors(x) for x in obj)
-        elif isinstance(obj, dict):
-            return {k: self.detach_tensors(v) for k, v in obj.items()}
-        elif hasattr(obj, '__dict__'):
-            # If the object is a custom class instance, create a shallow copy
-            # and recursively detach tensors in its __dict__
-            new_obj = obj.__class__.__new__(obj.__class__)
-            new_obj.__dict__ = self.detach_tensors(obj.__dict__)
-            return new_obj
-        else:
-            return obj
