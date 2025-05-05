@@ -39,10 +39,10 @@ from twobox import TwoBox
 
 
 # Global optimisation parameters
-num_cores = 8  # number of cores to run parallel optimisation
+num_cores = 2  # number of cores to run parallel optimisation
 maxfev = 2  # global 1000
 h1_min, h1_max, param_bounds = Bounds()
-
+runID = "minmax"
 
 # Local optimisation parameters
 xtol_rel = 1e-4  
@@ -123,7 +123,7 @@ lines_to_file = ["\n\n----------------------------------------------------------
 
 ## Writing to file ##
 # txt_fname = f'./Data/FOM_5th_bounds3_optimisation_maxfev{maxfev*num_cores}.txt'  # What do the numbers mean?
-txt_fname = f'./Data/FOM_optimisation_maxfev{maxfev*num_cores}.txt'
+txt_fname = f'./Data/{runID}_FOM_optimisation_maxfev{maxfev*num_cores}.txt'
 with open(txt_fname, "a") as result_file:
     result_file.writelines(lines_to_file)
 
@@ -170,6 +170,6 @@ if __name__ == '__main__':
                     'FOM parameters': FOM_params_dict,  'Bounds': bounds_dict,
                     'Sampling settings': sampling_dict, 'LO settings': LO_dict, 'GO settings': GO_dict}
             
-            pkl_fname = f'./Data/FOM_optimisation_maxfev{maxfev*num_cores}_process{opt_index}.pkl'
+            pkl_fname = f'./Data/{runID}_FOM_optimisation_maxfev{maxfev*num_cores}_process{opt_index}.pkl'
             with open(pkl_fname, 'wb') as data_file:
                 pickle.dump(data, data_file)

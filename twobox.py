@@ -982,6 +982,8 @@ class TwoBox:
         #          negative eigenvalue with the smallest real part. 
         FD = self.npa.min(-eigReal)  # standard minimum
         # FD = npa.sum(-eigReal*softmin(-eigReal,1.))  # softened minimum
+
+        # FD = npa.min(-eigReal) + npa.max(-eigReal)
         
         return FD
 
@@ -1178,7 +1180,7 @@ class TwoBox:
         -------
         eigReal :   Real part of Jacobian eigenvalues
         eigImag :   Imaginary part of Jacobian eigenvalues
-        eigvecs :   Eigenvectors of Jacobian matrix
+        eigvecs :   Eigenvectors of Jacobian matrix, normalised to unit length
         """
 
         stiffnesses = self.sail_stiffness(I,m,c1,grad_method,out="tr")

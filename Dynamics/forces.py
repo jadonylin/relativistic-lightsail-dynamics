@@ -44,7 +44,7 @@ def load_essential_data(opt_gratings_data_fname: str, num_processes: int, output
     lookup_data    :   Qpr lookup table data
     """
     _, _, opt_grating = extract_opt(opt_gratings_data_fname, num_processes, output_opt_idx)
-    gaussian_width = opt_grating.params[-3]  # TODO: replace with direct self.gaussian_width extraction once this branch is merged with jl
+    gaussian_width = opt_grating.gaussian_width
     with open(lookup_data_fname, 'rb') as lookup_file: 
         lookup_data = pickle.load(lookup_file)
     return gaussian_width, lookup_data
