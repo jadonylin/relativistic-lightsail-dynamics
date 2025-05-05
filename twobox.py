@@ -129,76 +129,56 @@ class TwoBox:
 
     Attributes
     ----------
-    grating_pitch   :   A float for the grating pitch/period 
-    grating_depth   :   A float for the grating layer depth/height/thickness 
-    box1_width      :   A float for the left box/resonator width
-    box2_width      :   A float for the right box/resonator width
-    box_centre_dist :   A float for the distance between the box centres
-    box1_eps        :   A float for the left box relative permittivity
-    box2_eps        :   A float for the right box relative permittivity
-    gaussian_width  :   A float for the Gaussian beam width (metres)
-    substrate_depth :   A float for the substrate layer depth/height/thickness
-    substrate_eps   :   A float for the substrate permittiivty
-    wavelength      :   A float for the excitation-plane-wave wavelength (laser-frame wavelength)
-    angle           :   A float for the excitation-plane-wave angle
-    Nx              :   An integer for the number of grid points in the unit cell
-    nG              :   An integer for the number of Fourier components used in the RCWA simulation
-    Qabs            :   A float for the relaxation parameter, determining the strength of the imaginary frequency and thus smoothness of resonances
-    RCWA_engine     :   RCWA engine to use - 'GRCWA' or 'TORCWA'
-    torcwa_edge_sharpness: An integer for the sharpness of the edge of the unit cell in TORCWA
-    title           :   A string for the title of plots
+    grating_pitch         :   A float for the grating pitch/period 
+    grating_depth         :   A float for the grating layer depth/height/thickness 
+    box1_width            :   A float for the left box/resonator width
+    box2_width            :   A float for the right box/resonator width
+    box_centre_dist       :   A float for the distance between the box centres
+    box1_eps              :   A float for the left box relative permittivity
+    box2_eps              :   A float for the right box relative permittivity
+    gaussian_width        :   A float for the Gaussian beam width (metres)
+    substrate_depth       :   A float for the substrate layer depth/height/thickness
+    substrate_eps         :   A float for the substrate permittiivty
+    wavelength            :   A float for the excitation-plane-wave wavelength (laser-frame wavelength)
+    angle                 :   A float for the excitation-plane-wave angle
+    Nx                    :   An integer for the number of grid points in the unit cell
+    nG                    :   An integer for the number of Fourier components used in the RCWA simulation
+    Qabs                  :   A float for the relaxation parameter, determining the strength of the imaginary frequency and thus smoothness of resonances
+    RCWA_engine           :   RCWA engine to use - 'GRCWA' or 'TORCWA'
+    torcwa_edge_sharpness :   An integer for the sharpness of the edge of the unit cell in TORCWA
+    title                 :   A string for the title of plots
     """
 
     def __init__(self, grating_pitch: float, grating_depth: float, box1_width: float, box2_width: float, box_centre_dist: float, box1_eps: complex, box2_eps: complex, 
                  gaussian_width: float, substrate_depth: float, substrate_eps: float, 
                  wavelength: float=1., angle: float=0.,
-                 Nx: float=1000, nG: int=25, Qabs: float=np.inf,RCWA_engine='GRCWA',torcwa_edge_sharpness:int =45,title: str=None) -> None:
-        """
-        Initialise twobox grating, excitation and hyperparameters.
+                 Nx: float=1000, nG: int=25, Qabs: float=np.inf,
+                 RCWA_engine: float='GRCWA', torcwa_edge_sharpness: int =45, title: str=None) -> None:
 
-        Parameters
-        ----------
-        grating_pitch   :   Grating pitch/period
-        grating_depth   :   Grating layer depth/height/thickness
-        box1_width      :   Left box width 
-        box2_width      :   Right box width
-        box_centre_dist         :   Distance between box centres
-        box1_eps        :   Left box permittivity
-        box2_eps        :   Right box permittivity
-        gaussian_width  :   Width of gaussian beam
-        substrate_depth :   Substrate layer depth/height/thickness
-        substrate_eps   :   Substrate permittiivty (set to zero for no substrate)
-        wavelength      :   Excitation plane wave wavelength (laser-frame wavelength)
-        angle           :   Excitation plane wave angle in radians
-        Nx              :   Number of grid points in the unit cell
-        nG              :   Number of Fourier components
-        Qabs            :   Relaxation parameter
-        RCWA_engine     :   RCWA engine to use - 'GRCWA' or 'TORCWA'
-        """
         self.RCWA_engine = RCWA_engine
         
         if self.RCWA_engine == 'GRCWA':
-            self.npa=agfunc('autograd')
+            self.npa = agfunc('autograd')
         elif self.RCWA_engine == 'TORCWA':            
-            if Nx<nG*2:
+            if Nx < nG*2:
                 raise ValueError("Nx must be at least 2*nG for TORCWA")
             if geo_dtype == torch.float64:
-                self.npa=agfunc('torch',device=device,precision='double')
+                self.npa = agfunc('torch', device=device, precision='double')
             elif geo_dtype == torch.float32:
-                self.npa=agfunc('torch',device=device,precision='single')
+                self.npa = agfunc('torch', device=device, precision='single')
             else:
                 raise ValueError("Invalid torch precision. Choose 'double' or 'single'.")
         else:
             raise ValueError("Invalid RCWA engine. Choose 'GRCWA' or 'TORCWA'.")
-        self.grating_pitch = self.npa.array(float(grating_pitch ))
-        self.grating_depth = self.npa.array(float(grating_depth ))
+        self.grating_pitch = self.npa.array(float(grating_pitch))
+        self.grating_depth = self.npa.array(float(grating_depth))
         self.box1_width = self.npa.array(float(box1_width))
         self.box2_width = self.npa.array(float(box2_width))
         self.box_centre_dist = self.npa.array(float(box_centre_dist))
         self.box1_eps = self.npa.array(float(box1_eps)) # complex causes problems with FOM (adaptive? gradient? not clear)
         self.box2_eps = self.npa.array(float(box2_eps))  # complex causes problems with FOM (adaptive? gradient? not clear)
         
-        self.gaussian_width=self.npa.array(float(gaussian_width))
+        self.gaussian_width = self.npa.array(float(gaussian_width))
         self.substrate_depth = self.npa.array(float(substrate_depth))
         self.substrate_eps = self.npa.array(float(substrate_eps))
         
@@ -209,7 +189,7 @@ class TwoBox:
         self.Ny = 1  # 1D grating simulation, only one grid in the y-direction (transverse to the 1D periodicity)
         self.nG = nG
         self.Qabs = Qabs
-        self.torcwa_edge_sharpness=torcwa_edge_sharpness
+        self.torcwa_edge_sharpness = torcwa_edge_sharpness
 
 
         self.invert_unit_cell = False
@@ -289,7 +269,6 @@ class TwoBox:
     def build_grating_gradable(self, sigma: float=100.):
         if self.RCWA_engine == 'GRCWA':
             self.build_grating_GRCWA(sigma)
-
         elif self.RCWA_engine == 'TORCWA':            
             self.build_grating_torcwa()
         else:
