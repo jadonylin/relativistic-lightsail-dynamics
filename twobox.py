@@ -777,18 +777,15 @@ class TwoBox:
         ax  :   Spectrum axs object
         """
 
-        allowed_quantities = ("r", "t", "PDr", "PDt", "FoM")
+        allowed_quantities = ("r", "t", "PDr", "PDt")
         if efficiency_quantity not in allowed_quantities:
             invalid_quantity_message = f"Invalid efficiency quantity. Allowed quantities are: {allowed_quantities}"
             raise ValueError(invalid_quantity_message)
         
-
         wavelengths = np.linspace(*wavelength_range, num_plot_points)
         init_wavelength = self.wavelength  # record user-initialised wavelength
         inc_angle_deg = angle*180/np.pi
      
-
-
         RT_orders = [-1,0,1]
         n_orders = len(RT_orders)
         efficiencies = np.zeros((2*n_orders,num_plot_points), dtype=float)
@@ -804,11 +801,6 @@ class TwoBox:
                 efficiencies[0,idx] = self.to_numpy(self.PDrNeg1(angle)) # this removes the autograd function -- ok for plotting            
             elif efficiency_quantity == "PDt":
                 efficiencies[0,idx] = self.to_numpy(self.PDtNeg1(angle)) # this removes the autograd function -- ok for plotting
-                
-
-            elif efficiency_quantity == "FoM":
-                efficiencies[0,idx] = fom.FoM(I=I, grad_method="grad")
-
 
         self.wavelength = init_wavelength
 
@@ -847,10 +839,6 @@ class TwoBox:
         elif efficiency_quantity == "PDt":
             ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', lw = LINE_WIDTH) 
             ylabel = rf"$\frac{{\partial t_{{-1}}'}}{{\partial\theta'}}({inc_angle_deg:.2f}°)$"
-
-        elif efficiency_quantity=="FoM":
-            ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', lw = LINE_WIDTH) 
-            ylabel = rf"FoM"
 
       
         if efficiency_quantity in legend_needed:

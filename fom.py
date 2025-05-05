@@ -8,6 +8,22 @@ User figure of merit functions should be defined here.
 import numpy as np
 from twobox import TwoBox
 
+import matplotlib.pyplot as plt
+from matplotlib.ticker import Locator
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+plt.rcParams['figure.figsize'] = [15, 7.5] # change inline figure size
+# plt.rcParams["font.family"] = "Helvetica"
+LINE_WIDTH = 2.2
+SMALL_SIZE = 16
+MEDIUM_SIZE = 18
+BIGGER_SIZE = 20
+plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 def FoM(grating: twobox, I: float=1e9, grad_method: str="finite", sigma: float=1.) -> float:
         """
@@ -266,6 +282,38 @@ def Eigs(grating: twobox, I: float=10e9, m: float=1/1000, c1:float=299792458, gr
     else:
         return eigReal, eigImag
 
+
+def lsa_info(grating: twobox, I: float=0.5e9):
+    """
+    Calculate quantities relevant to linear stability analysis (LSA) of the twobox dynamics. Also calculates
+    the radiation pressure cross sections and their derivatives.
+
+    Parameters
+    ----------
+    grating :   Calculate linear-stability info for this grating
+    I       :   Incident light intensity
+    
+    Returns
+    -------
+    efficiencies :   Radiation pressure cross sections and their derivatives  
+    rest_coeffs  :   Restoring force/torque coefficients
+    damp_coeffs  :   Damping force/torque coefficients
+    eigReal      :   Real component of eigenvalues
+    eigImag      :   Imaginary component of eigenvalues
+    """
+
+    efficiencies = tuple(grating.return_Qs_auto(return_Q=True))
+    
+    stiffnesses = sail_stiffness(I,m,c,grad_method="grad",out="rd")
+    rest_coeffs = tuple([*stiffnesses[:4]])
+    damp_coeffs = tuple([*stiffnesses[4:]])
+
+    eigReal, eigImag, eigvecs = Eigs(I,m,c,grad_method="grad",return_vec=True)
+
+    grating.wavelength = input_wavelength
+    return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs
+
+
 def show_Eigs(grating, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plot_points: int=200, eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, marker: str='o'):
     """
     Show eigenvalue spectrum for the twobox.
@@ -349,33 +397,48 @@ def show_Eigs(grating, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plo
 
     return fig, (ax1, ax2)
 
-
-def lsa_info(grating: twobox, I: float=0.5e9):
+def show_FOM_spectrum(grating, angle: float=0., wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9, grad_method: str="grad"):
     """
-    Calculate quantities relevant to linear stability analysis (LSA) of the twobox dynamics. Also calculates
-    the radiation pressure cross sections and their derivatives.
+    Show spectrum of various efficiency quantities for the twobox.
 
     Parameters
     ----------
-    grating :   Calculate linear-stability info for this grating
-    I       :   Incident light intensity
-    
+    angle               :   Angle of incident plane wave excitation (radians)
+    efficiency_quantity :   The efficiency quantity you want spectrum for
+                            "r" - reflection, "PDr" - reflection angular derivative, 
+                            "t" - transmission, "PDr" - transmission angular derivative),
+                            "FoM" - single-wavelength figure of merit
+    wavelength_range    :   Wavelength range to plot spectrum (same units as grating pitch)
+    num_plot_points     :   Number of points to plot
+    I                   :   Laser intensity
+
     Returns
     -------
-    efficiencies :   Radiation pressure cross sections and their derivatives  
-    rest_coeffs  :   Restoring force/torque coefficients
-    damp_coeffs  :   Damping force/torque coefficients
-    eigReal      :   Real component of eigenvalues
-    eigImag      :   Imaginary component of eigenvalues
+    fig :   Spectrum figure object
+    ax  :   Spectrum axs object
     """
-
-    efficiencies = tuple(grating.return_Qs_auto(return_Q=True))
     
-    stiffnesses = sail_stiffness(I,m,c,grad_method="grad",out="rd")
-    rest_coeffs = tuple([*stiffnesses[:4]])
-    damp_coeffs = tuple([*stiffnesses[4:]])
+    wavelengths = np.linspace(*wavelength_range, num_plot_points)
+    init_wavelength = grating.wavelength  # record user-initialised wavelength
+    inc_angle_deg = angle*180/np.pi
+    
+    efficiencies = np.zeros(num_plot_points, dtype=float)
+    for idx, lam in enumerate(wavelengths):
+        grating.wavelength = lam
+        efficiencies[idx] = FoM(I=I, grad_method="grad")
+    grating.wavelength = init_wavelength
 
-    eigReal, eigImag, eigvecs = Eigs(I,m,c,grad_method="grad",return_vec=True)
-
-    grating.wavelength = input_wavelength
-    return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs
+    fig, ax = plt.subplots(1)         
+    p = grating.to_numpy(grating.grating_pitch)
+    ax.set_xlim(wavelength_range/p)  # normalise wavelength to grating pitch
+    ax.plot(wavelengths/p, efficiencies, color=(0.7, 0, 0), linestyle='-', lw=LINE_WIDTH)
+    ax.set(title=rf"{grating.title} $h_1' = {grating.grating_depth/grating.wavelength:.3f}\lambda_0$, $\Lambda' = {grating.grating_pitch/grating.wavelength:.3f}\lambda_0$", xlabel=r"$\lambda'/\Lambda'$", ylabel="FoM")
+    ax.axhline(y=0, color='black', linestyle='-', lw = '1')
+    ax.tick_params(axis='both', which='both', direction='in') # ticks inside box
+    
+    cm_to_inch = 0.393701
+    fig_width = 20.85*cm_to_inch
+    fig_height = 17.6*cm_to_inch
+    fig.set_size_inches(fig_width/1.2, fig_height/1.2)
+    
+    return fig, ax
