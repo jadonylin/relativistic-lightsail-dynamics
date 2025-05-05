@@ -43,13 +43,10 @@ def FD(grating: TwoBox) -> float:
     ----------
     grating :           TwoBox instance containing the grating parameters
     """
-    
-    # return grating.FoM(I0, grad_method = "finite") # use finite for GRCWA, grad for Torcwa
-
     if grating.RCWA_engine=="TORCWA":
-        return grating.FoM(I0, grad_method = "grad")
+        return FoM(grating, I0, grad_method="grad")
     else:
-        return grating.FoM(I0, grad_method = "finite")
+        return FoM(grating, I0, grad_method="finite")
 
 
 
