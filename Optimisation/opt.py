@@ -30,7 +30,6 @@ sys.path.append("../")
 import fom
 from parameters import Parameters, D1_ND, Initial_bigrating, opt_Parameters
 I0, L, m, c = Parameters()
-_, angle, Nx, nG, Qabs, goal, final_speed, _ = opt_Parameters()
 from twobox import TwoBox
 
 
@@ -282,37 +281,6 @@ def boxes_clip_unit_cell(params,gradn):
     condition = (w1+w2)/2 + bcd - 0.98*Lam
     return condition
 
-# def some_eig_real_avg_positive(params,gradn):
-#     """
-#     Constraint function requiring that the average of all real-part eigenvalues are negative. 
-
-#     TODO: make this function more differentiable
-#     """
-#     grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
-#     avg_eigvals_real = average_real_eigs(grating_check,final_speed,goal,return_eigs=False,I=I0)
-#     largest_avg_Reig = np.max(avg_eigvals_real) 
-#     if largest_avg_Reig == 0:  # Don't want zero-real-part eigenvalues, so set condition to unwanted region 
-#         condition = 1
-#     else:
-#         condition = largest_avg_Reig
-#     return condition
-
-# def some_eig_imag_zero(params,gradn):
-#     """
-#     Constraint function requiring that the imaginary-part eigenvalues are nonzero. 
-
-#     TODO: make this function more differentiable
-#     """
-#     grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
-#     _, eigvals_imag = fom.Eigs(grating_check, I=I0,m=m,c1=c,grad_method="finite")
-#     # probs = softmin(eigvals_imag,sigma=1.)
-#     # smallest_eigval_imag = np.sum(probs*eigvals_imag)
-#     smallest_eigval_imag = np.min(np.abs(eigvals_imag))
-#     if smallest_eigval_imag == 0:  # Don't want zero-imag-part eigenvalues, so set condition to unwanted region 
-#         condition = 1
-#     else:
-#         condition = -smallest_eigval_imag
-#     return condition
 
 def global_optimise(objective, 
                     sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxfev: int=32000,
