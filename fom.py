@@ -6,7 +6,6 @@ User figure of merit functions should be defined here.
 """
 
 import numpy as np
-from twobox import TwoBox
 
 import matplotlib.pyplot as plt
 from matplotlib.ticker import Locator
@@ -25,7 +24,13 @@ plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
-def FoM(grating: twobox, I: float=1e9, grad_method: str="finite", sigma: float=1.) -> float:
+from parameters import Parameters
+I0, L, m, c = Parameters()
+from plothelp import MinorSymLogLocator
+from twobox import TwoBox
+
+
+def FoM(grating: TwoBox, I: float=1e9, grad_method: str="finite", sigma: float=1.) -> float:
         """
         Calculate the grating single-wavelength figure of merit FD.
 
@@ -50,7 +55,7 @@ def FoM(grating: twobox, I: float=1e9, grad_method: str="finite", sigma: float=1
         FD :   Figure of merit
         """
         
-        eigReal, eigImag = Eigs(I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
+        eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
 
         # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
         #          negative eigenvalue with the smallest real part. 
@@ -60,7 +65,7 @@ def FoM(grating: twobox, I: float=1e9, grad_method: str="finite", sigma: float=1
         
         return FD
 
-def FoM_quality_factor(grating: twobox, I: float=1e9, grad_method: str="finite") -> float:
+def FoM_quality_factor(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
     """
     Calculate the grating single-wavelength figure of merit FD.
 
@@ -81,7 +86,7 @@ def FoM_quality_factor(grating: twobox, I: float=1e9, grad_method: str="finite")
     
     raise NotImplementedError("Must determine how to handle signs and avoid Im(xi) = 0.")
 
-def FoM_LvR(grating: twobox, I: float=1e9, grad_method: str="finite") -> float:
+def FoM_LvR(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
     """
     Last FoM implemented by Liam - not working with TORCWA
     Calculate the grating single-wavelength figure of merit FD using LvR's most updated method.
@@ -97,7 +102,7 @@ def FoM_LvR(grating: twobox, I: float=1e9, grad_method: str="finite") -> float:
     FD :   Figure of merit
     """
     
-    eigReal, eigImag = Eigs(I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
+    eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
 
     def unique_filled(x, filled_value):
         """
@@ -169,7 +174,7 @@ def FoM_LvR(grating: twobox, I: float=1e9, grad_method: str="finite") -> float:
 
 
 
-def sail_stiffness(grating: twobox, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', out="tr"):
+def sail_stiffness(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', out="tr"):
     """
     Calculate stiffness coefficients/Jacobian coefficients for a symmetric lightsail at equilibrium. Here, symmetric 
     means symmetric with respect to reflections about the laser-beam axis (when the CoM lies on the laser-beam axis).
@@ -245,7 +250,7 @@ def sail_stiffness(grating: twobox, I: float=10e9, m: float=1/1000, c1:float=299
         case _:
             raise ValueError("Invalid output format. Must be 'tr' or 'rd'.")
         
-def Eigs(grating: twobox, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', return_vec: bool = False):
+def Eigs(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', return_vec: bool = False):
     """
     Calculate eigendecomposition of Jacobian matrix at equilibrium
 
@@ -265,7 +270,7 @@ def Eigs(grating: twobox, I: float=10e9, m: float=1/1000, c1:float=299792458, gr
     eigvecs :   Eigenvectors of Jacobian matrix, normalised to unit length
     """
 
-    stiffnesses = sail_stiffness(I,m,c1,grad_method,out="mat")
+    stiffnesses = sail_stiffness(grating,I,m,c1,grad_method,out="mat")
 
     # Build the Jacobian matrix
     J = grating.npa.concatenate((grating.npa.array([[0,0,1,0],[0,0,0,1]]),stiffnesses))
@@ -283,7 +288,7 @@ def Eigs(grating: twobox, I: float=10e9, m: float=1/1000, c1:float=299792458, gr
         return eigReal, eigImag
 
 
-def lsa_info(grating: twobox, I: float=0.5e9):
+def lsa_info(grating: TwoBox, I: float=0.5e9):
     """
     Calculate quantities relevant to linear stability analysis (LSA) of the twobox dynamics. Also calculates
     the radiation pressure cross sections and their derivatives.
@@ -301,20 +306,15 @@ def lsa_info(grating: twobox, I: float=0.5e9):
     eigReal      :   Real component of eigenvalues
     eigImag      :   Imaginary component of eigenvalues
     """
-
     efficiencies = tuple(grating.return_Qs_auto(return_Q=True))
-    
-    stiffnesses = sail_stiffness(I,m,c,grad_method="grad",out="rd")
+    stiffnesses = sail_stiffness(grating,I,m,c,grad_method="grad",out="rd")
     rest_coeffs = tuple([*stiffnesses[:4]])
     damp_coeffs = tuple([*stiffnesses[4:]])
-
-    eigReal, eigImag, eigvecs = Eigs(I,m,c,grad_method="grad",return_vec=True)
-
-    grating.wavelength = input_wavelength
+    eigReal, eigImag, eigvecs = Eigs(grating, I,m,c,grad_method="grad",return_vec=True)
     return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs
 
 
-def show_Eigs(grating, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plot_points: int=200, eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, marker: str='o'):
+def show_Eigs(grating: TwoBox, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plot_points: int=200, eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, marker: str='o'):
     """
     Show eigenvalue spectrum for the twobox.
 
@@ -343,7 +343,7 @@ def show_Eigs(grating, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plo
     for idx, lam in enumerate(wavelengths):
         # Calculate eigs for each order
         grating.wavelength = grating.npa.array(lam)
-        real, imag = Eigs(I=I,m=m,c1=c, grad_method="grad", return_vec=False)
+        real, imag = Eigs(grating, I=I,m=m,c1=c, grad_method="grad", return_vec=False)
         eigvals[:,idx] = real + 1j*imag
         
     grating.wavelength = init_wavelength # restore user-initialised wavelength
@@ -397,7 +397,7 @@ def show_Eigs(grating, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plo
 
     return fig, (ax1, ax2)
 
-def show_FOM_spectrum(grating, angle: float=0., wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9, grad_method: str="grad"):
+def show_FOM_spectrum(grating: TwoBox, angle: float=0., wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9, grad_method: str="grad"):
     """
     Show spectrum of various efficiency quantities for the twobox.
 
