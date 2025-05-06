@@ -42,7 +42,7 @@ from twobox import TwoBox
 num_cores = 2  # number of cores to run parallel optimisation
 maxfev = 2  # global 1000
 h1_min, h1_max, param_bounds = Bounds()
-runID = "minmax"
+runID = "grcwa_test"
 
 # Local optimisation parameters
 xtol_rel = 1e-4  
@@ -54,13 +54,15 @@ n_sample_exp = 3
 n_sample = 2**n_sample_exp
 ndof = 10  # number of optimisation parameters
 
+RCWA_engine = "GRCWA"
+torcwa_sharpness = 45
 
 # Initial grating parameters and hyperparameters
 wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad = opt_Parameters()
 grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = Initial_bigrating()
 grating = TwoBox(grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, 
                  gaussian_width, substrate_depth, substrate_eps,
-                 wavelength, angle, Nx, nG, Qabs)
+                 wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness, title=runID)
 
 
 def objective(params):
@@ -87,7 +89,8 @@ def objective(params):
 
 ## Converting non-h1 parameter dicts to strings ##
 # Fixed parameters
-fixed_params_dict = {'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs}
+fixed_params_dict = {'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs,
+                     'RCWA engine': RCWA_engine, 'TORCWA edge sharpness': torcwa_sharpness}
 fixed_params_line = str(fixed_params_dict)
 FOM_params_dict = {'final_speed': final_speed, 'goal': goal}
 FOM_params_line = str(FOM_params_dict)
@@ -162,7 +165,7 @@ if __name__ == '__main__':
             is_opt = opt_result[2]
             
             # Copy the grating to ensure it is not subsequently modified during optimisation
-            opt_grating = deepcopy(grating)
+            opt_grating = grating
             opt_grating.params = opt_params
 
             data = {'Optimised grating': opt_grating, 'FOM': opt_FOM, 'Real optimum?': is_opt,
