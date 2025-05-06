@@ -65,10 +65,21 @@ m = 1/1000  # mass (kilograms)
 c = scipy.constants.c
 
 
+# Engine parameters
+RCWA_engine = "TORCWA"
+torcwa_sharpness = 45
+
 wavelength = 1.  # Laser wavelength
 angle = 0.
 Nx = 100  # Number of grid points for RCWA simulation
-nG = 25  # Number of Fourier components for RCWA simulation
+
+# Number of Fourier components for RCWA simulation
+if RCWA_engine == "TORCWA":
+    nG = 12
+elif RCWA_engine == "GRCWA":
+    nG = 25
+else:
+    raise ValueError("RCWA engine not recognised. Please use 'TORCWA' or 'GRCWA'.")
 
 # Relaxation parameter should be np.inf unless you need to avoid singular matrix at grating cutoffs
 # Note that the optimiser will only find (likely unphysical) large-magnitude, noisy rNeg1 optima when Qabs = np.inf 
@@ -127,7 +138,7 @@ def Parameters():
     return I0, L, m, c
 
 def opt_Parameters():
-    return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad
+    return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness
 
 def Bounds():
     return h1_min, h1_max, param_bounds

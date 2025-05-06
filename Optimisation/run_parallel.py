@@ -42,7 +42,7 @@ from twobox import TwoBox
 num_cores = 2  # number of cores to run parallel optimisation
 maxfev = 2  # global 1000
 h1_min, h1_max, param_bounds = Bounds()
-runID = "grcwa_test"
+runID = "torcwa_test"
 
 # Local optimisation parameters
 xtol_rel = 1e-4  
@@ -54,11 +54,9 @@ n_sample_exp = 3
 n_sample = 2**n_sample_exp
 ndof = 10  # number of optimisation parameters
 
-RCWA_engine = "GRCWA"
-torcwa_sharpness = 45
 
 # Initial grating parameters and hyperparameters
-wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad = opt_Parameters()
+wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness = opt_Parameters()
 grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = Initial_bigrating()
 grating = TwoBox(grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, 
                  gaussian_width, substrate_depth, substrate_eps,
