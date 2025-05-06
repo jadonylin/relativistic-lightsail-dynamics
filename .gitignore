@@ -1,3 +1,5 @@
+.history/
+
 *.pyc
 
 # Files too large
