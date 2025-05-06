@@ -24,6 +24,9 @@ sim_dtype = torch.complex128
 geo_dtype = torch.float64
 if torch.cuda.is_available():
     device = torch.device('cuda')
+# elif torch.backends.mps.is_available():  # For Apple silicon devices
+#     TODO: Requires 32 bit floats. Also leads to RuntimeError: linalg_inv: not supported for complex types yet! in torcwa
+#     device = torch.device('mps')
 else:
     device = torch.device('cpu')
 
@@ -46,49 +49,17 @@ plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 import numpy as np
 
+# import os
+# os.environ["OMP_NUM_THREADS"] = "1" 
+# os.environ["OPENBLAS_NUM_THREADS"] = "1" 
+# os.environ["MKL_NUM_THREADS"] = "1" 
+# os.environ["VECLIB_MAXIMUM_THREADS"] = "1" 
+# os.environ["NUMEXPR_NUM_THREADS"] = "1" 
+
 from agfunc import agfunc
 from parameters import Parameters
 I0, L, m, c = Parameters()
-
-
-## Minor ticks on symlog plots ##
-# From: https://stackoverflow.com/questions/20470892/how-to-place-minor-ticks-on-symlog-scale
-class MinorSymLogLocator(Locator):
-    """
-    Dynamically find minor tick positions based on the positions of
-    major ticks for a symlog scaling.
-    """
-    def __init__(self, linthresh):
-        """
-        Ticks will be placed between the major ticks.
-        The placement is linear for x between -linthresh and linthresh,
-        otherwise its logarithmically
-        """
-        self.linthresh = linthresh
-
-    def __call__(self):
-        'Return the locations of the ticks'
-        majorlocs = self.axis.get_majorticklocs()
-
-        # iterate through minor locs
-        minorlocs = []
-
-        # handle the lowest part
-        for i in range(1, len(majorlocs)):
-            majorstep = majorlocs[i] - majorlocs[i-1]
-            if abs(majorlocs[i-1] + majorstep/2) < self.linthresh:
-                ndivs = 10
-            else:
-                ndivs = 9
-            minorstep = majorstep / ndivs
-            locs = np.arange(majorlocs[i-1], majorlocs[i], minorstep)[1:]
-            minorlocs.extend(locs)
-
-        return self.raise_if_exceeds(np.array(minorlocs))
-
-    def tick_values(self, vmin, vmax):
-        raise NotImplementedError('Cannot get tick locations for a '
-                                  '%s type.' % type(self))
+from plothelp import MinorSymLogLocator
 
 
 
@@ -96,7 +67,7 @@ class TwoBox:
     """
     A TwoBox grating is a grating with two "boxes" (dielectric squares/resonators) in the unit cell. 
 
-    Uses GRCWA library to simulate the grating.
+    Uses GRCWA or TORCWA library to simulate the grating.
     Simulation is re-run if you change instance variables. 
     All physical lengths pertaining to the grating are normalised by the excitation/laser wavelength.
 
@@ -126,13 +97,13 @@ class TwoBox:
                  gaussian_width: float, substrate_depth: float, substrate_eps: float, 
                  wavelength: float=1., angle: float=0.,
                  Nx: float=1000, nG: int=25, Qabs: float=np.inf,
-                 RCWA_engine: float='GRCWA', torcwa_edge_sharpness: int =45, title: str=None) -> None:
+                 RCWA_engine: float='GRCWA', torcwa_edge_sharpness: int=45, title: str=None) -> None:
 
         self.RCWA_engine = RCWA_engine
         
         if self.RCWA_engine == 'GRCWA':
             self.npa = agfunc('autograd')
-        elif self.RCWA_engine == 'TORCWA':            
+        elif self.RCWA_engine == 'TORCWA':
             if Nx < nG*2:
                 raise ValueError("Nx must be at least 2*nG for TORCWA")
             if geo_dtype == torch.float64:
