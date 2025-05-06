@@ -1,13 +1,16 @@
-import autograd.numpy as npa
 import numpy as np
+
+import autograd.numpy as npa
 from autograd import grad, jacobian
+from autograd.scipy.special import erf as autograd_erf
+from autograd.numpy import linalg as npaLA
+
+import torch
 from torch.autograd import grad as grad_torch
 # from torch.autograd.functional import jacobian as jacobian_torch_raw
 from torch import erf as torch_erf
 from torch import linalg as torchLA
-from autograd.scipy.special import erf as autograd_erf
-from autograd.numpy import linalg as npaLA
-import torch
+
 import functools
 
 # Try to import ArrayBox from autograd, if available.
@@ -47,16 +50,18 @@ def autograd_jacobian(f,argnum=0):
     return jacobian(f,argnum=argnum)
 
 class agfunc:
-    """ wrapper class for autograd and torch functions
-     optional arguments:
+    """ 
+    Wrapper class for autograd and torch functions 
+    Optional arguments:
       - device="cpu" or "cuda" 
       - precision="double" (torch.complex128 and torch.float64 are used) or "single" (torch.complex64 and torch.float32 are used)
     """
-    def __init__(self,lib,device:str ="cpu",precision:str ="double") -> None:
+    def __init__(self, lib, device: str="cpu", precision: str="double") -> None:
         self.lib = lib
-        self.device=device
-        if lib=="autograd":
-            self.sqrt= npa.sqrt
+        self.device = device
+        
+        if lib == "autograd":
+            self.sqrt = npa.sqrt
             self.erf = autograd_erf
             self.norm = npaLA.norm
             self.jacobian = autograd_jacobian
@@ -68,71 +73,70 @@ class agfunc:
             self.sum = npa.sum
             self.abs = npa.abs
             self.softmax = self._softmax
-            self.linspace=npa.linspace
-            self.minimum=npa.minimum
-            self.min=npa.min
-            self.max=npa.max
-            self.sort=npa.sort
-            self.diff=npa.diff
-            self.append=npa.append
-            self.real=npa.real
-            self.imag=npa.imag
-            self.power=npa.power
-            self.log=npa.log
-            self.eig=npaLA.eig
-            self.det=npaLA.det
-            self.grad=grad
-            self.isnan=npa.isnan
-            self.concatenate=npa.concatenate
-            self.diff=npa.diff
-            self.maximum=npa.maximum
-            self.int=lambda x: x.astype(int)
-            self.zeros=npa.zeros
-            self.dot=npa.dot
-            self.stack=npa.stack
-
-        elif lib=="torch":
+            self.linspace = npa.linspace
+            self.minimum = npa.minimum
+            self.min = npa.min
+            self.max = npa.max
+            self.sort = npa.sort
+            self.diff = npa.diff
+            self.append = npa.append
+            self.real = npa.real
+            self.imag = npa.imag
+            self.power = npa.power
+            self.log = npa.log
+            self.eig = npaLA.eig
+            self.det = npaLA.det
+            self.grad = grad
+            self.isnan = npa.isnan
+            self.concatenate = npa.concatenate
+            self.diff = npa.diff
+            self.maximum = npa.maximum
+            self.int = lambda x: x.astype(int)
+            self.zeros = npa.zeros
+            self.dot = npa.dot
+            self.stack = npa.stack
+        elif lib == "torch":
             self.sqrt = torch.sqrt
             self.erf = torch_erf
-            self.norm=torchLA.norm
+            self.norm = torchLA.norm
             self.jacobian = jacobian_torch
             self.array = self.torch_tensor_with_grad
-            self.sin=torch.sin
-            self.cos=torch.cos
-            self.arcsin=torch.asin
-            self.exp=torch.exp
-            self.sum=torch.sum
-            self.abs=torch.abs
+            self.sin = torch.sin
+            self.cos = torch.cos
+            self.arcsin = torch.asin
+            self.exp = torch.exp
+            self.sum = torch.sum
+            self.abs = torch.abs
             self.softmax = self._softmax_torch
-            self.linspace=torch.linspace
-            self.minimum=torch.minimum
-            self.min=torch.min
-            self.max=torch.max
-            self.sort=lambda x: torch.sort(x)[0]
-            self.diff=torch.diff
-            self.append=lambda x,y: torch.cat((x,y),dim=0)
-            self.real=torch.real
-            self.imag=torch.imag
-            self.power=torch.pow
-            self.log=torch.log
-            self.eig=lambda x: torch.linalg.eig(x)
-            self.det=torch.det
-            self.grad=grad_torch
-            self.isnan=torch.isnan
-            self.concatenate=torch.cat
-            self.diff=torch.diff
-            self.maximum=torch.maximum
-            self.int=lambda x: x.long()
-            self.zeros=self.zeros_torch
-            self.dot=torch.dot
-            self.stack=torch.stack
-            if precision=="double":
-                self.ctype=torch.complex128
-                self.ftype=torch.float64
+            self.linspace = torch.linspace
+            self.minimum = torch.minimum
+            self.min = torch.min
+            self.max = torch.max
+            self.sort = lambda x: torch.sort(x)[0]
+            self.diff = torch.diff
+            self.append = lambda x,y: torch.cat((x,y),dim=0)
+            self.real = torch.real
+            self.imag = torch.imag
+            self.power = torch.pow
+            self.log = torch.log
+            self.eig = lambda x: torch.linalg.eig(x)
+            self.det = torch.det
+            self.grad = grad_torch
+            self.isnan = torch.isnan
+            self.concatenate = torch.cat
+            self.diff = torch.diff
+            self.maximum = torch.maximum
+            self.int = lambda x: x.long()
+            self.zeros = self.zeros_torch
+            self.dot = torch.dot
+            self.stack = torch.stack
+            if precision == "double":
+                self.ctype = torch.complex128
+                self.ftype = torch.float64
                 torch.backends.cuda.matmul.allow_tf32 = False
             elif precision == "single":
-                self.ctype=torch.complex64
-                self.ftype=torch.float32
+                self.ctype = torch.complex64
+                self.ftype = torch.float32
             if torch.cuda.is_available() and device=="cuda":
                 device = torch.device('cuda')
             else:
