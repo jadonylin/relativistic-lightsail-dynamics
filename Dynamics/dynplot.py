@@ -31,6 +31,7 @@ from scipy.optimize import curve_fit
 import sys
 sys.path.append("../")
 
+import fom
 from parameters import D1_ND
 from twobox import TwoBox
 
@@ -320,7 +321,9 @@ def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5
 
     for i in range(num_points):
         wavelength = wavelength_range[i]
-        _, rest, damp, real, imag, eigvecs = grating.lsa_info(wavelength, I)
+        input_wavelength = grating.wavelength
+        grating.wavelength = wavelength 
+        _, rest, damp, real, imag, eigvecs = fom.lsa_info(grating, I)
 
         restoring_coeffs[i,:] = rest
         damping_coeffs[i,:] = damp
@@ -328,7 +331,8 @@ def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5
         imag_eigvals[i,:] = imag
 
         eigvec_moduli[i,:,:] = np.abs(eigvecs)**2  # Eigenvectors are already normalised
-
+    grating.wavelength = input_wavelength
+    
     return restoring_coeffs, damping_coeffs, real_eigvals, imag_eigvals, eigvec_moduli
 
 

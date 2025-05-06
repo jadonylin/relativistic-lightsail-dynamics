@@ -27,6 +27,7 @@ import random
 import sys
 sys.path.append("../")
 
+import fom
 from parameters import Parameters, D1_ND, Initial_bigrating, opt_Parameters
 I0, L, m, c = Parameters()
 _, angle, Nx, nG, Qabs, goal, final_speed, _ = opt_Parameters()
@@ -44,14 +45,12 @@ def FD(grating: TwoBox) -> float:
     grating :           TwoBox instance containing the grating parameters
     """
     if grating.RCWA_engine=="TORCWA":
-        return FoM(grating, I0, grad_method="grad")
+        return fom.FoM(grating, I0, grad_method="grad")
     else:
-        return FoM(grating, I0, grad_method="finite")
-
-
+        return fom.FoM(grating, I0, grad_method="finite")
 
 def FD_params_func(grating, params):
-    grating.params=params
+    grating.params = params
     return FD(grating)
 
 
@@ -81,7 +80,7 @@ def FOM_uniform(grating: TwoBox, final_speed: float=20., goal: float=0.1, return
     
     # Define a single-argument function, needed when passing to learner
     def weighted_FD(l):
-        grating.wavelength =  l*laser_wavelength 
+        grating.wavelength = l*laser_wavelength 
         return PDF_unif*grating.to_numpy(FD(grating)) # losing autograd here by calling to_numpy, but torch tensors are not compatible with adaptive
     
     FD_learner = adp.Learner1D(weighted_FD, bounds=l_range)
@@ -95,7 +94,7 @@ def FOM_uniform(grating: TwoBox, final_speed: float=20., goal: float=0.1, return
     FD_data = FD_learner.to_numpy()
     l_vals = FD_data[:,0]
     weighted_FDs = FD_data[:,1]
-    FOM = np.trapezoid(weighted_FDs,l_vals)
+    FOM = np.trapz(weighted_FDs,l_vals)
 
     if return_grad:
         """
@@ -103,12 +102,11 @@ def FOM_uniform(grating: TwoBox, final_speed: float=20., goal: float=0.1, return
         the gradient over wavelength
         """
         FD_grad = grating.npa.grad(FD_params_func, argnum=1)
-        params=grating.params
+        params = grating.params
         # Define a single-argument function, needed when passing to learner
         def weighted_FD_grad(l):
             grating.wavelength = l*laser_wavelength            
             return PDF_unif*grating.to_numpy(FD_grad(grating, params))
-
 
         # Adaptive sample FD_grad
         FD_grad_learner = adp.Learner1D(weighted_FD_grad, bounds=l_range)
@@ -122,7 +120,7 @@ def FOM_uniform(grating: TwoBox, final_speed: float=20., goal: float=0.1, return
         l_vals = FD_grad_data[:,0]
         weighted_FD_grads = FD_grad_data[:,1:]
         
-        FOM_grad = np.trapezoid(weighted_FD_grads,l_vals, axis=0)
+        FOM_grad = np.trapz(weighted_FD_grads,l_vals, axis=0)
 
         grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
         return [FOM,FOM_grad] 
@@ -206,7 +204,7 @@ def average_real_eigs(grating, final_speed, goal, return_eigs: bool=False, I: fl
 
     def weighted_eig_real(l):
         grating.wavelength = l
-        return PDF_unif*grating.Eigs(I=I, m=m, c1=c, return_vec=False)[0]
+        return PDF_unif*fom.Eigs(grating, I=I, m=m, c1=c, return_vec=False)[0]
 
     # Adaptive sample eig_real
     eig_real_learner = adp.Learner1D(weighted_eig_real, bounds=l_range)
@@ -306,7 +304,7 @@ def boxes_clip_unit_cell(params,gradn):
 #     TODO: make this function more differentiable
 #     """
 #     grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
-#     _, eigvals_imag = grating_check.Eigs(I=I0,m=m,c1=c,grad_method="finite")
+#     _, eigvals_imag = fom.Eigs(grating_check, I=I0,m=m,c1=c,grad_method="finite")
 #     # probs = softmin(eigvals_imag,sigma=1.)
 #     # smallest_eigval_imag = np.sum(probs*eigvals_imag)
 #     smallest_eigval_imag = np.min(np.abs(eigvals_imag))
