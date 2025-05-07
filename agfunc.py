@@ -85,6 +85,7 @@ class agfunc:
             self.power = npa.power
             self.log = npa.log
             self.eig = npaLA.eig
+            self.eigvals = npaLA.eigvals
             self.det = npaLA.det
             self.grad = grad
             self.isnan = npa.isnan
@@ -120,6 +121,7 @@ class agfunc:
             self.power = torch.pow
             self.log = torch.log
             self.eig = lambda x: torch.linalg.eig(x)
+            self.eigvals = lambda x: torch.linalg.eigvals(x)
             self.det = torch.det
             self.grad = grad_torch
             self.isnan = torch.isnan

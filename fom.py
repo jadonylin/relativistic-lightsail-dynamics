@@ -269,22 +269,17 @@ def Eigs(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299792458, gr
     eigImag :   Imaginary part of Jacobian eigenvalues
     eigvecs :   Eigenvectors of Jacobian matrix, normalised to unit length
     """
-
     stiffnesses = sail_stiffness(grating,I,m,c1,grad_method,out="mat")
-
-    # Build the Jacobian matrix
-    J = grating.npa.concatenate((grating.npa.array([[0,0,1,0],[0,0,0,1]]),stiffnesses))
-
-    # Find the real part of eigenvalues    
-    eigvalvec = grating.npa.eig(J)
-    eigvals   = eigvalvec[0]
-    eigReal   = grating.npa.real(eigvals)
-    eigImag   = grating.npa.imag(eigvals)
-
+    J = grating.npa.concatenate((grating.npa.array([[0,0,1,0],[0,0,0,1]]),stiffnesses))  # Jacobian matrix
     if return_vec:
-        eigvecs = eigvalvec[1]
+        eigvals, eigvecs = grating.npa.eig(J)
+        eigReal = grating.npa.real(eigvals)
+        eigImag = grating.npa.imag(eigvals)
         return eigReal, eigImag, eigvecs
     else:
+        eigvals = grating.npa.eigvals(J)
+        eigReal = grating.npa.real(eigvals)
+        eigImag = grating.npa.imag(eigvals)
         return eigReal, eigImag
 
 
