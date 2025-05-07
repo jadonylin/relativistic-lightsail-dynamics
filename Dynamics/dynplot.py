@@ -409,7 +409,11 @@ def show_dynamics(nrows: int, ncols: int, times: list, coords: list,
     
     fig, dyn_axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*6,nrows*4))
 
-    dyn_axs_flat = list(dyn_axs.flatten())
+    if nrows == 1 and ncols == 1:
+        dyn_axs_flat = [dyn_axs]
+    else:
+        dyn_axs_flat = list(dyn_axs.flatten())
+    
     for ax_idx, ax in enumerate(dyn_axs_flat):
         t = times[ax_idx]
         q = coords[ax_idx]
