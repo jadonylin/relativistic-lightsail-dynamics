@@ -1,15 +1,20 @@
+import matplotlib.pyplot as plt
+import numpy as np
+
 import sys
 sys.path.append('../')
-import fom
-from parameters import D1_ND, Parameters
-from twobox import TwoBox
-import numpy as np
-import matplotlib.pyplot as plt
-import agfunc 
-import torch
+
 import time
+import torch
+
+import agfunc 
 npa = agfunc.agfunc('torch')
 npaa = agfunc.agfunc('autograd')
+import fom
+from ilic import *
+import Optimisation.opt as opt
+from parameters import D1_ND, Parameters
+from twobox import TwoBox
 
 
 # wavelength      = 1.5 #/ D1_ND(1.2/100)
@@ -46,15 +51,31 @@ npaa = agfunc.agfunc('autograd')
 # gratingTorcwa.show_spectrum(efficiency_quantity='PDt',num_plot_points=100,wavelength_range=wavelength_range)
 # print('Torcwa time = ',time.time()-start_time)
 
-from twobox import TwoBox
-from ilic import *
-Nx=300
+# Nx=300
 
-start = time.time()
-numG=25
+# start = time.time()
+# numG=25
+# gratingTorcwa = TwoBox(grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, 
+#                  gaussian_width, substrate_depth, substrate_eps,
+#                  wavelength, angle, Nx, numG, Qabs, RCWA_engine='TORCWA', torcwa_edge_sharpness=50)
+
+# gratingTorcwa.show_angular_efficiency()
+# print('TORCWA time = ',time.time()-start)
+
+
+Nx = 100
+numG = 12
 gratingTorcwa = TwoBox(grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, 
                  gaussian_width, substrate_depth, substrate_eps,
                  wavelength, angle, Nx, numG, Qabs, RCWA_engine='TORCWA', torcwa_edge_sharpness=50)
 
-gratingTorcwa.show_angular_efficiency()
-print('TORCWA time = ',time.time()-start)
+# start = time.time()
+# ps = np.linspace(1.4, 1.6, 10)
+# for p in ps:
+#     gratingTorcwa.grating_pitch = p
+#     val = opt.FOM_uniform(gratingTorcwa, final_speed=20., goal=0.1, return_grad=True)
+# total = time.time()-start
+
+# print(f'TORCWA time (average over {len(ps)} runs) = {total/len(ps)}')
+
+val = opt.FOM_uniform(gratingTorcwa, final_speed=20., goal=0.1, return_grad=True)
