@@ -31,7 +31,7 @@ import sys
 sys.path.append("../")
 
 import fom
-from parameters import Parameters, D1_ND, Initial_bigrating, opt_Parameters
+from parameters import Parameters, D1_ND
 I0, L, m, c = Parameters()
 from twobox import TwoBox
 
@@ -285,7 +285,7 @@ def boxes_clip_unit_cell(params,gradn):
     return condition
 
 
-def global_optimise(objective, 
+def global_optimise(init_params, opt_hyperparams, 
                     sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxfev: int=32000,
                     xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[]):
     """
@@ -303,13 +303,19 @@ def global_optimise(objective,
     param_bounds    :   Ordered list of tuples, one tuple per parameter bound, each tuple containing one lower and one upper bound
     """
     
-    ndof = 10  # number of optimisation parameters  
+    random.seed(seed)
+    ndof = len(init_params)  # number of optimisation parameters  
     h1_min, h1_max = param_bounds[1]    
     h1_start = random.uniform(h1_min,h1_max)
-    init = Initial_bigrating()
-    init[1] = h1_start  # Use the random h1 start value
+    init_params[1] = h1_start  # Use the random h1 start value
     bcd_constraint = True 
+    
+    wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness = opt_hyperparams
+    grating = TwoBox(*init_params, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness)
 
+    def objective(params):
+        grating.params = params
+        return FOM_uniform(grating, final_speed, goal, return_grad)
 
     def fun_nlopt(params,gradn):
         """
@@ -322,21 +328,18 @@ def global_optimise(objective,
         y, dy = objective(params)
         if gradn.size > 0:  # Even for gradient methods, in some calls gradn will be empty []
             gradn[:] = dy
-
+        print(params)
+        print(gradn)
         # Debugging: Print constraint values to ensure optimiser moves to negative regions
 
         # bcd_red = bcd_redundant(params,gradn)
         # boxes_overl = boxes_overlap(params,gradn)
         # boxes_clip = boxes_clip_unit_cell(params,gradn)
-        # avg_neg = some_eig_real_avg_positive(params,gradn)
-        # zero_imag = some_eig_imag_zero(params,gradn)
 
         # print("")
         # print(bcd_red)
         # print(boxes_overl)
         # print(boxes_clip)
-        # print(avg_neg)
-        # print(zero_imag)
         # print("")
         
         return y
@@ -350,7 +353,6 @@ def global_optimise(objective,
     local_opt = nlopt.opt(nlopt.LD_MMA, ndof)
 
     nlopt.srand(seed) 
-    random.seed(seed) 
 
     global_opt.set_population(n_sample)  # set initial sampling points
 
@@ -360,8 +362,6 @@ def global_optimise(objective,
     local_opt.add_inequality_constraint(box2_too_wide)
     local_opt.add_inequality_constraint(boxes_clip_unit_cell)
     local_opt.add_inequality_constraint(boxes_overlap)
-    # local_opt.add_inequality_constraint(some_eig_real_avg_positive)
-    # local_opt.add_inequality_constraint(some_eig_imag_zero)
 
     local_opt.set_xtol_rel(xtol_rel)
     local_opt.set_ftol_rel(ftol_rel)
@@ -376,12 +376,12 @@ def global_optimise(objective,
     global_opt.set_upper_bounds(ub)
 
 
-    opt_params = global_opt.optimize(init)
+    opt_params = global_opt.optimize(init_params)
     optimum = objective(opt_params)[0]
     print("Success on starting bounds: ", param_bounds[1])
     is_optimum = True
 
-    return (optimum, opt_params, is_optimum)
+    return (optimum, grating, opt_params, is_optimum)
 
 def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: int=0):
     """
