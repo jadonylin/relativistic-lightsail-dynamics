@@ -155,84 +155,84 @@ class TwoBox:
             raise ValueError("Invalid RCWA engine. Choose 'GRCWA' or 'TORCWA'.")
 
     # Convert the grating parameters to numpy/torch arrays for autodiff compatibility
+    # TODO: with GRCWA, it seems we can't float() new parameters before passing to array() 
+    #       because ArrayBoxes cannot be float()'d. Is this an issue if other types such as
+    #       int are passed through these setters?
     @property
     def grating_pitch(self):
         return self._grating_pitch
     @grating_pitch.setter
     def grating_pitch(self, new_grating_pitch):
-        self._grating_pitch = self.npa.array(float(new_grating_pitch))
+        self._grating_pitch = self.npa.array(new_grating_pitch)
     
     @property
     def grating_depth(self):
         return self._grating_depth
     @grating_depth.setter
     def grating_depth(self, new_grating_depth):
-        self._grating_depth = self.npa.array(float(new_grating_depth))
+        self._grating_depth = self.npa.array(new_grating_depth)
     
     @property
     def box1_width(self):
         return self._box1_width
     @box1_width.setter 
     def box1_width(self, new_box1_width):
-        self._box1_width = self.npa.array(float(new_box1_width))
+        self._box1_width = self.npa.array(new_box1_width)
     
     @property
     def box2_width(self):
         return self._box2_width
     @box2_width.setter
     def box2_width(self, new_box2_width):
-        self._box2_width = self.npa.array(float(new_box2_width))
+        self._box2_width = self.npa.array(new_box2_width)
     
     @property
     def box_centre_dist(self):
         return self._box_centre_dist
     @box_centre_dist.setter
     def box_centre_dist(self, new_box_centre_dist):
-        self._box_centre_dist = self.npa.array(float(new_box_centre_dist))
+        self._box_centre_dist = self.npa.array(new_box_centre_dist)
     
     @property
     def box1_eps(self):
         return self._box1_eps
     @box1_eps.setter
     def box1_eps(self, new_box1_eps):
-        self._box1_eps = self.npa.array(float(new_box1_eps))
+        self._box1_eps = self.npa.array(new_box1_eps)
     
     @property
     def box2_eps(self):
         return self._box2_eps
     @box2_eps.setter
     def box2_eps(self, new_box2_eps):
-        self._box2_eps = self.npa.array(float(new_box2_eps))
+        self._box2_eps = self.npa.array(new_box2_eps)
     
     @property
     def gaussian_width(self):
         return self._gaussian_width
     @gaussian_width.setter
     def gaussian_width(self, new_gaussian_width):
-        self._gaussian_width = self.npa.array(float(new_gaussian_width))
+        self._gaussian_width = self.npa.array(new_gaussian_width)
     
     @property
     def substrate_depth(self):
         return self._substrate_depth
     @substrate_depth.setter
     def substrate_depth(self, new_substrate_depth):
-        self._substrate_depth = self.npa.array(float(new_substrate_depth))
+        self._substrate_depth = self.npa.array(new_substrate_depth)
     
     @property
     def substrate_eps(self):
         return self._substrate_eps
     @substrate_eps.setter
     def substrate_eps(self, new_substrate_eps):
-        self._substrate_eps = self.npa.array(float(new_substrate_eps))
+        self._substrate_eps = self.npa.array(new_substrate_eps)
     
     @property
     def wavelength(self):
         return self._wavelength
     @wavelength.setter
     def wavelength(self, new_wavelength): 
-        # TODO: must we float() new parameters before array()? Seems to cause errors with angle or wavelength
-        #       when self.angle or self.wavelength are set within gradient-required functions.
-        # self._wavelength = self.npa.array(float(new_wavelength))
         self._wavelength = self.npa.array(new_wavelength)
     
     @property
@@ -253,11 +253,11 @@ class TwoBox:
                        self.gaussian_width, self.substrate_depth, self.substrate_eps]
         return self._params
     @params.setter
-    def params(self, new_params: list[float]):
-        self._params = list(self.npa.array(new_params))
+    def params(self, new_params: list[float]):  # Don't cast new_params to npa.array, else torch gradients will be zero
+        self._params = new_params
         (self.grating_pitch, self.grating_depth, 
         self.box1_width, self.box2_width, self.box_centre_dist, self.box1_eps, self.box2_eps, 
-        self.gaussian_width, self.substrate_depth, self.substrate_eps) = self.npa.array(new_params)
+        self.gaussian_width, self.substrate_depth, self.substrate_eps) = new_params
         self.build_grating_gradable()  # TODO: I think every instance method calls init_RCWA, so this is not needed
 
 
@@ -443,14 +443,18 @@ class TwoBox:
         elif self.RCWA_engine == 'TORCWA':
             self.init_TORCWA()
             RT_orders = self.grating_orders()
+            if len(RT_orders) > 3:
+                raise NotImplementedError("More than 3 orders detected, not currently supported for FOM calculation. Check grating pitch to wavelength ratio.")
+            
             Rs = self.npa.zeros(len([-1,0,1]))
             Ts = self.npa.zeros(len([-1,0,1]))
             orders = [[j,0] for j in RT_orders]
+            
             lRs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders, direction='forward', port='reflection', polarization='yy', ref_order=[0,0], power_norm=True),2))
             lTs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders, direction='forward', port='transmission', polarization='yy', ref_order=[0,0], power_norm=True),2))
             for i,j in enumerate(RT_orders):
-                Rs[1+j]=lRs[i]
-                Ts[1+j]=lTs[i]
+                Rs[1+j] = lRs[i]
+                Ts[1+j] = lTs[i]
         return Rs,Ts
 
     def diffraction_angle(self, m):
@@ -469,21 +473,20 @@ class TwoBox:
         """
         r,t = self.eff()
         
+        Q1 = self.npa.array(0.0)
+        Q2 = self.npa.array(0.0)
+        M = [-1,0,1]
         
-        Q1=self.npa.array(0.0)
-        Q2=self.npa.array(0.0)
-        M=[-1,0,1]
-        
-        # M=self.grating_orders() # this works in pytorch, but not in autograd
+        # M = self.grating_orders()  # this works in pytorch, but not in autograd
         # begin debugging torch pytorch jacobian returning 0:
-        # M=[0]
+        # M = [0]
         # end debug
         if self.RCWA_engine == 'TORCWA':
-            M=self.grating_orders() # this works in pytorch, but not in autograd, which throws an error that int isn't differentiable
+            M = self.grating_orders() # this works in pytorch, but not in autograd, which throws an error that int isn't differentiable
             # however, doing it this way doesn't help with NaN being by  returned for derivatives when only m=0 orders are propagative in torcwa
         for ord in M:
-            m=1+ord # convert grating order to index of array, assumes -1,0,1
-            delta_m=self.diffraction_angle(ord)
+            m = 1+ord # convert grating order to index of array, assumes -1,0,1
+            delta_m = self.diffraction_angle(ord)
             # # if isinstance(delta_m,str):
             if self.npa.isnan(delta_m):
                 """
@@ -493,8 +496,8 @@ class TwoBox:
                 Q2 = Q2 + 0
             else:
             # take back to real as Q are real, complex intermediary only for gradient tracking compatibility
-                Q1 = Q1+ r[m]*(1+self.npa.cos(self.angle+delta_m))+t[m]*(1-self.npa.cos(delta_m-self.angle))
-                Q2 = Q2+ r[m]*self.npa.sin(self.angle+delta_m)+t[m]*self.npa.sin(delta_m-self.angle)
+                Q1 = Q1+ r[m]*(1 + self.npa.cos(self.angle+delta_m)) + t[m]*(1 - self.npa.cos(delta_m-self.angle))
+                Q2 = Q2+ r[m]*self.npa.sin(self.angle+delta_m) + t[m]*self.npa.sin(delta_m-self.angle)
         Q1 =  self.npa.cos(self.angle)*Q1
         Q2 = -self.npa.cos(self.angle)*Q2
         if self.RCWA_engine == 'TORCWA':
@@ -516,26 +519,21 @@ class TwoBox:
         
         Q1,Q2 = self.Q()
 
-        
         self.angle = input_angle - h_angle
         Q1_back_angle,Q2_back_angle = self.Q()
         self.angle = input_angle + h_angle
         Q1_forwards_angle,Q2_forwards_angle = self.Q()
         self.angle = input_angle
 
-
         self.wavelength = input_wavelength - h_wavelength
         Q1_back_wavelength,Q2_back_wavelength = self.Q()
         self.wavelength = input_wavelength + h_wavelength
         Q1_forwards_wavelength,Q2_forwards_wavelength = self.Q()
 
-
         PD_Q1_angle = (Q1_forwards_angle - Q1_back_angle) / (2*h_angle)
-        PD_Q2_angle = (Q2_forwards_angle - Q2_back_angle) / (2*h_angle)
-        
+        PD_Q2_angle = (Q2_forwards_angle - Q2_back_angle) / (2*h_angle)        
         PD_Q1_wavelength = (Q1_forwards_wavelength - Q1_back_wavelength) / (2*h_wavelength)
         PD_Q2_wavelength = (Q2_forwards_wavelength - Q2_back_wavelength) / (2*h_wavelength)
-
 
         # Restore user-initialised twobox variables
         self.angle = input_angle
