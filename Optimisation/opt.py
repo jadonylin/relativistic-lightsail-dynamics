@@ -330,17 +330,17 @@ def global_optimise(init_params, opt_hyperparams,
         y, dy = objective(params)
         if gradn.size > 0:  # Even for gradient methods, in some calls gradn will be empty []
             gradn[:] = dy
-        # Debugging: Print constraint values to ensure optimiser moves to negative regions
-
+        
+        # # Debugging: Print constraint values to ensure optimiser moves to negative regions
         # bcd_red = bcd_redundant(params,gradn)
         # boxes_overl = boxes_overlap(params,gradn)
         # boxes_clip = boxes_clip_unit_cell(params,gradn)
-
-        # print("")
+        # print(f"Param: {params}")
+        # print(f"Gradn: {gradn}")
         # print(bcd_red)
         # print(boxes_overl)
         # print(boxes_clip)
-        # print("")
+        # print("\n")
         
         return y
 
@@ -421,6 +421,9 @@ def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: i
         opt_FOMs.append(data["FOM"])
         opt_gratings.append(data["Optimised grating"])
         opt_params.append(data["Optimised parameters"])
+
+        # print(data["Execution time"])
+        # print(data["Completion time"])
 
     maxima_and_maximisers = zip(opt_FOMs, opt_params)
     maxima_and_gratings = zip(opt_FOMs, opt_gratings)
