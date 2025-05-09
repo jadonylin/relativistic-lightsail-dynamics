@@ -104,10 +104,10 @@ min_angle_cutoff2 = 15*np.pi/180  # minimum angle before order -2 is non-evanesc
 pitch_min = np.round(1*wavelength_max/(1 - np.sin(max_angle_cutoff1)), 3)  
 pitch_max = np.round(2*wavelength_max/(1 + np.sin(min_angle_cutoff2)), 3)
 
-h1_min = 0.01  # Offset minimum grating thickness from zero to avoid zero Jacobian determinant 
+h1_min = 0.01  # Offset from zero to avoid zero Jacobian determinant 
 h1_max = 1.5*pitch_max
 
-box_width_min = 0.
+box_width_min = 0.005*pitch_min  # Offset from zero to avoid zero Jacobian determinant
 box_width_max = 1.*pitch_max  # single box width must be smaller than pitch
 
 box_centre_dist_min = 0.
