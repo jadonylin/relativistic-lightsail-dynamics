@@ -31,39 +31,39 @@ from twobox import TwoBox
 
 
 def FoM(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
-        """
-        Calculate the grating single-wavelength figure of merit FD.
+    """
+    Calculate the grating single-wavelength figure of merit FD.
 
-        This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
-        using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
-        implementation, the optimised grating recorded via the twobox instance is the right-half grating,
-        i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
-        efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
-        the unit cell along the x-axis about the unit-cell centre.
+    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
+    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
+    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
+    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
+    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
+    the unit cell along the x-axis about the unit-cell centre.
 
-        MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
-                 negative eigenvalue with the smallest real part. 
+    MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
+                negative eigenvalue with the smallest real part. 
 
-        Parameters
-        ----------
-        grating     :   Calculate figure of merit for this grating
-        I           :   Laser intensity
-        grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
-        
-        Returns
-        -------
-        FD :   Figure of merit
-        """
-        
-        eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
+    Parameters
+    ----------
+    grating     :   Calculate figure of merit for this grating
+    I           :   Laser intensity
+    grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+    
+    Returns
+    -------
+    FD :   Figure of merit
+    """
+    
+    eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
 
-        # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
-        #          negative eigenvalue with the smallest real part. 
-        FD = grating.npa.min(-eigReal)  # standard minimum
-        # FD = grating.npa.sum(-eigReal*grating.npa.softmin(-eigReal,1.))  # softened minimum
-        # FD = grating.npa.min(-eigReal) + grating.npa.max(-eigReal)
-        
-        return FD
+    # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
+    #          negative eigenvalue with the smallest real part. 
+    FD = grating.npa.min(-eigReal)  # standard minimum
+    # FD = grating.npa.sum(-eigReal*grating.npa.softmin(-eigReal,1.))  # softened minimum
+    # FD = grating.npa.min(-eigReal) + grating.npa.max(-eigReal)
+    
+    return FD
 
 def FoM_quality_factor(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
     """
@@ -270,7 +270,7 @@ def Eigs(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299792458, gr
     eigvecs :   Eigenvectors of Jacobian matrix, normalised to unit length
     """
     stiffnesses = sail_stiffness(grating,I,m,c1,grad_method,out="mat")
-    J = grating.npa.concatenate((grating.npa.array([[0,0,1,0],[0,0,0,1]]),stiffnesses))  # Jacobian matrix
+    J = grating.npa.concatenate((grating.npa.array([[0,0,1,0],[0,0,0,1]]), stiffnesses))  # Jacobian matrix
     if return_vec:
         eigvals, eigvecs = grating.npa.eig(J)
         eigReal = grating.npa.real(eigvals)
