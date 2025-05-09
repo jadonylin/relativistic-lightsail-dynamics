@@ -287,13 +287,14 @@ def boxes_clip_unit_cell(params,gradn):
 
 def global_optimise(init_params, opt_hyperparams, 
                     sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxfev: int=32000,
-                    xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[]):
+                    xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[], return_settings: bool=False):
     """
     Global optimise the twobox on a single CPU core using MLSL global optimiser with internal MMA local optimiser.
 
     Parameters
     ----------
-    objective       :   Objective function to optimise. Objective must return (value, gradient)
+    init_params     :   Initial objective-function parameters. Must be passed to local optimiser, but is not used/not important.
+    opt_hyperparams :   Hyperparameters for the optimisation. 
     sampling_method :   "sobol" or "random" initial point sampling
     seed            :   Seed for initial random parameter space sample and grating_depth samples
     n_sample        :   Number of points for initial sample (per dimension?)
@@ -301,6 +302,7 @@ def global_optimise(init_params, opt_hyperparams,
     xtol_rel        :   Relative position tolerance for MMA
     ftol_rel        :   Relative objective tolerance for MMA
     param_bounds    :   Ordered list of tuples, one tuple per parameter bound, each tuple containing one lower and one upper bound
+    return_settings :   If true, return the optimisation settings. If false, return only the FOM and the grating object.
     """
     
     random.seed(seed)
@@ -328,8 +330,6 @@ def global_optimise(init_params, opt_hyperparams,
         y, dy = objective(params)
         if gradn.size > 0:  # Even for gradient methods, in some calls gradn will be empty []
             gradn[:] = dy
-        print(params)
-        print(gradn)
         # Debugging: Print constraint values to ensure optimiser moves to negative regions
 
         # bcd_red = bcd_redundant(params,gradn)
@@ -353,7 +353,7 @@ def global_optimise(init_params, opt_hyperparams,
     local_opt = nlopt.opt(nlopt.LD_MMA, ndof)
 
     nlopt.srand(seed) 
-
+    n_sample = int(n_sample)
     global_opt.set_population(n_sample)  # set initial sampling points
 
     if bcd_constraint:
@@ -381,7 +381,13 @@ def global_optimise(init_params, opt_hyperparams,
     print("Success on starting bounds: ", param_bounds[1])
     is_optimum = True
 
-    return (optimum, grating, opt_params, is_optimum)
+    if return_settings:
+        settings = {"sampling_method": sampling_method, "seed": seed, "n_sample": n_sample,
+                    "maxfev": maxfev, "xtol_rel": xtol_rel, "ftol_rel": ftol_rel,
+                    "param_bounds": param_bounds}
+        return (optimum, grating, opt_params, is_optimum, settings)
+    else:
+        return (optimum, grating, opt_params, is_optimum)
 
 def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: int=0):
     """
