@@ -99,7 +99,6 @@ lines_to_file = ["\n\n----------------------------------------------------------
 
 
 ## Writing to file ##
-# txt_fname = f'./Data/FOM_5th_bounds3_optimisation_maxfev{maxfev*num_cores}.txt'  # What do the numbers mean?
 txt_fname = f'./Data/{runID}_FOM_optimisation_maxfev{maxfev*num_cores}.txt'
 with open(txt_fname, "a") as result_file:
     result_file.writelines(lines_to_file)
