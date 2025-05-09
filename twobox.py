@@ -31,7 +31,6 @@ else:
     device = torch.device('cpu')
 
 import matplotlib.pyplot as plt
-from matplotlib.ticker import Locator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 plt.rcParams['figure.figsize'] = [15, 7.5] # change inline figure size
 # plt.rcParams["font.family"] = "Helvetica"
