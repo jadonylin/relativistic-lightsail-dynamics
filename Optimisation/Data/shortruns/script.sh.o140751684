@@ -1,0 +1,13 @@
+
+======================================================================================
+                  Resource Usage on 2025-05-10 13:49:55:
+   Job Id:             140751684.gadi-pbs
+   Project:            dg76
+   Exit Status:        137 (Linux Signal 9 SIGKILL Kill, unblockable)
+   Service Units:      0.01
+   NCPUs Requested:    2                      NCPUs Used: 2               
+                                           CPU Time Used: 00:00:05        
+   Memory Requested:   500.0MB               Memory Used: 500.0MB         
+   Walltime requested: 00:20:00            Walltime Used: 00:00:12        
+   JobFS requested:    100.0MB                JobFS used: 0B              
+======================================================================================

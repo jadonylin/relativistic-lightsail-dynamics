@@ -1,0 +1,14 @@
+Loading python3/3.12.1
+  Loading requirement: intel-mkl/2023.2.0
+
+------------------------------------------------------------------------
+Job 140751684 has exceeded memory allocation on node gadi-cpu-clx-0360.gadi.nci.org.au
+Process "bash", pid 2746471, rss 3522560, vmem 23932928
+Process "140751684.gadi-", pid 2750217, rss 3158016, vmem 10383360
+Process "python3", pid 2752389, rss 411910144, vmem 4484239360
+Process "python3", pid 2788726, rss 382574592, vmem 4346191872
+Process "python3", pid 2788754, rss 382582784, vmem 4346191872
+------------------------------------------------------------------------
+For more information visit https://opus.nci.org.au/x/SwGRAQ
+------------------------------------------------------------------------
+/local/spool/pbs/mom_priv/jobs/140751684.gadi-pbs.SC: line 21: 2752389 Killed                  python3 ~/RotationTwobox/run_parallel.py

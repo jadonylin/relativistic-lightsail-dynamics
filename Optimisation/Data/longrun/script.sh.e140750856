@@ -1,0 +1,55 @@
+Loading python3/3.12.1
+  Loading requirement: intel-mkl/2023.2.0
+multiprocessing.pool.RemoteTraceback: 
+"""
+Traceback (most recent call last):
+  File "/apps/python3/3.12.1/lib/python3.12/multiprocessing/pool.py", line 125, in worker
+    result = (True, func(*args, **kwds))
+                    ^^^^^^^^^^^^^^^^^^^
+  File "/home/562/jl7180/RotationTwobox/run_parallel.py", line 117, in optimise_partitioned_depth
+    return opt.global_optimise(Initial_bigrating(), opt_Parameters(), sampling, seed, n_sample, maxstop, xtol_rel, ftol_rel, _param_bounds)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/562/jl7180/RotationTwobox/opt.py", line 389, in global_optimise
+    opt_params = global_opt.optimize(init_params)
+                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/562/jl7180/.local/lib/python3.12/site-packages/nlopt/nlopt.py", line 454, in optimize
+    return _nlopt.opt_optimize(self, *args)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/562/jl7180/RotationTwobox/opt.py", line 329, in fun_nlopt
+    y, dy = objective(params)
+            ^^^^^^^^^^^^^^^^^
+  File "/home/562/jl7180/RotationTwobox/opt.py", line 319, in objective
+    return FOM_uniform(grating, final_speed, goal, return_grad)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/562/jl7180/RotationTwobox/opt.py", line 91, in FOM_uniform
+    FD_runner = adp.runner.simple(FD_learner, loss_goal=goal)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/562/jl7180/envs/adaptive/1.3.0/lib/python3.12/site-packages/adaptive/runner.py", line 1006, in simple
+    y = learner.function(x)
+        ^^^^^^^^^^^^^^^^^^^
+  File "/home/562/jl7180/RotationTwobox/opt.py", line 85, in weighted_FD
+    return PDF_unif*grating.to_numpy(FD(grating)) # losing autograd here by calling to_numpy, but torch tensors are not compatible with adaptive
+                                     ^^^^^^^^^^^
+  File "/home/562/jl7180/RotationTwobox/opt.py", line 49, in FD
+    return fom.FoM(grating, I0, grad_method="grad")
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/562/jl7180/RotationTwobox/fom.py", line 41, in FoM
+    eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/562/jl7180/RotationTwobox/fom.py", line 264, in Eigs
+    eigvals = grating.npa.eigvals(J)
+              ^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/562/jl7180/RotationTwobox/agfunc.py", line 124, in <lambda>
+    self.eigvals = lambda x: torch.linalg.eigvals(x)
+                             ^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: torch.linalg.eig: input tensor should not contain infs or NaNs.
+"""
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/home/562/jl7180/RotationTwobox/run_parallel.py", line 133, in <module>
+    for opt_index, opt_result in enumerate(pool.imap_unordered(optimise_partitioned_depth, h1_bounds)):
+  File "/apps/python3/3.12.1/lib/python3.12/multiprocessing/pool.py", line 873, in next
+    raise value
+RuntimeError: torch.linalg.eig: input tensor should not contain infs or NaNs.

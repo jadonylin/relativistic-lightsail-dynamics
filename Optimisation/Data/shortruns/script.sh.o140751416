@@ -1,0 +1,14 @@
+Begun!
+
+======================================================================================
+                  Resource Usage on 2025-05-10 13:46:46:
+   Job Id:             140751416.gadi-pbs
+   Project:            dg76
+   Exit Status:        271 (Linux Signal 15 SIGTERM Termination)
+   Service Units:      0.60
+   NCPUs Requested:    2                      NCPUs Used: 2               
+                                           CPU Time Used: 00:01:07        
+   Memory Requested:   500.0MB               Memory Used: 500.0MB         
+   Walltime requested: 00:20:00            Walltime Used: 00:08:57        
+   JobFS requested:    100.0MB                JobFS used: 4.87KB          
+======================================================================================
