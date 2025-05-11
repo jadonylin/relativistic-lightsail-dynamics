@@ -1,0 +1,26 @@
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-05-11 08:51:56.238529
+
+Fixed parameters | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45}
+FOM parameters   | {'final_speed': 20, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.342), np.float64(1.946)), (0.01, np.float64(2.919)), (np.float64(0.006710000000000001), np.float64(1.946)), (np.float64(0.006710000000000001), np.float64(1.946)), (0.0, np.float64(0.973)), (2.25, 12.25), (2.25, 12.25), (5.0, 50), (0.01, np.float64(2.919)), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+4', 'seed': 20250510}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 2, 'maxstop per core': {'maxtime': 20}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-05-11 09:39:11.940542
+
+Fixed parameters | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45}
+FOM parameters   | {'final_speed': 20, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.342), np.float64(1.946)), (0.01, np.float64(2.919)), (np.float64(0.006710000000000001), np.float64(1.946)), (np.float64(0.006710000000000001), np.float64(1.946)), (0.0, np.float64(0.973)), (2.25, 12.25), (2.25, 12.25), (5.0, 50), (0.01, np.float64(2.919)), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+4', 'seed': 20250510}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 2, 'maxstop per core': {'maxtime': 20}}
+------------------------------------------------------------------------------------------------------------------------------------
