@@ -286,7 +286,7 @@ def boxes_clip_unit_cell(params,gradn):
 
 
 def global_optimise(init_params, opt_hyperparams, 
-                    sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxfev: int=32000,
+                    sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxstop: dict={'maxfev': 1000, 'maxtime': 600},
                     xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[], return_settings: bool=False):
     """
     Global optimise the twobox on a single CPU core using MLSL global optimiser with internal MMA local optimiser.
@@ -298,7 +298,7 @@ def global_optimise(init_params, opt_hyperparams,
     sampling_method :   "sobol" or "random" initial point sampling
     seed            :   Seed for initial random parameter space sample and grating_depth samples
     n_sample        :   Number of points for initial sample (per dimension?)
-    maxfev          :   Maximum function evaluations per core
+    maxstop         :   Set maximum function evaluations and/or maximum walltime (minutes) per core
     xtol_rel        :   Relative position tolerance for MMA
     ftol_rel        :   Relative objective tolerance for MMA
     param_bounds    :   Ordered list of tuples, one tuple per parameter bound, each tuple containing one lower and one upper bound
@@ -368,8 +368,19 @@ def global_optimise(init_params, opt_hyperparams,
     global_opt.set_local_optimizer(local_opt)
 
     global_opt.set_max_objective(fun_nlopt)
+    if "maxfev" in maxstop:
+        maxfev = maxstop["maxfev"]
+    else:
+        maxfev = -1  # -1 means no limit
+        print("Warning: maxfev not provided in maxstop dictionary. Ignore if this is intentional.")
+    if "maxtime" in maxstop:
+        maxtime = 60*maxstop["maxtime"]  # Seconds
+    else:
+        maxtime = -1  # -1 means no limit
+        print("Warning: maxtime not provided in maxstop dictionary. Ignore if this is intentional.")
     global_opt.set_maxeval(maxfev)
-    
+    global_opt.set_maxtime(maxtime)
+
     lb = [bounds[0] for bounds in param_bounds]
     ub = [bounds[1] for bounds in param_bounds]
     global_opt.set_lower_bounds(lb)
@@ -378,16 +389,18 @@ def global_optimise(init_params, opt_hyperparams,
 
     opt_params = global_opt.optimize(init_params)
     optimum = objective(opt_params)[0]
-    print("Success on starting bounds: ", param_bounds[1])
     is_optimum = True
+    num_fev = global_opt.get_numevals()
+    print("Success on starting bounds: ", param_bounds[1])
+    
 
     if return_settings:
         settings = {"sampling_method": sampling_method, "seed": seed, "n_sample": n_sample,
-                    "maxfev": maxfev, "xtol_rel": xtol_rel, "ftol_rel": ftol_rel,
+                    "maxstop": maxstop, "xtol_rel": xtol_rel, "ftol_rel": ftol_rel,
                     "param_bounds": param_bounds}
-        return (optimum, grating, opt_params, is_optimum, settings)
+        return (optimum, grating, opt_params, is_optimum, num_fev, settings)
     else:
-        return (optimum, grating, opt_params, is_optimum)
+        return (optimum, grating, opt_params, is_optimum, num_fev)
 
 def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: int=0):
     """

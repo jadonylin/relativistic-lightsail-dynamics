@@ -26,7 +26,9 @@ from multiprocessing import Pool
 import numpy as np
 from numpy import *
 
+import pathlib
 import pickle
+
 import sys
 sys.path.append("../")
 
@@ -35,18 +37,19 @@ from parameters import Initial_bigrating, opt_Parameters, Bounds
 
 
 # Global optimisation parameters
-num_cores = 2  # number of cores to run parallel optimisation
-maxfev = 2  # global 1000
+num_cores = 10  # number of cores to run parallel optimisation
+maxtime = 24*60  # Stop after maxtime minutes
+maxstop = {'maxtime': maxtime}  # global 1000
 h1_min, h1_max, param_bounds = Bounds()
-runID = "torcwa_test"
+runID = "MdSnpmin20_torcwa_nanjac"
 
 # Local optimisation parameters
 xtol_rel = 1e-4  
 ftol_rel = 1e-8  
 
-seed = 20250508  # LDS seed
+seed = 20250510  # LDS seed
 sampling = 'sobol'  # 'sobol' or 'random'
-n_sample_exp = 2
+n_sample_exp = 4
 n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
 ndof = 10  # number of optimisation parameters
 
@@ -78,7 +81,7 @@ sampling_dict = {'Sampling method': sampling, 'n_sample': f'2E+{n_sample_exp}', 
 sampling_line = str(sampling_dict)
 LO_dict = {'xtol_rel': f"{xtol_rel:.1E}", 'ftol_rel': f"{ftol_rel:.1E}"}
 LO_line = str(LO_dict)
-GO_dict = {'number of cores': num_cores, 'maxfev per core': maxfev}
+GO_dict = {'number of cores': num_cores, 'maxstop per core': maxstop}
 GO_line = str(GO_dict)
 
 # Date and time at beginning of run
@@ -99,8 +102,10 @@ lines_to_file = ["\n\n----------------------------------------------------------
 
 
 ## Writing to file ##
-txt_fname = f'./Data/{runID}_FOM_optimisation_maxfev{maxfev*num_cores}.txt'
-with open(txt_fname, "a") as result_file:
+current_dir = pathlib.Path.cwd()
+txt_fname = f'{runID}_FOM_optimisation_maxtime{maxtime}.txt'
+txt_dir = current_dir / "Data" / txt_fname
+with open(txt_dir, "a") as result_file:
     result_file.writelines(lines_to_file)
 
 
@@ -114,7 +119,7 @@ with open(txt_fname, "a") as result_file:
 def optimise_partitioned_depth(h1_bounds):
     _param_bounds = param_bounds[:]
     _param_bounds[1] = tuple([*h1_bounds])  # Must unpack a single argument for pool.imap to be applied correctly
-    return opt.global_optimise(Initial_bigrating(), opt_Parameters(), sampling, seed, n_sample, maxfev, xtol_rel, ftol_rel, _param_bounds)
+    return opt.global_optimise(Initial_bigrating(), opt_Parameters(), sampling, seed, n_sample, maxstop, xtol_rel, ftol_rel, _param_bounds)
 
 h1_bounds = []
 h1s = np.linspace(h1_min,h1_max,num_cores+1)
@@ -136,15 +141,17 @@ if __name__ == '__main__':
             opt_grating = opt_result[1]
             opt_params = opt_result[2]
             is_opt = opt_result[3]
+            num_fev = opt_result[4]
 
             time_at_completion = str(datetime.now())
 
             data = {'Optimised grating': opt_grating, 'FOM': opt_FOM, 'Real optimum?': is_opt,
-                    'Optimised parameters': opt_params,
+                    'Optimised parameters': opt_params, 'Function evaluations': num_fev,
                     'FOM parameters': FOM_params_dict,  'Bounds': bounds_dict,
                     'Sampling settings': sampling_dict, 'LO settings': LO_dict, 'GO settings': GO_dict,
                     'Execution time': time_at_execution, 'Completion time': time_at_completion}
             
-            pkl_fname = f'./Data/{runID}_FOM_optimisation_maxfev{maxfev*num_cores}_process{opt_index}.pkl'
-            with open(pkl_fname, 'wb') as data_file:
+            pkl_fname = f'{runID}_FOM_optimisation_maxtime{maxtime}_process{opt_index}.pkl'
+            pkl_dir = current_dir / "Data" / pkl_fname
+            with open(pkl_dir, 'wb') as data_file:
                 pickle.dump(data, data_file)
