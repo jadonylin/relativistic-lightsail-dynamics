@@ -26,7 +26,9 @@ from multiprocessing import Pool
 import numpy as np
 from numpy import *
 
+import pathlib
 import pickle
+
 import sys
 sys.path.append("../")
 
@@ -35,16 +37,17 @@ from parameters import Initial_bigrating, opt_Parameters, Bounds
 
 
 # Global optimisation parameters
-num_cores = 1  # number of cores to run parallel optimisation
-maxstop = {'maxtime': 3}  # global 1000
+num_cores = 2  # number of cores to run parallel optimisation
+maxtime = 20  # Stop after maxtime minutes
+maxstop = {'maxtime': maxtime}  # global 1000
 h1_min, h1_max, param_bounds = Bounds()
-runID = "MdSnpmin20_torcwa"
+runID = "MdSnpmin20_torcwa_timing"
 
 # Local optimisation parameters
 xtol_rel = 1e-4  
 ftol_rel = 1e-8  
 
-seed = 20250508  # LDS seed
+seed = 20250510  # LDS seed
 sampling = 'sobol'  # 'sobol' or 'random'
 n_sample_exp = 4
 n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
@@ -99,8 +102,10 @@ lines_to_file = ["\n\n----------------------------------------------------------
 
 
 ## Writing to file ##
-txt_fname = f'/home/562/jl7180/RotationTwobox/Data/{runID}_FOM_optimisation_maxtime{maxstop['maxtime']}.txt'
-with open(txt_fname, "a") as result_file:
+current_dir = pathlib.Path.cwd()
+txt_fname = f'{runID}_FOM_optimisation_maxtime{maxtime}.txt'
+txt_dir = current_dir / "Data" / txt_fname
+with open(txt_dir, "a") as result_file:
     result_file.writelines(lines_to_file)
 
 
@@ -146,6 +151,7 @@ if __name__ == '__main__':
                     'Sampling settings': sampling_dict, 'LO settings': LO_dict, 'GO settings': GO_dict,
                     'Execution time': time_at_execution, 'Completion time': time_at_completion}
             
-            pkl_fname = f'/home/562/jl7180/RotationTwobox/Data/{runID}_FOM_optimisation_maxtime{maxstop['maxtime']}_process{opt_index}.pkl'
-            with open(pkl_fname, 'wb') as data_file:
+            pkl_fname = f'{runID}_FOM_optimisation_maxtime{maxtime}_process{opt_index}.pkl'
+            pkl_dir = current_dir / "Data" / pkl_fname
+            with open(pkl_dir, 'wb') as data_file:
                 pickle.dump(data, data_file)

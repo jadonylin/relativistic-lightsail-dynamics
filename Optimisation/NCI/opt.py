@@ -7,10 +7,6 @@ You should import your figure-of-merit functions from opt.py into your main opti
 # IMPORTS ########################################################################################################################
 import adaptive as adp
 
-import itertools
-
-import multiprocess as mp
-
 import numpy as np
 import nlopt
 
@@ -20,9 +16,6 @@ os.environ["OPENBLAS_NUM_THREADS"] = "1"
 os.environ["MKL_NUM_THREADS"] = "1" 
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1" 
 os.environ["NUMEXPR_NUM_THREADS"] = "1" 
-from operator import itemgetter
-
-import pickle
 
 import random
 
@@ -373,7 +366,7 @@ def global_optimise(init_params, opt_hyperparams,
         maxfev = -1  # -1 means no limit
         print("Warning: maxfev not provided in maxstop dictionary. Ignore if this is intentional.")
     if "maxtime" in maxstop:
-        maxtime = maxstop["maxtime"]
+        maxtime = 60*maxstop["maxtime"]  # Seconds
     else:
         maxtime = -1  # -1 means no limit
         print("Warning: maxfev not provided in maxstop dictionary. Ignore if this is intentional.")
@@ -400,174 +393,3 @@ def global_optimise(init_params, opt_hyperparams,
         return (optimum, grating, opt_params, is_optimum, num_fev, settings)
     else:
         return (optimum, grating, opt_params, is_optimum, num_fev)
-
-def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: int=0):
-    """
-    Extract the optimum gratings stored in multiple data files, each file corresponding to the output of an optimisation core. 
-    Optima are ordered by FOM (largest to smallest).
-
-    Parameters
-    ----------
-    data_basefile_name  :   pkl file name relative to working directory
-    num_processes       :   Number of processes used in the optimisation that must be individually extracted
-    output_opt_idx      :   Index for the optimal twobox instance (from the ordered list) to return directly
-
-    Returns
-    -------
-    maxima_and_maximisers_sorted :   List of tuples, each tuple being (FOM, optimisation parameters) 
-    opt_gratings_sorted          :   List of tuples, each tuple being (FOM, twobox instance)
-    chosen_best_grating          :   Twobox instance for the output grating chosen by output_opt_idx
-    """
-
-    opt_FOMs = []
-    opt_gratings = []
-    opt_params = []
-    for n in range(num_processes):
-        try: 
-            data_fname = data_basefile_name + f"_process{n}.pkl"
-            with open(data_fname, 'rb') as data_file:
-                data = pickle.load(data_file)
-        except FileNotFoundError:
-            continue
-
-        opt_FOMs.append(data["FOM"])
-        opt_gratings.append(data["Optimised grating"])
-        opt_params.append(data["Optimised parameters"])
-
-    maxima_and_maximisers = zip(opt_FOMs, opt_params)
-    maxima_and_gratings = zip(opt_FOMs, opt_gratings)
-
-    # Sort the optima based on the FOM value
-    maxima_and_maximisers_sorted = sorted(maxima_and_maximisers, key=itemgetter(0), reverse=True)
-    opt_gratings_sorted = sorted(maxima_and_gratings, key=itemgetter(0), reverse=True)
-    chosen_best_grating = opt_gratings_sorted[output_opt_idx][1]
-
-    return maxima_and_maximisers_sorted, opt_gratings_sorted, chosen_best_grating
-
-def extract_opt_single(data_filename: str, output_opt_idx: int=0):
-    """
-    Extract the optimum gratings stored in a single data file. Optima are ordered by FOM (largest to smallest).
-
-    Parameters
-    ----------
-    data_filename  :   pkl file name relative to working directory
-    output_opt_idx :   Index for the optimal twobox instance (from the ordered list) to return directly
-
-    Returns
-    -------
-    maxima_and_maximisers_sorted :   List of tuples, each tuple being (FOM, optimisation parameters) 
-    opt_gratings_sorted          :   List of tuples, each tuple being (FOM, twobox instance)
-    chosen_best_grating          :   Twobox instance for the output grating chosen by output_opt_idx
-    """
-
-    with open(data_filename, 'rb') as data_file:
-        data = pickle.load(data_file)
-
-    opt_FOMs = data["FOM"]
-    opt_gratings = data["Optimised grating"]
-    opt_params = data["Optimised parameters"] #[0]
-
-    maxima_and_maximisers = zip(opt_FOMs, opt_params)
-    maxima_and_gratings = zip(opt_FOMs, opt_gratings)
-
-    # Sort the optima based on the FOM value
-    maxima_and_maximisers_sorted = sorted(maxima_and_maximisers, key=itemgetter(0), reverse=True)
-    opt_gratings_sorted = sorted(maxima_and_gratings, key=itemgetter(0), reverse=True)
-    chosen_best_grating = opt_gratings_sorted[output_opt_idx][1]
-
-    return maxima_and_maximisers_sorted, opt_gratings_sorted, chosen_best_grating
-
-
-
-def generate_FOM_space(grating: TwoBox, w_quantity: str="pitch", w_range: tuple=(1.,2.), depth_range: tuple=(0.,1.), 
-                       num_points_per_dimension: int=1000, num_processes: int=8, **kwargs):
-    """
-    Calculate the FOM for the twobox at variable w and height. w can be chosen from a preset array of parameters.  
-
-    Parameters
-    ----------
-    grating                  :   TwoBox grating whose ewh you want to generate
-    w_quantity               :   w quantity you want to generate. Can be "pitch" (unit cell width), "box_width" (width of box 1) or "wavelength". 
-    w_range                  :   Upper and lower limit on values for w_quantity.
-    depth_range              :   Depths range
-    num_points_per_dimension :   Number of points to plot in each dimension
-    num_processes            :   Number of processes to use in parallel calculation
-    **kwargs                 :   Keyword arguments to pass to FOM
-    """
-
-    w_min, w_max = w_range
-    depth_min, depth_max = depth_range
-    ds = np.linspace(depth_min,depth_max,num_points_per_dimension)
-    ws = np.linspace(w_min,w_max,num_points_per_dimension)
-
-    # TODO: Avoid modifying input grating parameters
-    def _FOM(*args):
-        match w_quantity:
-            case "pitch":
-                grating.grating_pitch = args[0][0]
-            case "box_width":
-                grating.box1_width = args[0][0]
-            case "wavelength":
-                grating.wavelength = args[0][0]
-            case _:
-                raise ValueError("Unrecognised w_quantity. Must be one of 'pitch', 'box_width' or 'wavelength'.")
-        grating.grating_depth = args[0][1]
-        return FOM_uniform(grating, **kwargs) 
-
-    param_inputs = ((w,d) for w,d in itertools.product(ws,ds))
-    p = mp.Pool(num_processes)
-    _data = p.map(_FOM, param_inputs)
-    data = np.reshape(np.array(_data), (num_points_per_dimension, num_points_per_dimension))
-    p.close()
-    p.join()
-
-    return ws, ds, data
-
-def show_FOM_space(data_filename):
-    """
-    Show the FOM for the twobox as 2D colour plot over w and grating depth.  
-
-    Parameters
-    ----------
-    data_filename :   Simulation parameters and FOM data
-    """
-
-    with open(data_filename, 'rb') as data_file:
-        data = pickle.load(data_file)
-
-    ws = data["ws"]
-    grating_depths = data["ds"]
-    FOM_data = data["FOM data"]
-    w_quantity = data["w quantity"]
-
-    w_min = ws[0]
-    w_max = ws[-1]
-    h1_min = grating_depths[0]
-    h1_max = grating_depths[-1]
-
-    # Maximum value to map the colourbar to
-    fig, ax = plt.subplots(1, figsize=(10,8))
-    
-    match w_quantity:
-        case "pitch":
-            ax.set(xlabel=r"$\Lambda'/\lambda_0$", ylabel=r"$h_1'/\lambda_0$")
-        case "box_width":
-            ax.set(xlabel=r"$w'/\Lambda'$", ylabel=r"$h_1'/\lambda_0$")
-        case "wavelength":
-            ax.set(xlabel=r"$\lambda'/\Lambda'$", ylabel=r"$h_1'/\lambda_0$")
-        case _:
-            raise ValueError("Unrecognised w_quantity. Must be one of 'pitch', 'box_width' or 'wavelength'.")
-    # ax.set_aspect('equal', adjustable='box')
-    ax.set_xlim([w_min, w_max])
-    ax.set_ylim([h1_min, h1_max])
-
-    colorbar_label = rf"FOM"
-    max_colour_scale = np.maximum(np.abs(np.min(FOM_data)), np.abs(np.max(FOM_data)))
-    max_colour_scale = np.round(max_colour_scale, 1)
-    pcolormesh_kwargs = {"cmap": 'bwr', "vmin": -max_colour_scale, "vmax": max_colour_scale}
-
-    FOM_cplot = ax.pcolormesh(ws, grating_depths, FOM_data, 
-                                    shading='nearest', **pcolormesh_kwargs)
-    fig.colorbar(FOM_cplot, label=colorbar_label)
-
-    return fig, ax
