@@ -229,6 +229,8 @@ def average_real_eigs(grating, final_speed, goal, return_eigs: bool=False, I: fl
 # so the constraint functions should be differentiable with respect to the optimisation parameters. 
 # However, I think the gradients of constrain functions are obtained by MMA internally (likely using
 # finite differences), so autogradability is not needed.
+# Some of these constraints partially overlap with the bound constraints set for the global optimizer,
+# but here, we can pass the exact parameters to the constraints rather than predetermining the bounds.
 def box1_too_wide(params,gradn): 
     """
     Constraint function to prevent box1 from being wider than the unit cell.
