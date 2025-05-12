@@ -38,7 +38,7 @@ from parameters import Initial_bigrating, opt_Parameters, Bounds
 
 # Global optimisation parameters
 num_cores = 2  # number of cores to run parallel optimisation
-maxtime = 20  # Stop after maxtime minutes
+maxtime = 1  # Stop after maxtime minutes
 maxstop = {'maxtime': maxtime}  # global 1000
 h1_min, h1_max, param_bounds = Bounds()
 runID = "MdSnpmin20_torcwa_timing"
@@ -102,7 +102,8 @@ lines_to_file = ["\n\n----------------------------------------------------------
 
 
 ## Writing to file ##
-current_dir = pathlib.Path.cwd()
+current_dir = pathlib.Path(__file__).resolve(strict=True).parent
+print(current_dir)
 txt_fname = f'{runID}_FOM_optimisation_maxtime{maxtime}.txt'
 txt_dir = current_dir / "Data" / txt_fname
 with open(txt_dir, "a") as result_file:
