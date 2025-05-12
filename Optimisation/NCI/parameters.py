@@ -107,10 +107,10 @@ pitch_max = np.round(2*wavelength_max/(1 + np.sin(min_angle_cutoff2)), 3)
 h1_min = 0.01  # Offset from zero to avoid zero Jacobian determinant 
 h1_max = 1.5*pitch_max
 
-box_width_min = 0.005*pitch_min  # Offset from zero to avoid zero Jacobian determinant
+box_width_min = 0.01*pitch_max  # Offset from zero to avoid zero Jacobian determinant
 box_width_max = 1.*pitch_max  # single box width must be smaller than pitch
 
-box_centre_dist_min = 0.
+box_centre_dist_min = 0.03*pitch_max  # Offset from zero to avoid zero Jacobian determinant and symmetric unit cell
 box_centre_dist_max = 0.5*pitch_max  # redundant space if > 0.5*pitch
 
 box_eps_min = 1.5**2  # Minimum allowed grating permittivity set above vacuum to avoid zero Jacobian determinant 
@@ -119,7 +119,7 @@ box_eps_max = 3.5**2  # Maximum allowed grating permittivity set to silicon
 gaussian_width_min = 0.5*L 
 gaussian_width_max = 5*L
 
-substrate_depth_min = h1_min  # Offset minimum substrate thickness from zero to avoid zero Jacobian determinant 
+substrate_depth_min = h1_min  # Offset from zero to avoid zero Jacobian determinant 
 substrate_depth_max = 1.5*pitch_max 
 
 substrate_eps_min = box_eps_min 
