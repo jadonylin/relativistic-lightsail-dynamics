@@ -21,13 +21,13 @@ os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1" 
 
 from datetime import datetime
-from multiprocessing import Pool
+from multiprocess import Pool
 
 import numpy as np
 from numpy import *
 
 import pathlib
-import pickle
+import dill as pickle
 
 import sys
 sys.path.append("../")
@@ -37,11 +37,11 @@ from parameters import Initial_bigrating, opt_Parameters, Bounds
 
 
 # Global optimisation parameters
-num_cores = 10  # number of cores to run parallel optimisation
-maxtime = 24*60  # Stop after maxtime minutes
+num_cores = 2  # number of cores to run parallel optimisation
+maxtime = 60  # Stop after maxtime minutes
 maxstop = {'maxtime': maxtime}  # global 1000
 h1_min, h1_max, param_bounds = Bounds()
-runID = "MdSnpmin20_torcwa_nanjac"
+runID = "MdSnpmin20_grcwa_timing"
 
 # Local optimisation parameters
 xtol_rel = 1e-4  
@@ -102,7 +102,7 @@ lines_to_file = ["\n\n----------------------------------------------------------
 
 
 ## Writing to file ##
-current_dir = pathlib.Path.cwd()
+current_dir = pathlib.Path(__file__).resolve(strict=True).parent
 txt_fname = f'{runID}_FOM_optimisation_maxtime{maxtime}.txt'
 txt_dir = current_dir / "Data" / txt_fname
 with open(txt_dir, "a") as result_file:
