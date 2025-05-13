@@ -239,7 +239,6 @@ class TwoBox:
         return self._angle
     @angle.setter
     def angle(self, new_angle):
-        # self._angle = self.npa.array(float(new_angle))
         self._angle = self.npa.array(new_angle)
 
     @property
