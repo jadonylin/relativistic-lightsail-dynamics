@@ -318,12 +318,11 @@ def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5
     real_eigvals = np.zeros((num_points,4))
     imag_eigvals = np.zeros((num_points,4))
     eigvec_moduli = np.zeros((num_points,4,4))
-
     for i in range(num_points):
         wavelength = wavelength_range[i]
         input_wavelength = grating.wavelength
         grating.wavelength = wavelength 
-        _, rest, damp, real, imag, eigvecs = fom.lsa_info(grating, I)
+        _, rest, damp, real, imag, eigvecs = grating.to_numpy(fom.lsa_info(grating, I))
 
         restoring_coeffs[i,:] = rest
         damping_coeffs[i,:] = damp
