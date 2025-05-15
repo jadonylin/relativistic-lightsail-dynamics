@@ -7,9 +7,10 @@ dynamics-solving script.
 # test
 import numpy as np
 
-import pickle
+import dill as pickle
 
 from scipy.interpolate import RegularGridInterpolator
+from scipy.special import erf
 
 import sys
 sys.path.append("../")
@@ -17,7 +18,7 @@ sys.path.append("../")
 from cmvint import InterpolateError
 from Optimisation.opt import extract_opt
 from parameters import Parameters
-from specrel import Gamma, Dv, SinCosTheta, ABSC, E_eps, erf, Lorentz
+from specrel import Gamma, Dv, SinCosTheta, ABSC, E_eps, Lorentz
 
 
 I, L, m, c = Parameters()
@@ -44,7 +45,7 @@ def load_essential_data(opt_gratings_data_fname: str, num_processes: int, output
     lookup_data    :   Qpr lookup table data
     """
     _, _, opt_grating = extract_opt(opt_gratings_data_fname, num_processes, output_opt_idx)
-    gaussian_width = opt_grating.gaussian_width
+    gaussian_width = opt_grating.to_numpy(opt_grating.gaussian_width)
     with open(lookup_data_fname, 'rb') as lookup_file: 
         lookup_data = pickle.load(lookup_file)
     return gaussian_width, lookup_data
