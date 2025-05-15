@@ -2,9 +2,9 @@
 
 #PBS -P dg76
 #PBS -q normal
-#PBS -l ncpus=2
-#PBS -l mem=2GB
-#PBS -l walltime=00:22:00
+#PBS -l ncpus=48
+#PBS -l mem=64GB
+#PBS -l walltime=48:00:00
 
 module load use.own
 module load python3/3.12.1

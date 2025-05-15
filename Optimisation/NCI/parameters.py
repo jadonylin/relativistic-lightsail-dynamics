@@ -88,7 +88,7 @@ Qabs = 1e7
 
 ## FoM parameters ##
 goal = 0.1  # Stopping criteria for adaptive sampling in the FOM (set float for loss_goal, set int for npoints_goal)
-final_speed = 20  # percentage of c
+final_speed = 1  # percentage of c
 return_grad = True  # Return FOM and gradient of FOM
 
 
