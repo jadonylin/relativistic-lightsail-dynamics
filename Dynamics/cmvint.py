@@ -11,7 +11,7 @@ TODO: I'm still not sure if finite difference is valid for wigner rotation deriv
 
 import numpy as np
 
-import pickle
+import dill as pickle
 
 import time
 
