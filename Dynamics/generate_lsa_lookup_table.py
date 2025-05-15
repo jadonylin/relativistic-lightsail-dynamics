@@ -2,7 +2,7 @@ import sys
 sys.path.append('../')
 
 import numpy as np
-import pickle
+import dill as pickle
 
 import time
 
@@ -13,10 +13,13 @@ from twobox import TwoBox
 t_start = time.time()
 
 ## Initialise grating
-num_cores = 18
-maxfev = 500
-opt_grating_basefname = f"../Optimisation/Data/FOM_optimisation_maxfev{num_cores*maxfev}"
-_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=0)
+runID = "MdSnpmin20_torcwa"
+num_cores = 96
+# maxfev = 500
+maxtime = 2760
+# opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxfev{num_cores*maxfev}"
+opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxtime{maxtime}"
+_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=2)
 print(_opt_grating.params)
 
 
@@ -24,10 +27,10 @@ print(_opt_grating.params)
 wavelength      = 1.
 angle           = 0.
 Nx              = 100
-numG            = 25
+numG            = 12
 Qabs            = np.inf
 
-grating = TwoBox(*_opt_grating.params, wavelength, angle, Nx, numG, Qabs)
+grating = TwoBox(*_opt_grating.params, wavelength, angle, Nx, numG, Qabs, RCWA_engine="TORCWA", torcwa_edge_sharpness=45)
 
 ## Number of lambda' points
 klambda = 1000
@@ -35,7 +38,7 @@ v_final = 20/100
 lambda_final = 1/D1_ND(v_final)
 lambda_array = np.linspace( wavelength, lambda_final, klambda )
 
-runID = "MdSnpminOpt20"
+runID = "MdSnpmin20_torcwa"  # String to add to .pkl filename
 
 ## Storage arrays
 Q1_array            = np.zeros( klambda )
@@ -48,7 +51,7 @@ PD_Q2_lambda_array  = np.zeros( klambda )
 for i in range(klambda):
     grating.wavelength   = lambda_array[i]
     # Call function
-    Qs = grating.return_Qs_auto(True)
+    Qs = grating.to_numpy(grating.return_Qs_auto())
     # Efficiency factors
     Q1_array[i] = Qs[0];             Q2_array[i] = Qs[1]
     # Derivatives
@@ -62,7 +65,7 @@ print(rf"Finished in {t_end_sec} seconds, or {t_end_min} minutes!")
 print(rf"#lambda: {klambda}")
 
 ## Save data
-pkl_fname = rf'Data/{runID}_lsa_Lookup_table_lambda_{klambda}.pkl'
+pkl_fname = rf'./Data/{runID}_lsa_Lookup_table_lambda_{klambda}.pkl'
 data = {'Q1': Q1_array, 'Q2': Q2_array, 'PD_Q1_delta': PD_Q1_delta_array, 'PD_Q2_delta': PD_Q2_delta_array, 'PD_Q1_lambda': PD_Q1_lambda_array, 'PD_Q2_lambda': PD_Q2_lambda_array, 
          'lambda array': lambda_array}
 with open(pkl_fname, 'wb') as data_file:

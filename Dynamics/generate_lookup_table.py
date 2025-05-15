@@ -14,7 +14,7 @@ import itertools
 import multiprocess as mp
 
 import numpy as np
-import pickle
+import dill as pickle
 
 import sys
 sys.path.append('../')
@@ -28,20 +28,23 @@ import Optimisation.opt as opt
 t_start = time.time()
 
 ## Initialise grating
-num_cores = 18
-maxfev = 500
-opt_grating_basefname = f"../Optimisation/Data/FOM_optimisation_maxfev{num_cores*maxfev}"
-_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=0)
+runID = "MdSnpmin20_torcwa"
+num_cores = 96
+# maxfev = 500
+maxtime = 2760
+# opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxfev{num_cores*maxfev}"
+opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxtime{maxtime}"
+_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=2)
 print(_opt_grating.params)
 
 # Set custom parameters, if needed. If not needed, can just set "grating" to the extracted grating above.
 wavelength      = 1.
 angle           = 0.
 Nx              = 100
-numG            = 25
+numG            = 12
 Qabs            = np.inf
 
-grating = TwoBox(*_opt_grating.params, wavelength, angle, Nx, numG, Qabs)
+grating = TwoBox(*_opt_grating.params, wavelength, angle, Nx, numG, Qabs, RCWA_engine="TORCWA", torcwa_edge_sharpness=45)
 
 
 klambda = 1000  # Number of lambda' points
@@ -50,17 +53,17 @@ lambda_final = 1/D1_ND(v_final)
 lambda_array = np.linspace(wavelength, lambda_final, klambda)
 
 kdelta = 1000  # Number of delta' points
-delta_max = 9*np.pi/180  # IMPORTANT: must be set according to the grating cutoffs
+delta_max = 5*np.pi/180  # IMPORTANT: must be set according to the grating cutoffs
 delta_min = -delta_max
 delta_array = np.linspace(delta_min, delta_max, kdelta)
 
-runID = "MdSnpminOpt"  # String to add to .pkl filename
-num_processes = 6
+runID = "MdSnpmin20_torcwa"  # String to add to .pkl filename
+num_processes = 10
 
 def eff_auto(*args):
     grating.wavelength = args[0][0]
     grating.angle = args[0][1]
-    return grating.return_Qs_auto() 
+    return grating.to_numpy(grating.return_Qs_auto())
 
 param_inputs = ((l,d) for l,d in itertools.product(lambda_array,delta_array))
 
