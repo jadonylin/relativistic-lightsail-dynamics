@@ -423,6 +423,7 @@ def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: i
     opt_FOMs = []
     opt_gratings = []
     opt_params = []
+    total_fev = 0
     for n in range(num_processes):
         try: 
             data_fname = data_basefile_name + f"_process{n}.pkl"
@@ -435,10 +436,13 @@ def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: i
         opt_gratings.append(data["Optimised grating"])
         opt_params.append(data["Optimised parameters"])
 
-        # print(data["Execution time"])
-        # print(data["Completion time"])
-        # print(data["Function evaluations"])
+        try:
+            total_fev += data["Function evaluations"]
+        except KeyError as ke:
+            print(ke)
 
+    print(f"Total function evaluations: {total_fev}")
+    print(f"Average function evaluations per core: {int(total_fev/num_processes)}")
     maxima_and_maximisers = zip(opt_FOMs, opt_params)
     maxima_and_gratings = zip(opt_FOMs, opt_gratings)
 
