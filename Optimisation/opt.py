@@ -25,7 +25,6 @@ import random
 import sys
 sys.path.append("../")
 
-import fom
 from parameters import Parameters
 I0, L, m, c = Parameters()
 from twobox import TwoBox
