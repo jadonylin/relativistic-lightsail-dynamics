@@ -5,10 +5,10 @@ sys.path.append('../')
 
 import time
 
+import fom
 from ilic import *
 import Optimisation.opt as opt
 from twobox import TwoBox
-
 
 # wavelength_range=np.array([1.01,1.25])
 # # derivatives vs angle
@@ -42,11 +42,11 @@ gratingTorcwa = TwoBox(1.3, grating_depth, box1_width, box2_width, box_centre_di
 # ps = np.linspace(1.4, 1.6, 10)
 # for p in ps:
 #     gratingTorcwa.grating_pitch = p
-#     val = opt.FOM_uniform(gratingTorcwa, final_speed=20., goal=0.1, return_grad=True)
+#     val = fom.FOM_uniform(gratingTorcwa, final_speed=20., goal=0.1, return_grad=True)
 # total = time.time()-start
 
 # print(f'TORCWA time (average over {len(ps)} runs) = {total/len(ps)}')
 
 # Profile this function to see which parts are slowest
-val = opt.FOM_uniform(gratingTorcwa, final_speed=20., goal=20, return_grad=True)
+val = fom.FOM_uniform(gratingTorcwa, final_speed=20., goal=20, return_grad=True)
 print(val)

@@ -24,6 +24,7 @@ import nlopt
 import sys
 sys.path.append('../')
 
+import fom
 import parameters
 import opt
 from twobox import TwoBox
@@ -69,7 +70,7 @@ match init_grating.RCWA_engine:
 
 def objective(params):
     init_grating.params = params
-    return opt.FOM_uniform(init_grating, final_speed, goal, return_grad=True)
+    return fom.FOM_uniform(init_grating, final_speed, goal, return_grad=True)
 
 init_objective = objective(init)[0]
 

@@ -38,11 +38,11 @@ from parameters import Initial_bigrating, opt_Parameters, Bounds
 
 
 # Global optimisation parameters
-num_cores = 90  # number of cores to run parallel optimisation
-maxtime = 47*60  # Stop after maxtime minutes
+num_cores = 2  # number of cores to run parallel optimisation
+maxtime = 1  # Stop after maxtime minutes
 maxstop = {'maxtime': maxtime}  # global 1000
 h1_min, h1_max, param_bounds = Bounds()
-runID = "MdSnpmin1_torcwa"
+runID = "refactor_test"
 
 # Local optimisation parameters
 xtol_rel = 1e-4  

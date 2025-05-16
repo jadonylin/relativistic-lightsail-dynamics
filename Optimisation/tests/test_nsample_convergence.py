@@ -30,6 +30,7 @@ import pickle
 import sys
 sys.path.append("../")
 
+import fom
 import opt 
 from parameters import Initial_bigrating, opt_Parameters, Bounds
 

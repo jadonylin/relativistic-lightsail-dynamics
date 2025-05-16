@@ -6,7 +6,8 @@ sys.path.append('../')
 import time
 
 from ilic import *
-import Optimisation.opt as opt
+
+import fom
 from twobox import TwoBox
 
 # wavelength_range=np.array([1.01,1.25])
@@ -28,11 +29,11 @@ gratingGRCWA = TwoBox(1.3, grating_depth, box1_width, box2_width, box_centre_dis
 # ps = np.linspace(1.4, 1.6, 10)
 # for p in ps:
 #     gratingGRCWA.grating_pitch = p
-#     val = opt.FOM_uniform(gratingGRCWA, final_speed=20., goal=0.1, return_grad=True)
+#     val = fom.FOM_uniform(gratingGRCWA, final_speed=20., goal=0.1, return_grad=True)
 # total = time.time()-start
 
 # print(f'GRCWA time (average over {len(ps)} runs) = {total/len(ps)}')
 
 # Profile this function to see which parts are slowest
-val = opt.FOM_uniform(gratingGRCWA, final_speed=20., goal=20, return_grad=True)
+val = fom.FOM_uniform(gratingGRCWA, final_speed=20., goal=20, return_grad=True)
 print(val)
