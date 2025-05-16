@@ -597,134 +597,132 @@ class PlotBox:
         
         return fig, axs
     
-def show_Eigs(grating, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plot_points: int=200, 
-              eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, marker: str='o', normalise: bool=False):
-    """
-    Show eigenvalue spectrum for the twobox.
+    def show_Eigs(self, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plot_points: int=200, 
+                eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, marker: str='o', normalise: bool=False):
+        """
+        Show eigenvalue spectrum for the twobox.
 
-    Parameters
-    ----------
-    grating             :   Calculate eigenvalues for this TwoBox grating
-    wavelength_range    :   Wavelength range to plot spectrum (same units as grating pitch)
-    I                   :   Laser intensity
-    num_plot_points     :   Number of points to plot
-    eig_real_log_axis   :   If true, logarithmic scale for real part of eigenvalues
-    eig_imag_log_axis   :   If true, logarithmic scale for imaginary part of eigenvalues
-    marker              :   Marker style passed to plt.plot()
-    normalise           :   Normalise all Jacobian coefficients by their individual dimensional factors
+        Parameters
+        ----------
+        wavelength_range    :   Wavelength range to plot spectrum (same units as grating pitch)
+        I                   :   Laser intensity
+        num_plot_points     :   Number of points to plot
+        eig_real_log_axis   :   If true, logarithmic scale for real part of eigenvalues
+        eig_imag_log_axis   :   If true, logarithmic scale for imaginary part of eigenvalues
+        marker              :   Marker style passed to plt.plot()
+        normalise           :   Normalise all Jacobian coefficients by their individual dimensional factors
 
-    Returns
-    -------
-    fig         :   Spectrum figure object
-    (ax1, ax2)  :   Real and imaginary spectrum axis objects
-    """
+        Returns
+        -------
+        fig         :   Spectrum figure object
+        (ax1, ax2)  :   Real and imaginary spectrum axis objects
+        """
 
-    wavelengths = np.linspace(*wavelength_range, num_plot_points)
-    init_wavelength = grating.wavelength  # record user-initialised wavelength
+        wavelengths = np.linspace(*wavelength_range, num_plot_points)
+        init_wavelength = self.wavelength  # record user-initialised wavelength
 
-    ## CALCULATE EIGS ##
-    eigvals = grating.npa.zeros((4,num_plot_points), dtype=np.complex128)
-    
-    for idx, lam in enumerate(wavelengths):
-        # Calculate eigs for each order
-        grating.wavelength = grating.npa.array(lam)
-        real, imag = fom.Eigs(grating, I=I,m=m,c1=c, grad_method="grad", return_vec=False, normalise=normalise)
-        eigvals[:,idx] = real + 1j*imag
+        ## CALCULATE EIGS ##
+        eigvals = self.npa.zeros((4,num_plot_points), dtype=np.complex128)
         
-    grating.wavelength = init_wavelength # restore user-initialised wavelength
+        for idx, lam in enumerate(wavelengths):
+            # Calculate eigs for each order
+            self.wavelength = self.npa.array(lam)
+            real, imag = fom.Eigs(self, I=I,m=m,c1=c, grad_method="grad", return_vec=False, normalise=normalise)
+            eigvals[:,idx] = real + 1j*imag
+            
+        self.wavelength = init_wavelength # restore user-initialised wavelength
 
 
-    # I'm assuming the dummy subplot creates spacing between the two other subplots
-    fig, (ax1, dummy, ax2) = plt.subplots(nrows=1, ncols=3, width_ratios=(1,0.1,1))
-    dummy.axis('off')
-    p = grating.to_numpy(grating.grating_pitch)
-    ax1.set_xlim(np.array(wavelength_range)/p) # normalise to grating pitch
-    ax2.set_xlim(np.array(wavelength_range)/p) # normalise to grating pitch
-    ax2.yaxis.tick_right()
-    ax2.yaxis.set_label_position("right")
+        # I'm assuming the dummy subplot creates spacing between the two other subplots
+        fig, (ax1, dummy, ax2) = plt.subplots(nrows=1, ncols=3, width_ratios=(1,0.1,1))
+        dummy.axis('off')
+        p = self.to_numpy(self.grating_pitch)
+        ax1.set_xlim(np.array(wavelength_range)/p) # normalise to grating pitch
+        ax2.set_xlim(np.array(wavelength_range)/p) # normalise to grating pitch
+        ax2.yaxis.tick_right()
+        ax2.yaxis.set_label_position("right")
 
-    colorReal = (0.7, 0, 0)
-    colorImag = 'blue'
-    for i in range(4):            
-        ax1.plot(wavelengths/p,np.real(grating.to_numpy(eigvals[i,:])), marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-        ax2.plot(wavelengths/p,np.imag(grating.to_numpy(eigvals[i,:])), marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
+        colorReal = (0.7, 0, 0)
+        colorImag = 'blue'
+        for i in range(4):            
+            ax1.plot(wavelengths/p,np.real(self.to_numpy(eigvals[i,:])), marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
+            ax2.plot(wavelengths/p,np.imag(self.to_numpy(eigvals[i,:])), marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
+            
+
+        if eig_real_log_axis:
+            linthr = 0.1
+            ax1.set_yscale("symlog", linthresh=linthr, linscale=0.4)
+            ax1.yaxis.set_minor_locator(MinorSymLogLocator(linthr))
+        if eig_imag_log_axis:
+            linthr = 0.1
+            ax2.set_yscale("symlog", linthresh=linthr, linscale=0.4)
+            ax2.yaxis.set_minor_locator(MinorSymLogLocator(linthr))
+
         
+        ax1.axhline(y=0, color='black', linestyle='-', lw = '1')
+        ax1.tick_params(axis='both', which='both', direction='in')  # ticks inside box
+        # ax1.tick_params(axis='y', color=colorReal, labelcolor=colorReal)  # colored ticks
+        ax1.set_ylabel(ylabel=rf"$\Re(\lambda)$")  #color=colorReal  # colored y label
+        ax1.set(xlabel=r"$\lambda'/\Lambda'$")
 
-    if eig_real_log_axis:
-        linthr = 0.1
-        ax1.set_yscale("symlog", linthresh=linthr, linscale=0.4)
-        ax1.yaxis.set_minor_locator(MinorSymLogLocator(linthr))
-    if eig_imag_log_axis:
-        linthr = 0.1
-        ax2.set_yscale("symlog", linthresh=linthr, linscale=0.4)
-        ax2.yaxis.set_minor_locator(MinorSymLogLocator(linthr))
+        ax2.axhline(y=0, color='black', linestyle='-', lw = '1')
+        ax2.tick_params(axis='both', which='both', direction='in')  # ticks inside box
+        # ax2.tick_params(axis='y', color = colorImag, labelcolor=colorImag)  # colored ticks
+        ax2.set_ylabel(ylabel=rf"$\Im(\lambda)$")  #color=colorImag  # colored y label
+        ax2.set(xlabel=r"$\lambda'/\Lambda'$")
 
-    
-    ax1.axhline(y=0, color='black', linestyle='-', lw = '1')
-    ax1.tick_params(axis='both', which='both', direction='in')  # ticks inside box
-    # ax1.tick_params(axis='y', color=colorReal, labelcolor=colorReal)  # colored ticks
-    ax1.set_ylabel(ylabel=rf"$\Re(\lambda)$")  #color=colorReal  # colored y label
-    ax1.set(xlabel=r"$\lambda'/\Lambda'$")
+        # fig.suptitle(t=rf"$h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$")
 
-    ax2.axhline(y=0, color='black', linestyle='-', lw = '1')
-    ax2.tick_params(axis='both', which='both', direction='in')  # ticks inside box
-    # ax2.tick_params(axis='y', color = colorImag, labelcolor=colorImag)  # colored ticks
-    ax2.set_ylabel(ylabel=rf"$\Im(\lambda)$")  #color=colorImag  # colored y label
-    ax2.set(xlabel=r"$\lambda'/\Lambda'$")
+        # Modify axes
+        cm_to_inch = 0.393701
+        fig_width = 30*cm_to_inch
+        fig_height = 17.6*cm_to_inch
+        fig.set_size_inches(fig_width/1.2, fig_height/1.2)
 
-    # fig.suptitle(t=rf"$h_1' = {grating.grating_depth/grating.wavelength:.3f}\lambda_0$, $\Lambda' = {grating.grating_pitch/grating.wavelength:.3f}\lambda_0$")
+        return fig, (ax1, ax2)
 
-    # Modify axes
-    cm_to_inch = 0.393701
-    fig_width = 30*cm_to_inch
-    fig_height = 17.6*cm_to_inch
-    fig.set_size_inches(fig_width/1.2, fig_height/1.2)
+    def show_FOM_spectrum(self, angle: float=0., wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9, grad_method: str="grad"):
+        """
+        Show spectrum of various efficiency quantities for the twobox.
 
-    return fig, (ax1, ax2)
+        Parameters
+        ----------
+        angle               :   Angle of incident plane wave excitation (radians)
+        efficiency_quantity :   The efficiency quantity you want spectrum for
+                                "r" - reflection, "PDr" - reflection angular derivative, 
+                                "t" - transmission, "PDr" - transmission angular derivative),
+                                "FoM" - single-wavelength figure of merit
+        wavelength_range    :   Wavelength range to plot spectrum (same units as grating pitch)
+        num_plot_points     :   Number of points to plot
+        I                   :   Laser intensity
 
-def show_FOM_spectrum(grating, angle: float=0., wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9, grad_method: str="grad"):
-    """
-    Show spectrum of various efficiency quantities for the twobox.
+        Returns
+        -------
+        fig :   Spectrum figure object
+        ax  :   Spectrum axs object
+        """
+        
+        wavelengths = np.linspace(*wavelength_range, num_plot_points)
+        init_wavelength = self.wavelength  # record user-initialised wavelength
+        inc_angle_deg = angle*180/np.pi
+        
+        efficiencies = np.zeros(num_plot_points, dtype=float)
+        for idx, lam in enumerate(wavelengths):
+            self.wavelength = lam
+            efficiencies[idx] = fom.FoM(self, I=I, grad_method="grad")
+        self.wavelength = init_wavelength
 
-    Parameters
-    ----------
-    grating             :   Calculate FOM spectrum for this TwoBox grating
-    angle               :   Angle of incident plane wave excitation (radians)
-    efficiency_quantity :   The efficiency quantity you want spectrum for
-                            "r" - reflection, "PDr" - reflection angular derivative, 
-                            "t" - transmission, "PDr" - transmission angular derivative),
-                            "FoM" - single-wavelength figure of merit
-    wavelength_range    :   Wavelength range to plot spectrum (same units as grating pitch)
-    num_plot_points     :   Number of points to plot
-    I                   :   Laser intensity
-
-    Returns
-    -------
-    fig :   Spectrum figure object
-    ax  :   Spectrum axs object
-    """
-    
-    wavelengths = np.linspace(*wavelength_range, num_plot_points)
-    init_wavelength = grating.wavelength  # record user-initialised wavelength
-    inc_angle_deg = angle*180/np.pi
-    
-    efficiencies = np.zeros(num_plot_points, dtype=float)
-    for idx, lam in enumerate(wavelengths):
-        grating.wavelength = lam
-        efficiencies[idx] = fom.FoM(grating, I=I, grad_method="grad")
-    grating.wavelength = init_wavelength
-
-    fig, ax = plt.subplots(1)         
-    p = grating.to_numpy(grating.grating_pitch)
-    ax.set_xlim(wavelength_range/p)  # normalise wavelength to grating pitch
-    ax.plot(wavelengths/p, efficiencies, color=(0.7, 0, 0), linestyle='-', lw=LINE_WIDTH)
-    ax.set(title=rf"{grating.title} $h_1' = {grating.grating_depth/grating.wavelength:.3f}\lambda_0$, $\Lambda' = {grating.grating_pitch/grating.wavelength:.3f}\lambda_0$", xlabel=r"$\lambda'/\Lambda'$", ylabel="FoM")
-    ax.axhline(y=0, color='black', linestyle='-', lw = '1')
-    ax.tick_params(axis='both', which='both', direction='in') # ticks inside box
-    
-    cm_to_inch = 0.393701
-    fig_width = 20.85*cm_to_inch
-    fig_height = 17.6*cm_to_inch
-    fig.set_size_inches(fig_width/1.2, fig_height/1.2)
-    
-    return fig, ax
+        fig, ax = plt.subplots(1)         
+        p = self.to_numpy(self.grating_pitch)
+        ax.set_xlim(wavelength_range/p)  # normalise wavelength to grating pitch
+        ax.plot(wavelengths/p, efficiencies, color=(0.7, 0, 0), linestyle='-', lw=LINE_WIDTH)
+        ax.set(title=rf"{self.title} $h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$", xlabel=r"$\lambda'/\Lambda'$", ylabel="FoM")
+        ax.axhline(y=0, color='black', linestyle='-', lw = '1')
+        ax.tick_params(axis='both', which='both', direction='in') # ticks inside box
+        
+        cm_to_inch = 0.393701
+        fig_width = 20.85*cm_to_inch
+        fig_height = 17.6*cm_to_inch
+        fig.set_size_inches(fig_width/1.2, fig_height/1.2)
+        
+        return fig, ax
