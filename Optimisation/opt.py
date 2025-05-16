@@ -88,7 +88,7 @@ def boxes_clip_unit_cell(params,gradn):
     return condition
 
 
-def global_optimise(init_params, opt_hyperparams, objective: callable[TwoBox,list],
+def global_optimise(init_params, opt_hyperparams, objective: callable,
                     sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxstop: dict={'maxfev': 1000, 'maxtime': 600},
                     xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[], return_settings: bool=False):
     """
