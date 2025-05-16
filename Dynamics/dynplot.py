@@ -301,14 +301,17 @@ def load_coordinate_array_envelopes(filename: str, n_sets: int=7, n_chunks_per_s
     return min_time_arrays, max_time_arrays, min_coordinate_arrays, max_coordinate_arrays
 
 
-def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5e8, num_points: int=200):
+def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5e8, num_points: int=200, normalise: bool=False):
     """
     Generate linear stability analysis information across a given spectrum of wavelengths.
 
     Parameters
     ----------
-    grating :   Grating whose spectrum is generated
+    grating     :   Grating whose spectrum is generated
     speed_range :   Maximum and minimum speeds, between which the corresponding wavelengths form the spectrum 
+    I           :   Laser intensity
+    num_points  :   Number of points in the spectrum
+    normalise   :   Flag to normalise the eigenvalues, eigenvectors and Jacobian coefficients
     """
 
     wavelength_range = np.linspace(1/D1_ND(speed_range[0]/100), 1/D1_ND(speed_range[1]/100), num_points)
@@ -322,7 +325,7 @@ def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5
         wavelength = wavelength_range[i]
         input_wavelength = grating.wavelength
         grating.wavelength = wavelength 
-        _, rest, damp, real, imag, eigvecs = grating.to_numpy(fom.lsa_info(grating, I))
+        _, rest, damp, real, imag, eigvecs = grating.to_numpy(fom.lsa_info(grating, I, normalise))
 
         restoring_coeffs[i,:] = rest
         damping_coeffs[i,:] = damp

@@ -174,7 +174,8 @@ def FoM_LvR(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
 
 
 
-def sail_stiffness(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', out="tr"):
+def sail_stiffness(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299792458, 
+                   grad_method: str='finite', out: str="tr", normalise: bool=False):
     """
     Calculate stiffness coefficients/Jacobian coefficients for a symmetric lightsail at equilibrium. Here, symmetric 
     means symmetric with respect to reflections about the laser-beam axis (when the CoM lies on the laser-beam axis).
@@ -189,6 +190,7 @@ def sail_stiffness(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299
     out         :   Output format 
                     "tr" for translation coefficients first, then rotation coefficients. Use when outputting to Jacobian.
                     "rd" for restoring coefficients first, then damping coefficients
+    normalise   :   Normalise all Jacobian coefficients by their individual dimensional factors
     
     Returns
     -------
@@ -224,33 +226,43 @@ def sail_stiffness(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299
     # y acceleration terms
     # NOTE: derivatives with respect to lambda differ from derivatives with respect to frequency offset, the latter
     # being presented in Liam's thesis
-    fy_y    = - D**2 * I/(m*c1) * (Q2R - Q2L) * (1 - grating.npa.exp(-1/(2*w_bar**2)))
-    fy_phi  = - D**2 * I/(m*c1) * (dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * grating.npa.erf(1/(w_bar*np.sqrt(2)))
-    fy_vy   = - D**2 * I/(m*c1) * 1/c1 * (D+1)/(D*(g+1)) * (Q1R + Q1L + dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * grating.npa.erf(1/(w_bar*np.sqrt(2)))
-    fy_vphi =   D**2 * I/(m*c1) * 1/c1 * (2*(Q2R - Q2L) - lam*(dQ2dlambdaR - dQ2dlambdaL)) * (w/2)**2 * (1 - grating.npa.exp(-1/(2*w_bar**2)))
+    fy_y      = - D**2 * I/(m*c1) * (Q2R - Q2L) * (1 - grating.npa.exp(-1/(2*w_bar**2)))
+    fy_phi    = - D**2 * I/(m*c1) * (dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * grating.npa.erf(1/(w_bar*np.sqrt(2)))
+    fy_vy     = - D**2 * I/(m*c1) * 1/c1 * (D+1)/(D*(g+1)) * (Q1R + Q1L + dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * grating.npa.erf(1/(w_bar*np.sqrt(2)))
+    fy_phidot =   D**2 * I/(m*c1) * 1/c1 * (2*(Q2R - Q2L) - lam*(dQ2dlambdaR - dQ2dlambdaL)) * (w/2)**2 * (1 - grating.npa.exp(-1/(2*w_bar**2)))
 
     # phi acceleration terms
-    # TODO: generalise for non-flat-geometry moments of inertia
-    # TODO: rename vphi to phidot to avoid confusion with vphi = length*phidot
-    fphi_y    =  D**2 * 12*I/(m*c1*L**2) * (Q1R + Q1L) * (w/2*np.sqrt(np.pi/2) * grating.npa.erf(1/(w_bar*np.sqrt(2))) - L/2*grating.npa.exp(-1/(2*w_bar**2))) 
-    fphi_phi  =  D**2 * 12*I/(m*c1*L**2) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - grating.npa.exp(-1/(2*w_bar**2)))
-    fphi_vy   =  D**2 * 12*I/(m*c1*L**2) * 1/c1 * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - grating.npa.exp(-1/(2*w_bar**2)))
-    fphi_vphi = -D**2 * 12*I/(m*c1*L**2) * 1/c1 * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*np.sqrt(np.pi/2) * grating.npa.erf(1/(w_bar*np.sqrt(2))) - L/2*grating.npa.exp(-1/(2*w_bar**2))) 
+    J = m*L**2/12  # moment of inertia about the CoM
+    fphi_y      =  D**2 * I/(J*c1) * (Q1R + Q1L) * (w/2*np.sqrt(np.pi/2) * grating.npa.erf(1/(w_bar*np.sqrt(2))) - L/2*grating.npa.exp(-1/(2*w_bar**2))) 
+    fphi_phi    =  D**2 * I/(J*c1) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - grating.npa.exp(-1/(2*w_bar**2)))
+    fphi_vy     =  D**2 * I/(J*c1) * 1/c1 * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - grating.npa.exp(-1/(2*w_bar**2)))
+    fphi_phidot = -D**2 * I/(J*c1) * 1/c1 * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*np.sqrt(np.pi/2) * grating.npa.erf(1/(w_bar*np.sqrt(2))) - L/2*grating.npa.exp(-1/(2*w_bar**2))) 
+
+    if normalise:
+        fy_y        /= I/(m*c1)
+        fy_phi      /= I*L/(m*c1)
+        fy_vy       /= I*L/(m*c1**2)
+        fy_phidot   /= I*L**2/(m*c1**2)
+        fphi_y      /= I*L/(J*c1)
+        fphi_phi    /= I*L**2/(J*c1)
+        fphi_vy     /= I*L**2/(J*c1**2)
+        fphi_phidot /= I*L**3/(J*c1**2)
 
     match out:
         case "tr":
-            return grating.npa.stack((fy_y, fy_phi, fy_vy, fy_vphi, fphi_y, fphi_phi, fphi_vy, fphi_vphi))
+            return grating.npa.stack((fy_y, fy_phi, fy_vy, fy_phidot, fphi_y, fphi_phi, fphi_vy, fphi_phidot))
         case "rd":
-            return grating.npa.stack((fy_y, fy_phi, fphi_y, fphi_phi, fy_vy, fy_vphi, fphi_vy, fphi_vphi))
+            return grating.npa.stack((fy_y, fy_phi, fphi_y, fphi_phi, fy_vy, fy_phidot, fphi_vy, fphi_phidot))
         case "mat":
-            row1 = grating.npa.stack((fy_y, fy_phi,fy_vy, fy_vphi))
-            row2 = grating.npa.stack((fphi_y, fphi_phi, fphi_vy, fphi_vphi))
+            row1 = grating.npa.stack((fy_y, fy_phi,fy_vy, fy_phidot))
+            row2 = grating.npa.stack((fphi_y, fphi_phi, fphi_vy, fphi_phidot))
             mat = grating.npa.stack((row1,row2))
             return mat
         case _:
             raise ValueError("Invalid output format. Must be 'tr' or 'rd'.")
         
-def Eigs(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299792458, grad_method: str='finite', return_vec: bool = False):
+def Eigs(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299792458, 
+         grad_method: str='finite', return_vec: bool = False, normalise: bool=False):
     """
     Calculate eigendecomposition of Jacobian matrix at equilibrium
 
@@ -262,6 +274,7 @@ def Eigs(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299792458, gr
     c1          :   speed of light  # TODO: why is this a parameter?
     grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
     return_vec  :   If true, return eigenvectors as well as eigenvalues
+    normalise   :   Normalise all Jacobian coefficients by their individual dimensional factors
     
     Returns
     -------
@@ -269,7 +282,7 @@ def Eigs(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299792458, gr
     eigImag :   Imaginary part of Jacobian eigenvalues
     eigvecs :   Eigenvectors of Jacobian matrix, normalised to unit length
     """
-    stiffnesses = sail_stiffness(grating,I,m,c1,grad_method,out="mat")
+    stiffnesses = sail_stiffness(grating,I,m,c1,grad_method,out="mat",normalise=normalise)
     J = grating.npa.concatenate((grating.npa.array([[0,0,1,0],[0,0,0,1]]), stiffnesses))  # Jacobian matrix
     if return_vec:
         eigvals, eigvecs = grating.npa.eig(J)
@@ -286,15 +299,16 @@ def Eigs(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299792458, gr
         return eigReal, eigImag
 
 
-def lsa_info(grating: TwoBox, I: float=0.5e9):
+def lsa_info(grating: TwoBox, I: float=0.5e9, normalise: bool=False):
     """
     Calculate quantities relevant to linear stability analysis (LSA) of the twobox dynamics. Also calculates
     the radiation pressure cross sections and their derivatives.
 
     Parameters
     ----------
-    grating :   Calculate linear-stability info for this grating
-    I       :   Incident light intensity
+    grating   :   Calculate linear-stability info for this grating
+    I         :   Incident light intensity
+    normalise :   Normalise all Jacobian coefficients by their individual dimensional factors
     
     Returns
     -------
@@ -305,14 +319,15 @@ def lsa_info(grating: TwoBox, I: float=0.5e9):
     eigImag      :   Imaginary component of eigenvalues
     """
     efficiencies = tuple(grating.return_Qs_auto(return_Q=True))
-    stiffnesses = sail_stiffness(grating,I,m,c,grad_method="grad",out="rd")
+    stiffnesses = sail_stiffness(grating,I,m,c,grad_method="grad",out="rd",normalise=normalise)
     rest_coeffs = tuple([*stiffnesses[:4]])
     damp_coeffs = tuple([*stiffnesses[4:]])
-    eigReal, eigImag, eigvecs = Eigs(grating, I,m,c,grad_method="grad",return_vec=True)
+    eigReal, eigImag, eigvecs = Eigs(grating,I,m,c,grad_method="grad",return_vec=True,normalise=normalise)
     return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs
 
 
-def show_Eigs(grating: TwoBox, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plot_points: int=200, eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, marker: str='o'):
+def show_Eigs(grating: TwoBox, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plot_points: int=200, 
+              eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, marker: str='o', normalise: bool=False):
     """
     Show eigenvalue spectrum for the twobox.
 
@@ -325,6 +340,7 @@ def show_Eigs(grating: TwoBox, wavelength_range: list=[1., 1.5],  I: float=10e9,
     eig_real_log_axis   :   If true, logarithmic scale for real part of eigenvalues
     eig_imag_log_axis   :   If true, logarithmic scale for imaginary part of eigenvalues
     marker              :   Marker style passed to plt.plot()
+    normalise           :   Normalise all Jacobian coefficients by their individual dimensional factors
 
     Returns
     -------
@@ -341,7 +357,7 @@ def show_Eigs(grating: TwoBox, wavelength_range: list=[1., 1.5],  I: float=10e9,
     for idx, lam in enumerate(wavelengths):
         # Calculate eigs for each order
         grating.wavelength = grating.npa.array(lam)
-        real, imag = Eigs(grating, I=I,m=m,c1=c, grad_method="grad", return_vec=False)
+        real, imag = Eigs(grating, I=I,m=m,c1=c, grad_method="grad", return_vec=False, normalise=normalise)
         eigvals[:,idx] = real + 1j*imag
         
     grating.wavelength = init_wavelength # restore user-initialised wavelength
