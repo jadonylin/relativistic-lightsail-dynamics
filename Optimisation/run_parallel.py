@@ -32,6 +32,7 @@ import dill as pickle
 import sys
 sys.path.append("../")
 
+import fom
 import opt 
 from parameters import Initial_bigrating, opt_Parameters, Bounds
 
@@ -57,6 +58,11 @@ ndof = 10  # number of optimisation parameters
 # Initial grating parameters and hyperparameters
 wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness = opt_Parameters()
 grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = Initial_bigrating()
+
+# Objective function
+def objective(grating,params):
+    grating.params = params
+    return fom.FOM_uniform(grating, final_speed, goal, return_grad)
 
 
 
@@ -119,7 +125,7 @@ with open(txt_dir, "a") as result_file:
 def optimise_partitioned_depth(h1_bounds):
     _param_bounds = param_bounds[:]
     _param_bounds[1] = tuple([*h1_bounds])  # Must unpack a single argument for pool.imap to be applied correctly
-    return opt.global_optimise(Initial_bigrating(), opt_Parameters(), sampling, seed, n_sample, maxstop, xtol_rel, ftol_rel, _param_bounds)
+    return opt.global_optimise(Initial_bigrating(), opt_Parameters(), objective, sampling, seed, n_sample, maxstop, xtol_rel, ftol_rel, _param_bounds)
 
 h1_bounds = []
 h1s = np.linspace(h1_min,h1_max,num_cores+1)

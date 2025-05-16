@@ -54,6 +54,11 @@ ndof = 10  # number of optimisation parameters
 wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness = opt_Parameters()
 grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = Initial_bigrating()
 
+# Objective function
+def objective(grating,params):
+    grating.params = params
+    return fom.FOM_uniform(grating, final_speed, goal, return_grad)
+
 
 
 # RECORDING RESULTS ###########################################################################
@@ -106,7 +111,7 @@ with open(txt_fname, "a") as result_file:
 
 ### RUN GLOBAL OPTIMISATION ###########################################################################
 def optimise_nsample(nsample):
-    return opt.global_optimise(Initial_bigrating(), opt_Parameters(), sampling, seed, nsample, maxfev, xtol_rel, ftol_rel, param_bounds, True)
+    return opt.global_optimise(Initial_bigrating(), opt_Parameters(), objective, sampling, seed, nsample, maxfev, xtol_rel, ftol_rel, param_bounds, True)
 
 # Run parallel optimisation
 if __name__ == '__main__':
