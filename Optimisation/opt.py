@@ -5,7 +5,7 @@ You should import your figure-of-merit functions from opt.py into your main opti
 """
 
 # IMPORTS ########################################################################################################################
-import adaptive as adp
+
 
 import numpy as np
 import nlopt
@@ -26,107 +26,10 @@ import sys
 sys.path.append("../")
 
 import fom
-from parameters import Parameters, D1_ND
+from parameters import Parameters
 I0, L, m, c = Parameters()
 from twobox import TwoBox
 
-
-
-# FUNCTIONS ########################################################################################################################
-def _F_lam(grating: TwoBox) -> float:
-    if grating.RCWA_engine=="TORCWA":
-        return fom.FoM(grating, I0, grad_method="grad")
-    else:
-        return fom.FoM(grating, I0, grad_method="finite")
-
-def F_lam(grating, params):
-    """
-    Calculate the grating single-wavelength figure of merit.
-    lam is short for lambda (wavelength)
-
-    Parameters
-    ----------
-    grating :   TwoBox instance containing the grating parameters
-    params  :   List of parameters to be passed to the grating object. 
-                The return value is calculated for a grating with these parameters.
-    """
-    grating.params = params
-    return _F_lam(grating)
-
-
-def FOM_uniform(grating: TwoBox, final_speed: float=20., goal: float=0.1, return_grad: bool=True) -> float:
-    """
-    Calculate the figure of merit (FOM) for the given grating over a fixed wavelength range determined by the final speed.
-    
-    The figure of merit we defined is the expectation value of F_lam over wavelength. Assumes a uniform probability 
-    density over wavelength for weighting F_lam.
-
-    Parameters
-    ----------
-    grating     :   TwoBox instance containing the grating parameters
-    final_speed :   Final sail speed as percentage of light speed
-    goal        :   Stopping goal for wavelength integration passed to adaptive runner. If int, use npoints_goal; if float, use loss_goal.
-    return_grad :   Return [FOM, FOM gradient] instead of just FOM
-    """
-
-    # Starting wavelength is copied into laser_wavelength just in case grating.wavelength is unexpectedly modified
-    laser_wavelength = grating.wavelength 
-    Doppler = D1_ND([final_speed/100,0])
-    l_min = 1  # l = grating frame wavelength normalised to laser frame wavelength
-    l_max = l_min/Doppler    
-    l_range = (l_min, l_max)
-
-    PDF_unif = 1/(l_max-l_min)  # Perturbation probability density function (PDF)
-    
-    # Define a single-argument function, needed when passing to learner
-    def weighted_F_lam(l):
-        grating.wavelength = l*laser_wavelength 
-        return PDF_unif*grating.to_numpy(_F_lam(grating)) # losing autograd here by calling to_numpy, but torch tensors are not compatible with adaptive
-    
-    F_lam_learner = adp.Learner1D(weighted_F_lam, bounds=l_range)
-    if isinstance(goal, int):
-        F_lam_runner = adp.runner.simple(F_lam_learner, npoints_goal=goal)
-    elif isinstance(goal, float):
-        F_lam_runner = adp.runner.simple(F_lam_learner, loss_goal=goal)
-    else: 
-        raise ValueError("Sampling goal type not recognised. Must be int for npoints_goal or float for loss_goal.")
-    
-    F_lam_data = F_lam_learner.to_numpy()
-    l_vals = F_lam_data[:,0]
-    weighted_F_lams = F_lam_data[:,1]
-    FOM = np.trapezoid(weighted_F_lams,l_vals)
-
-    if return_grad:
-        """
-        Calculate FOM gradient by calculating the gradient of F_lam for the given grating at all wavelengths then averaging 
-        the gradient over wavelength
-        """
-        F_lam_grad = grating.npa.grad(F_lam, argnum=1)
-        params = grating.params
-        # Define a single-argument function, needed when passing to learner
-        def weighted_F_lam_grad(l):
-            grating.wavelength = l*laser_wavelength            
-            return PDF_unif*grating.to_numpy(F_lam_grad(grating, params))
-
-        # Adaptive sample F_lam_grad
-        F_lam_grad_learner = adp.Learner1D(weighted_F_lam_grad, bounds=l_range)
-
-        if isinstance(goal, int):
-            F_lam_grad_runner = adp.runner.simple(F_lam_grad_learner, npoints_goal=goal)
-        elif isinstance(goal, float):
-            F_lam_grad_runner = adp.runner.simple(F_lam_grad_learner, loss_goal=goal)
-        
-        F_lam_grad_data = F_lam_grad_learner.to_numpy()
-        l_vals = F_lam_grad_data[:,0]
-        weighted_F_lam_grads = F_lam_grad_data[:,1:]
-        
-        FOM_grad = np.trapezoid(weighted_F_lam_grads,l_vals, axis=0)
-
-        grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
-        return [FOM,FOM_grad] 
-    else:
-        grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
-        return FOM
 
 
 ## CONSTRAINT FUNCTIONS ##
@@ -185,7 +88,7 @@ def boxes_clip_unit_cell(params,gradn):
     return condition
 
 
-def global_optimise(init_params, opt_hyperparams, 
+def global_optimise(init_params, opt_hyperparams, objective: callable[TwoBox,list],
                     sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxstop: dict={'maxfev': 1000, 'maxtime': 600},
                     xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[], return_settings: bool=False):
     """
@@ -195,6 +98,7 @@ def global_optimise(init_params, opt_hyperparams,
     ----------
     init_params     :   Initial objective-function parameters. Must be passed to local optimiser, but is not used/not important.
     opt_hyperparams :   Hyperparameters for the optimisation. 
+    objective       :   Objective function to be maximised. Must take a TwoBox instance and a list of parameters as input.
     sampling_method :   "sobol" or "random" initial point sampling
     seed            :   Seed for initial random parameter space sample and grating_depth samples
     n_sample        :   Number of points for initial sample (per dimension?)
@@ -215,10 +119,6 @@ def global_optimise(init_params, opt_hyperparams,
     wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness = opt_hyperparams
     grating = TwoBox(*init_params, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness)
 
-    def objective(params):
-        grating.params = params
-        return FOM_uniform(grating, final_speed, goal, return_grad)
-
     def fun_nlopt(params,gradn):
         """
         nlopt objective function
@@ -227,7 +127,7 @@ def global_optimise(init_params, opt_hyperparams,
 
         Returns: value of the objective function at the given params
         """
-        y, dy = objective(params)
+        y, dy = objective(grating,params)
         if gradn.size > 0:  # Even for gradient methods, in some calls gradn will be empty []
             gradn[:] = dy
         
@@ -288,7 +188,7 @@ def global_optimise(init_params, opt_hyperparams,
 
 
     opt_params = global_opt.optimize(init_params)
-    optimum = objective(opt_params)[0]
+    optimum = objective(grating,opt_params)[0]
     is_optimum = True
     num_fev = global_opt.get_numevals()
     print("Success on starting bounds: ", param_bounds[1])
