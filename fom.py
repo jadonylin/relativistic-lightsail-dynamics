@@ -32,7 +32,7 @@ from twobox import TwoBox
 
 def FoM(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
     """
-    Calculate the grating single-wavelength figure of merit FD.
+    Calculate the grating single-wavelength figure of merit F_lam.
 
     This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
     using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
@@ -52,22 +52,22 @@ def FoM(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
     
     Returns
     -------
-    FD :   Figure of merit
+    F_lam :   Figure of merit
     """
     
     eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
 
     # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
     #          negative eigenvalue with the smallest real part. 
-    FD = grating.npa.min(-eigReal)  # standard minimum
-    # FD = grating.npa.sum(-eigReal*grating.npa.softmin(-eigReal,1.))  # softened minimum
-    # FD = grating.npa.min(-eigReal) + grating.npa.max(-eigReal)
+    F_lam = grating.npa.min(-eigReal)  # standard minimum
+    # F_lam = grating.npa.sum(-eigReal*grating.npa.softmin(-eigReal,1.))  # softened minimum
+    # F_lam = grating.npa.min(-eigReal) + grating.npa.max(-eigReal)
     
-    return FD
+    return F_lam
 
 def FoM_quality_factor(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
     """
-    Calculate the grating single-wavelength figure of merit FD.
+    Calculate the grating single-wavelength figure of merit F_lam.
 
     Quality factor FoM: Maximise the magnitude of the quality factor (Re(xi)/Im(xi)) 
                         for the eigenvalue with the smallest quality factor. Issue:
@@ -81,7 +81,7 @@ def FoM_quality_factor(grating: TwoBox, I: float=1e9, grad_method: str="finite")
     
     Returns
     -------
-    FD :   Figure of merit
+    F_lam :   Figure of merit
     """
     
     raise NotImplementedError("Must determine how to handle signs and avoid Im(xi) = 0.")
@@ -89,7 +89,7 @@ def FoM_quality_factor(grating: TwoBox, I: float=1e9, grad_method: str="finite")
 def FoM_LvR(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
     """
     Last FoM implemented by Liam - not working with TORCWA
-    Calculate the grating single-wavelength figure of merit FD using LvR's most updated method.
+    Calculate the grating single-wavelength figure of merit F_lam using LvR's most updated method.
 
     Parameters
     ----------
@@ -99,7 +99,7 @@ def FoM_LvR(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
     
     Returns
     -------
-    FD :   Figure of merit
+    F_lam :   Figure of merit
     """
     
     eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
@@ -169,8 +169,8 @@ def FoM_LvR(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
     # penalty2            =   npa.prod(all_pos_array)
 
 
-    FD = func_real_neg * func_imag - penalty - penalty2
-    return FD
+    F_lam = func_real_neg * func_imag - penalty - penalty2
+    return F_lam
 
 
 
