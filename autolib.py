@@ -49,7 +49,7 @@ def autograd_jacobian(f,argnum=0):
     # return lambda x: jacobian(f,argnum=argnum)(x).squeeze()
     return jacobian(f,argnum=argnum)
 
-class agfunc:
+class AutoLib:
     """ 
     Wrapper class for autograd and torch functions 
     Optional arguments:
