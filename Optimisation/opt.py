@@ -25,6 +25,7 @@ import random
 import sys
 sys.path.append("../")
 
+import fom
 from parameters import Parameters
 I0, L, m, c = Parameters()
 from twobox import TwoBox
@@ -87,7 +88,7 @@ def boxes_clip_unit_cell(params,gradn):
     return condition
 
 
-def global_optimise(init_params, opt_hyperparams, objective: callable,
+def global_optimise(fixed_params, opt_hyperparams,
                     sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxstop: dict={'maxfev': 1000, 'maxtime': 600},
                     xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[], return_settings: bool=False):
     """
@@ -95,28 +96,39 @@ def global_optimise(init_params, opt_hyperparams, objective: callable,
 
     Parameters
     ----------
-    init_params     :   Initial objective-function parameters. Must be passed to local optimiser, but is not used/not important.
-    opt_hyperparams :   Hyperparameters for the optimisation. 
-    objective       :   Objective function to be maximised. Must take a TwoBox instance and a list of parameters as input.
+    fixed_params    :   Ordered TwoBox parameters that are fixed during optimisation
+    opt_hyperparams :   Hyperparameters for the optimisation 
     sampling_method :   "sobol" or "random" initial point sampling
     seed            :   Seed for initial random parameter space sample and grating_depth samples
     n_sample        :   Number of points for initial sample (per dimension?)
     maxstop         :   Set maximum function evaluations and/or maximum walltime (minutes) per core
     xtol_rel        :   Relative position tolerance for MMA
     ftol_rel        :   Relative objective tolerance for MMA
-    param_bounds    :   Ordered list of tuples, one tuple per parameter bound, each tuple containing one lower and one upper bound
+    param_bounds    :   Ordered list of tuples, one tuple per parameter bound, each tuple containing one lower and one upper bound.
+                        For parameters that are not to be optimised, replace the tuple with None. Number of None values must be 
+                        equal to the length of fixed_params.
     return_settings :   If true, return the optimisation settings. If false, return only the FOM and the grating object.
     """
     
-    random.seed(seed)
-    ndof = len(init_params)  # number of optimisation parameters  
-    h1_min, h1_max = param_bounds[1]    
-    h1_start = random.uniform(h1_min,h1_max)
-    init_params[1] = h1_start  # Use the random h1 start value
-    bcd_constraint = True 
+    ndof = sum(pb is not None for pb in param_bounds)  # number of optimisation parameters
+    _init_params = []
+    if len(fixed_params) != len(param_bounds) - ndof:
+        raise ValueError("Number of fixed parameters must = No. TwoBox parameters - length of not-None parameter bounds")
+    fixed_params_idx = 0
+    for i, pb in enumerate(param_bounds):
+        if pb is not None:  # Set initial value within bounds
+            _init_params.append((pb[0]+pb[1])/2)
+        else:  # Set initial value to the fixed parameter
+            _init_params.append(fixed_params[fixed_params_idx])
+            fixed_params_idx += 1
     
+    # Set up the grating object to be updated during optimisation and returned
     wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness = opt_hyperparams
-    grating = TwoBox(*init_params, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness)
+    grating = TwoBox(*_init_params, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness)
+
+    def objective(grating, params):
+        grating.params = params
+        return fom.FOM_uniform(grating, final_speed, goal, return_grad)
 
     def fun_nlopt(params,gradn):
         """
@@ -155,8 +167,7 @@ def global_optimise(init_params, opt_hyperparams, objective: callable,
     n_sample = int(n_sample)
     global_opt.set_population(n_sample)  # set initial sampling points
 
-    if bcd_constraint:
-        local_opt.add_inequality_constraint(bcd_redundant)
+    local_opt.add_inequality_constraint(bcd_redundant)
     local_opt.add_inequality_constraint(box1_too_wide)
     local_opt.add_inequality_constraint(box2_too_wide)
     local_opt.add_inequality_constraint(boxes_clip_unit_cell)
@@ -180,8 +191,8 @@ def global_optimise(init_params, opt_hyperparams, objective: callable,
     global_opt.set_maxeval(maxfev)
     global_opt.set_maxtime(maxtime)
 
-    lb = [bounds[0] for bounds in param_bounds]
-    ub = [bounds[1] for bounds in param_bounds]
+    lb = [bounds[0] for bounds in param_bounds if bounds is not None]
+    ub = [bounds[1] for bounds in param_bounds if bounds is not None]
     global_opt.set_lower_bounds(lb)
     global_opt.set_upper_bounds(ub)
 

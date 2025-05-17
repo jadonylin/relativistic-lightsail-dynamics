@@ -57,105 +57,109 @@ def D1_ND(v):
     return D1
 
 
-## Global Optimisation parameters ##
-# Mission parameters
-I0 = 0.5e9  # laser intensity (might need to be halved)
+
 L = 10  # grating width (metres in 2D model)
-m = 1/1000  # mass (kilograms)
-c = scipy.constants.c
-
-
-# Engine parameters
-RCWA_engine = "TORCWA"
-torcwa_sharpness = 45
-
-wavelength = 1.  # Laser wavelength
-angle = 0.
-Nx = 100  # Number of grid points for RCWA simulation
-
-# Number of Fourier components for RCWA simulation
-if RCWA_engine == "TORCWA":
-    nG = 12
-elif RCWA_engine == "GRCWA":
-    nG = 25
-else:
-    raise ValueError("RCWA engine not recognised. Please use 'TORCWA' or 'GRCWA'.")
-
-# Relaxation parameter should be np.inf unless you need to avoid singular matrix at grating cutoffs
-# Note that the optimiser will only find (likely unphysical) large-magnitude, noisy rNeg1 optima when Qabs = np.inf 
-Qabs = 1e7
-
-
-## FoM parameters ##
-goal = 0.1  # Stopping criteria for adaptive sampling in the FOM (set float for loss_goal, set int for npoints_goal)
-final_speed = 20  # percentage of c
-return_grad = True  # Return FOM and gradient of FOM
-
-
-## Global Optimisation bounds ##
-## Parameter bounds
-# Pitch bounds have been set to avoid ±1 or ±2 grating cutoffs, because the grating is rotating.
-# The minimum pitch must be set because any smaller pitches would result in the +1 order being cutoff for small rotation angles. 
-# The maximum pitch must be set because any larger pitches would result in the -2 order appearing for small rotation angles. 
-# The +1 and -2 orders are selected because they appear/disappear before the -1/+2 orders (at positive rotation angle)
-wavelength_max = wavelength/D1_ND(final_speed/100)
-max_angle_cutoff1 = 5*np.pi/180  # maximum angle before order +1 is evanescent
-min_angle_cutoff2 = 15*np.pi/180  # minimum angle before order -2 is non-evanescent
-pitch_min = np.round(1*wavelength_max/(1 - np.sin(max_angle_cutoff1)), 3)  
-pitch_max = np.round(2*wavelength_max/(1 + np.sin(min_angle_cutoff2)), 3)
-
-h1_min = 0.01  # Offset from zero to avoid zero Jacobian determinant 
-h1_max = 1.5*pitch_max
-
-box_width_min = 0.01*pitch_max  # Offset from zero to avoid zero Jacobian determinant
-box_width_max = 1.*pitch_max  # single box width must be smaller than pitch
-
-box_centre_dist_min = 0.03*pitch_max  # Offset from zero to avoid zero Jacobian determinant and symmetric unit cell
-box_centre_dist_max = 0.5*pitch_max  # redundant space if > 0.5*pitch
-
-box_eps_min = 1.5**2  # Minimum allowed grating permittivity set above vacuum to avoid zero Jacobian determinant 
-box_eps_max = 3.5**2  # Maximum allowed grating permittivity set to silicon
-
-gaussian_width_min = 0.5*L 
-gaussian_width_max = 5*L
-
-substrate_depth_min = h1_min  # Offset from zero to avoid zero Jacobian determinant 
-substrate_depth_max = 1.5*pitch_max 
-
-substrate_eps_min = box_eps_min 
-substrate_eps_max = box_eps_max
-
-param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
-                (box_width_min, box_width_max), (box_width_min, box_width_max),
-                (box_centre_dist_min, box_centre_dist_max),
-                (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-                (gaussian_width_min, gaussian_width_max),
-                (substrate_depth_min, substrate_depth_max), 
-                (substrate_eps_min, substrate_eps_max)]
-
-
-# Initial grating for optimisation (doesn't influence the global optimisation, but must be specified)
-def average(x,y): return (x+y)/2
-grating_pitch   = average(pitch_min, pitch_max)
-grating_depth   = average(h1_min, h1_max)
-box1_width      = average(box_width_min, box_width_max)/2
-box2_width      = box1_width/2
-box_centre_dist = average(box_centre_dist_min, box_centre_dist_max)
-box1_eps        = average(box_eps_min, box_eps_max)
-box2_eps        = box1_eps
-gaussian_width  = average(gaussian_width_min, gaussian_width_max)
-substrate_depth = average(substrate_depth_min, substrate_depth_max)
-substrate_eps   = average(substrate_eps_min, substrate_eps_max)
-
-
 def Parameters():
+    I0 = 0.5e9  # laser intensity (might need to be halved)
+    m = 1/1000  # mass (kilograms)
+    c = scipy.constants.c
     return I0, L, m, c
 
-def opt_Parameters():
+
+wavelength = 1.  # Laser wavelength
+final_speed = 20  # percentage of c
+def Hyperparameters():
+    # Engine parameters
+    RCWA_engine = "TORCWA"
+    torcwa_sharpness = 45
+
+    angle = 0.
+    Nx = 100  # Number of grid points for RCWA simulation
+
+    # Number of Fourier components for RCWA simulation
+    if RCWA_engine == "TORCWA":
+        nG = 12
+    elif RCWA_engine == "GRCWA":
+        nG = 25
+    else:
+        raise ValueError("RCWA engine not recognised. Please use 'TORCWA' or 'GRCWA'.")
+
+    # Relaxation parameter should be np.inf unless you need to avoid singular matrix at grating cutoffs
+    # Note that the optimiser will only find (likely unphysical) large-magnitude, noisy rNeg1 optima when Qabs = np.inf 
+    Qabs = 1e7
+    goal = 0.1  # Stopping criteria for adaptive sampling in the FOM (set float for loss_goal, set int for npoints_goal)
+    return_grad = True  # Return FOM and gradient of FOM
+
     return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness
 
-def Bounds():
-    return h1_min, h1_max, param_bounds
 
-def Initial_bigrating():
-    return [grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps]
+def OptimisationSettings():
+    # Global optimisation parameters
+    num_cores = 2  # number of cores to run parallel optimisation
+    maxtime = 1  # Stop after maxtime minutes
+    maxstop = {'maxtime': maxtime}  # global 1000
+    runID = "refactor_test"
+
+    # Local optimisation parameters
+    xtol_rel = 1e-4  
+    ftol_rel = 1e-8  
+
+    seed = 20250515  # LDS seed
+    sampling = 'sobol'  # 'sobol' or 'random'
+    n_sample_exp = 4
+    n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
+
+    return num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample
+
+
+def Bounds():
+    ## Parameter bounds
+    # Pitch bounds have been set to avoid ±1 or ±2 grating cutoffs, because the grating is rotating.
+    # The minimum pitch must be set because any smaller pitches would result in the +1 order being cutoff for small rotation angles. 
+    # The maximum pitch must be set because any larger pitches would result in the -2 order appearing for small rotation angles. 
+    # The +1 and -2 orders are selected because they appear/disappear before the -1/+2 orders (at positive rotation angle)
+    wavelength_max = wavelength/D1_ND(final_speed/100)
+    max_angle_cutoff1 = 5*np.pi/180  # maximum angle before order +1 is evanescent
+    min_angle_cutoff2 = 15*np.pi/180  # minimum angle before order -2 is non-evanescent
+    pitch_min = np.round(1*wavelength_max/(1 - np.sin(max_angle_cutoff1)), 3)  
+    pitch_max = np.round(2*wavelength_max/(1 + np.sin(min_angle_cutoff2)), 3)
+
+    h1_min = 0.01  # Offset from zero to avoid zero Jacobian determinant 
+    h1_max = 1.5*pitch_max
+
+    box_width_min = 0.01*pitch_max  # Offset from zero to avoid zero Jacobian determinant
+    box_width_max = 1.*pitch_max  # single box width must be smaller than pitch
+
+    box_centre_dist_min = 0.03*pitch_max  # Offset from zero to avoid zero Jacobian determinant and symmetric unit cell
+    box_centre_dist_max = 0.5*pitch_max  # redundant space if > 0.5*pitch
+
+    box_eps_min = 1.5**2  # Minimum allowed grating permittivity set above vacuum to avoid zero Jacobian determinant 
+    box_eps_max = 3.5**2  # Maximum allowed grating permittivity set to silicon
+
+    gaussian_width_min = 0.5*L 
+    gaussian_width_max = 5*L
+
+    substrate_depth_min = h1_min  # Offset from zero to avoid zero Jacobian determinant 
+    substrate_depth_max = 1.5*pitch_max 
+    substrate_eps_min = box_eps_min 
+    substrate_eps_max = box_eps_max
+
+    mirror_substrate = False  # Perfectly reflective substrate (True) or dielectric substrate (False)
+    mirror_substrate_eps = -1e6
+    mirror_substrate_depth = pitch_max 
+
+    # Setting parameter bounds
+    param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
+                    (box_width_min, box_width_max), (box_width_min, box_width_max),
+                    (box_centre_dist_min, box_centre_dist_max),
+                    (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
+                    (gaussian_width_min, gaussian_width_max)]
+    if mirror_substrate:
+        param_bounds += [None, None]
+        fixed_params = [mirror_substrate_depth, mirror_substrate_eps]
+    else:
+        param_bounds += [(substrate_depth_min, substrate_depth_max), 
+                        (substrate_eps_min, substrate_eps_max)]
+        fixed_params = []
+
+    return h1_min, h1_max, param_bounds, fixed_params

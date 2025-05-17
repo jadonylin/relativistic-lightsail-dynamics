@@ -32,13 +32,13 @@ sys.path.append("../")
 
 import fom
 import opt 
-from parameters import Initial_bigrating, opt_Parameters, Bounds
+from parameters import Hyperparameters, Bounds
 
 
 # Global optimisation parameters
 num_cores = 5  # number of cores to run parallel optimisation
 maxfev = 200  # global 1000
-h1_min, h1_max, param_bounds = Bounds()
+h1_min, h1_max, param_bounds, fixed_params = Bounds()
 runID = "nsample_convergence_test"
 
 # Local optimisation parameters
@@ -52,8 +52,7 @@ ndof = 10  # number of optimisation parameters
 
 
 # Initial grating parameters and hyperparameters
-wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness = opt_Parameters()
-grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = Initial_bigrating()
+wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness = Hyperparameters()
 
 # Objective function
 def objective(grating,params):
@@ -75,7 +74,7 @@ FOM_params_dict = {'final_speed': final_speed, 'goal': goal}
 FOM_params_line = str(FOM_params_dict)
 
 # Bounded parameters
-bounds_dict = {'param_bounds': param_bounds}
+bounds_dict = {'param_bounds': param_bounds, 'fixed_params': fixed_params}
 bounds_line = str(bounds_dict)
 
 # Optimiser options
@@ -112,7 +111,7 @@ with open(txt_fname, "a") as result_file:
 
 ### RUN GLOBAL OPTIMISATION ###########################################################################
 def optimise_nsample(nsample):
-    return opt.global_optimise(Initial_bigrating(), opt_Parameters(), objective, sampling, seed, nsample, maxfev, xtol_rel, ftol_rel, param_bounds, True)
+    return opt.global_optimise(fixed_params, Hyperparameters(), objective, sampling, seed, nsample, maxfev, xtol_rel, ftol_rel, param_bounds, True)
 
 # Run parallel optimisation
 if __name__ == '__main__':

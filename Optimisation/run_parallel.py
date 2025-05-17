@@ -1,6 +1,8 @@
 """
 Main script for running twobox optimisation on multiple computer cores.
 
+TODO: update doc
+
 How to run:
     Set the parameters for optimisation in the parameters.py module 
     
@@ -32,37 +34,14 @@ import dill as pickle
 import sys
 sys.path.append("../")
 
-import fom
 import opt 
-from parameters import Initial_bigrating, opt_Parameters, Bounds
+from parameters import OptimisationSettings, Hyperparameters, Bounds
 
 
-# Global optimisation parameters
-num_cores = 2  # number of cores to run parallel optimisation
-maxtime = 1  # Stop after maxtime minutes
-maxstop = {'maxtime': maxtime}  # global 1000
-h1_min, h1_max, param_bounds = Bounds()
-runID = "refactor_test"
-
-# Local optimisation parameters
-xtol_rel = 1e-4  
-ftol_rel = 1e-8  
-
-seed = 20250515  # LDS seed
-sampling = 'sobol'  # 'sobol' or 'random'
-n_sample_exp = 4
-n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
-ndof = 10  # number of optimisation parameters
-
-
-# Initial grating parameters and hyperparameters
-wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness = opt_Parameters()
-grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = Initial_bigrating()
-
-# Objective function
-def objective(grating,params):
-    grating.params = params
-    return fom.FOM_uniform(grating, final_speed, goal, return_grad)
+# Extract settings from parameters.py
+num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample = OptimisationSettings()
+wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness = Hyperparameters()
+h1_min, h1_max, param_bounds, fixed_params = Bounds()
 
 
 
@@ -72,14 +51,14 @@ def objective(grating,params):
 
 ## Converting non-h1 parameter dicts to strings ##
 # Fixed parameters
-fixed_params_dict = {'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs,
+hyperparams_dict = {'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs,
                      'RCWA engine': RCWA_engine, 'TORCWA edge sharpness': torcwa_sharpness}
-fixed_params_line = str(fixed_params_dict)
+hyperparams_line = str(hyperparams_dict)
 FOM_params_dict = {'final_speed': final_speed, 'goal': goal}
 FOM_params_line = str(FOM_params_dict)
 
 # Bounded parameters
-bounds_dict = {'param_bounds': param_bounds}
+bounds_dict = {'param_bounds': param_bounds, 'fixed_params': fixed_params}
 bounds_line = str(bounds_dict)
 
 # Optimiser options
@@ -97,7 +76,7 @@ time_at_execution = str(datetime.now())
 lines_to_file = ["\n\n------------------------------------------------------------------------------------------------------------------------------------\n"
                 , f"Date & time      | {time_at_execution}\n"
                 ,  "\n"
-                , f"Fixed parameters | {fixed_params_line}\n"
+                , f"Hyperparameters  | {hyperparams_line}\n"
                 , f"FOM parameters   | {FOM_params_line}\n"
                 , f"Non-h1 bounds    | {bounds_line}\n"
                 ,  "\n"
@@ -125,7 +104,7 @@ with open(txt_dir, "a") as result_file:
 def optimise_partitioned_depth(h1_bounds):
     _param_bounds = param_bounds[:]
     _param_bounds[1] = tuple([*h1_bounds])  # Must unpack a single argument for pool.imap to be applied correctly
-    return opt.global_optimise(Initial_bigrating(), opt_Parameters(), objective, sampling, seed, n_sample, maxstop, xtol_rel, ftol_rel, _param_bounds)
+    return opt.global_optimise(fixed_params, Hyperparameters(), objective, sampling, seed, n_sample, maxstop, xtol_rel, ftol_rel, _param_bounds)
 
 h1_bounds = []
 h1s = np.linspace(h1_min,h1_max,num_cores+1)
