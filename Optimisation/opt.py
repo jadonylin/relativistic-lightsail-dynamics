@@ -44,7 +44,8 @@ def box1_too_wide(params,gradn):
     """
     Constraint function to prevent box1 from being wider than the unit cell.
     """
-    Lam, _, w1, _, _, _, _, _, _, _ = params
+    Lam = params[0]  
+    w1 = params[2]  # TODO: How do we know which parameter has which index, since params length is variable?
     condition = w1 - Lam 
     return condition
 
@@ -52,7 +53,8 @@ def box2_too_wide(params,gradn):
     """
     Constraint function to prevent box2 from being wider than the unit cell.
     """
-    Lam, _, _, w2, _, _, _, _, _, _ = params
+    Lam = params[0]  
+    w2 = params[3]
     condition = w2 - Lam 
     return condition
 
@@ -62,7 +64,8 @@ def bcd_redundant(params,gradn):
         Symmetry wrt swapping box1 and box2, avoid by taking box centre distance > 0
         Unit cell periodicity means boxes with separation >0.5*Lam are equivalent to boxes with separation <0.5*Lam
     """
-    Lam, _, _, _, bcd, _, _, _, _, _ = params
+    Lam = params[0]  
+    bcd = params[4] 
     condition = np.abs(bcd - 0.25*Lam) - 0.25*Lam 
     return condition
 
@@ -72,7 +75,9 @@ def boxes_overlap(params,gradn):
     TODO: The boxes overlapping can still be asymmetric, so this constraint is slightly too restrictive
             However, would need to find a way to handle gradients in the overlap regime.
     """
-    _, _, w1, w2, bcd, _, _, _, _, _ = params
+    w1 = params[2]
+    w2 = params[3]
+    bcd = params[4]
     condition= (w1+w2)/2 - bcd 
     return condition
 
@@ -83,7 +88,10 @@ def boxes_clip_unit_cell(params,gradn):
     Boxes clipping the unit cell edges can lead to unexpected objective values (user input box widths may not correspond to the 
     box width that RCWA receives). Additionally, gradients become expensive to compute in this case.
     """
-    Lam, _, w1, w2, bcd, _, _, _, _, _ = params
+    Lam = params[0]
+    w1 = params[2]
+    w2 = params[3]
+    bcd = params[4]
     condition = (w1+w2)/2 + bcd - 0.98*Lam
     return condition
 
@@ -93,6 +101,10 @@ def global_optimise(fixed_params, opt_hyperparams,
                     xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[], return_settings: bool=False):
     """
     Global optimise the twobox on a single CPU core using MLSL global optimiser with internal MMA local optimiser.
+
+    TODO: Generalise the code to allow for any number of parameters to be omitted. Currently assumes
+          that the first n parameters are to be optimised, and the rest are fixed. Would need to somehow
+          know which parameters are fixed in the constraint functions, which are currently hardcoded.
 
     Parameters
     ----------
@@ -111,23 +123,28 @@ def global_optimise(fixed_params, opt_hyperparams,
     """
     
     ndof = sum(pb is not None for pb in param_bounds)  # number of optimisation parameters
-    _init_params = []
     if len(fixed_params) != len(param_bounds) - ndof:
         raise ValueError("Number of fixed parameters must = No. TwoBox parameters - length of not-None parameter bounds")
+    # fixed_param_indices = [i for i,pb in enumerate(param_bounds) if pb==None]
+    twobox_params = []  # Initial TwoBox parameters, length determined by TwoBox
+    init_params = []  # Initial parameters for the optimiser, length determined by non-None param_bounds
     fixed_params_idx = 0
-    for i, pb in enumerate(param_bounds):
+    for pb in param_bounds:
         if pb is not None:  # Set initial value within bounds
-            _init_params.append((pb[0]+pb[1])/2)
+            p_avg = (pb[0]+pb[1])/2
+            twobox_params.append(p_avg)
+            init_params.append(p_avg)
         else:  # Set initial value to the fixed parameter
-            _init_params.append(fixed_params[fixed_params_idx])
+            twobox_params.append(fixed_params[fixed_params_idx])
             fixed_params_idx += 1
     
     # Set up the grating object to be updated during optimisation and returned
     wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness = opt_hyperparams
-    grating = TwoBox(*_init_params, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness)
+    grating = TwoBox(*twobox_params, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness)
 
-    def objective(grating, params):
-        grating.params = params
+    def objective(grating, opt_params):
+        p = np.concatenate((opt_params, fixed_params))  # TODO: Only works if fixed params are at the end of twobox params. Generalise!
+        grating.params = p
         return fom.FOM_uniform(grating, final_speed, goal, return_grad)
 
     def fun_nlopt(params,gradn):
