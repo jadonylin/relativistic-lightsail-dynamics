@@ -28,10 +28,9 @@ plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 from parameters import Parameters, D1_ND
 I0, L, m, c = Parameters()
-from twobox import TwoBox
 
 
-def FoM(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
+def FoM(grating, I: float=1e9, grad_method: str="finite") -> float:
     """
     Calculate the grating single-wavelength figure of merit F_lam.
 
@@ -66,7 +65,7 @@ def FoM(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
     
     return F_lam
 
-def FoM_quality_factor(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
+def FoM_quality_factor(grating, I: float=1e9, grad_method: str="finite") -> float:
     """
     Calculate the grating single-wavelength figure of merit F_lam.
 
@@ -87,7 +86,7 @@ def FoM_quality_factor(grating: TwoBox, I: float=1e9, grad_method: str="finite")
     
     raise NotImplementedError("Must determine how to handle signs and avoid Im(xi) = 0.")
 
-def FoM_LvR(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
+def FoM_LvR(grating, I: float=1e9, grad_method: str="finite") -> float:
     """
     Last FoM implemented by Liam - not working with TORCWA
     Calculate the grating single-wavelength figure of merit F_lam using LvR's most updated method.
@@ -175,7 +174,7 @@ def FoM_LvR(grating: TwoBox, I: float=1e9, grad_method: str="finite") -> float:
 
 
 
-def _F_lam(grating: TwoBox) -> float:
+def _F_lam(grating) -> float:
     if grating.RCWA_engine=="TORCWA":
         return FoM(grating, I0, grad_method="grad")
     else:
@@ -196,7 +195,7 @@ def F_lam(grating, params):
     return _F_lam(grating)
 
 
-def FOM_uniform(grating: TwoBox, final_speed: float=20., goal: float=0.1, return_grad: bool=True) -> float:
+def FOM_uniform(grating, final_speed: float=20., goal: float=0.1, return_grad: bool=True) -> float:
     """
     Calculate the figure of merit (FOM) for the given grating over a fixed wavelength range determined by the final speed.
     
@@ -272,7 +271,7 @@ def FOM_uniform(grating: TwoBox, final_speed: float=20., goal: float=0.1, return
 
 
 
-def sail_stiffness(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299792458, 
+def sail_stiffness(grating, I: float=10e9, m: float=1/1000, c1:float=299792458, 
                    grad_method: str='finite', out: str="tr", normalise: bool=False):
     """
     Calculate stiffness coefficients/Jacobian coefficients for a symmetric lightsail at equilibrium. Here, symmetric 
@@ -359,7 +358,7 @@ def sail_stiffness(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299
         case _:
             raise ValueError("Invalid output format. Must be 'tr' or 'rd'.")
         
-def Eigs(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299792458, 
+def Eigs(grating, I: float=10e9, m: float=1/1000, c1:float=299792458, 
          grad_method: str='finite', return_vec: bool = False, normalise: bool=False):
     """
     Calculate eigendecomposition of Jacobian matrix at equilibrium
@@ -397,7 +396,7 @@ def Eigs(grating: TwoBox, I: float=10e9, m: float=1/1000, c1:float=299792458,
         return eigReal, eigImag
 
 
-def lsa_info(grating: TwoBox, I: float=0.5e9, normalise: bool=False):
+def lsa_info(grating, I: float=0.5e9, normalise: bool=False):
     """
     Calculate quantities relevant to linear stability analysis (LSA) of the twobox dynamics. Also calculates
     the radiation pressure cross sections and their derivatives.
