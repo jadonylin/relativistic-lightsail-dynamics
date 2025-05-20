@@ -32,25 +32,26 @@ from twobox import TwoBox
 
 # EXTRACT OPTIMISATION RESULT ####################################################################################################################################################################################
 # Initial twobox grating for local optimisation drawn from candidate optima in global optimisation
-runID = "MdSnpmin20_torcwa"
-num_cores = 96
+runID = "MdSnpmin1_torcwa"
+num_cores = 90
 # maxfev = 1
-maxtime = 2760
+maxtime = 2820
 
 pkl_fname = f'./Data/{runID}_FOM_optimisation_maxtime{maxtime}'
 txt_fname = f'./Data/{runID}_FOM_optimisation_maxtime{maxtime}_curated.txt'
-_, _, opt_grating = opt.extract_opt(pkl_fname, num_processes=num_cores, output_opt_idx=0)
+_, _, opt_grating = opt.extract_opt(pkl_fname, num_processes=num_cores, output_opt_idx=2)
 
 
 # PARAMETERS ####################################################################################################################################################################################
 # In the LO honing, can set Qabs to infinity since we are in the vicinity of a true optimum, 
 # so it shouldn't get caught on unphysical optima (this was a problem for non-rotation optimisation,
 # but I haven't seen it since then)
-opt_params = opt_grating.params
-init_grating = TwoBox(*opt_params, wavelength=1., angle=0., Nx=100, nG=12, Qabs=np.inf, RCWA_engine=opt_grating.RCWA_engine, torcwa_edge_sharpness=opt_grating.torcwa_edge_sharpness)
+init_grating = TwoBox(*opt_grating.params, wavelength=1., angle=0., Nx=100, nG=12, Qabs=np.inf, 
+                      RCWA_engine=opt_grating.RCWA_engine, torcwa_edge_sharpness=opt_grating.torcwa_edge_sharpness,
+                      mirror_substrate=False)
 
 goal = 0.1  # Stopping criteria for adaptive sampling in the FOM (set float for loss_goal, set int for npoints_goal)
-final_speed = 20.  # percentage of c
+final_speed = 1.  # percentage of c
 
 xtol_rel = 1e-7
 ftol_rel = 1e-14
@@ -60,7 +61,7 @@ txt_fname = f'./Data/{runID}_LO_maxfev{maxfev}.txt'  # save results to text file
 
 # LOCAL OPTIMISATION ####################################################################################################################################################################################
 ndof = 10
-param_bounds = parameters.param_bounds
+param_bounds = parameters.Bounds()[2]
 # Must convert arrays to np when passing to nlopt optimiser
 match init_grating.RCWA_engine:
     case "GRCWA":  # Acquire ArrayBox values
@@ -125,11 +126,12 @@ optimum = local_opt.last_optimum_value()
 init_line = repr(init)
 opt_params_line = repr(opt_params)
 
-fixed_params_dict = {'wavelength': init_grating.wavelength,
+hyperparams_dict = {'wavelength': init_grating.wavelength,
                     'angle': init_grating.angle,
                     'Nx': init_grating.Nx, 'nG': init_grating.nG, 'Qabs': init_grating.Qabs,
-                    'RCWA engine': init_grating.RCWA_engine, 'TORCWA box sharpness': init_grating.torcwa_edge_sharpness}
-fixed_params_line = str(fixed_params_dict)
+                    'RCWA engine': init_grating.RCWA_engine, 'TORCWA box sharpness': init_grating.torcwa_edge_sharpness,
+                    'Mirror substrate': init_grating.mirror_substrate}
+hyperparams_line = str(hyperparams_dict)
 FOM_params_dict = {'final_speed': final_speed, 'goal': goal}
 FOM_params_line = str(FOM_params_dict)
 
@@ -145,7 +147,7 @@ init_lines = ["\n\n-------------------------------------------------------------
                 , f"LO Honing \n"
                 , f"Date & time         | {time_at_execution}\n"
                 ,  "\n"
-                , f"Fixed parameters    | {fixed_params_line}\n"
+                , f"Hyperparameters     | {hyperparams_line}\n"
                 , f"FOM parameters      | {FOM_params_line}\n"
                 , f"Bounds              | {bounds_line}\n"
                 ,  "\n"
