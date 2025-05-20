@@ -68,6 +68,7 @@ def Parameters():
 
 wavelength = 1.  # Laser wavelength
 final_speed = 20  # percentage of c
+mirror_substrate = False  # Perfectly reflective substrate (True) or dielectric substrate (False)
 def Hyperparameters():
     # Engine parameters
     RCWA_engine = "TORCWA"
@@ -90,21 +91,21 @@ def Hyperparameters():
     goal = 0.1  # Stopping criteria for adaptive sampling in the FOM (set float for loss_goal, set int for npoints_goal)
     return_grad = True  # Return FOM and gradient of FOM
 
-    return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness
+    return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, mirror_substrate
 
 
 def OptimisationSettings():
     # Global optimisation parameters
     num_cores = 2  # number of cores to run parallel optimisation
-    maxtime = 1  # Stop after maxtime minutes
+    maxtime = 3  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
-    runID = "refactor_test"
+    runID = "reflective_test"
 
     # Local optimisation parameters
     xtol_rel = 1e-4  
     ftol_rel = 1e-8  
 
-    seed = 20250515  # LDS seed
+    seed = 20250519  # LDS seed
     sampling = 'sobol'  # 'sobol' or 'random'
     n_sample_exp = 4
     n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
@@ -112,6 +113,8 @@ def OptimisationSettings():
     return num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample
 
 
+mirror_substrate_depth = 1.  # Depth of the substrate if mirror_substrate is true (wavelength units)
+mirror_substrate_eps = -1e6  # Permittivity of the substrate if mirror_substrate is true
 def Bounds():
     ## Parameter bounds
     # Pitch bounds have been set to avoid ±1 or ±2 grating cutoffs, because the grating is rotating.
@@ -144,10 +147,6 @@ def Bounds():
     substrate_eps_min = box_eps_min 
     substrate_eps_max = box_eps_max
 
-    mirror_substrate = False  # Perfectly reflective substrate (True) or dielectric substrate (False)
-    mirror_substrate_eps = -1e6
-    mirror_substrate_depth = pitch_max 
-
     # Setting parameter bounds
     param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
                     (box_width_min, box_width_max), (box_width_min, box_width_max),
@@ -155,11 +154,9 @@ def Bounds():
                     (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
                     (gaussian_width_min, gaussian_width_max)]
     if mirror_substrate:
-        param_bounds += [None, None]
-        fixed_params = [mirror_substrate_depth, mirror_substrate_eps]
+        pass
     else:
         param_bounds += [(substrate_depth_min, substrate_depth_max), 
                         (substrate_eps_min, substrate_eps_max)]
-        fixed_params = []
 
-    return h1_min, h1_max, param_bounds, fixed_params
+    return h1_min, h1_max, param_bounds
