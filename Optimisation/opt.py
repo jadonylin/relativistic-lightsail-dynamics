@@ -20,14 +20,12 @@ from operator import itemgetter
 
 import dill as pickle
 
-import random
-
 import sys
 sys.path.append("../")
 
 import fom
-from parameters import Parameters
-I0, L, m, c = Parameters()
+import parameters
+I0, L, m, c = parameters.Parameters()
 from twobox import TwoBox
 
 
@@ -96,7 +94,7 @@ def boxes_clip_unit_cell(params,gradn):
     return condition
 
 
-def global_optimise(fixed_params, opt_hyperparams,
+def global_optimise(opt_hyperparams,
                     sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxstop: dict={'maxfev': 1000, 'maxtime': 600},
                     xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[], return_settings: bool=False):
     """
@@ -108,43 +106,32 @@ def global_optimise(fixed_params, opt_hyperparams,
 
     Parameters
     ----------
-    fixed_params    :   Ordered TwoBox parameters that are fixed during optimisation
-    opt_hyperparams :   Hyperparameters for the optimisation 
-    sampling_method :   "sobol" or "random" initial point sampling
-    seed            :   Seed for initial random parameter space sample and grating_depth samples
-    n_sample        :   Number of points for initial sample (per dimension?)
-    maxstop         :   Set maximum function evaluations and/or maximum walltime (minutes) per core
-    xtol_rel        :   Relative position tolerance for MMA
-    ftol_rel        :   Relative objective tolerance for MMA
-    param_bounds    :   Ordered list of tuples, one tuple per parameter bound, each tuple containing one lower and one upper bound.
-                        For parameters that are not to be optimised, replace the tuple with None. Number of None values must be 
-                        equal to the length of fixed_params.
-    return_settings :   If true, return the optimisation settings. If false, return only the FOM and the grating object.
+    opt_hyperparams  :   Hyperparameters for the optimisation 
+    sampling_method  :   "sobol" or "random" initial point sampling
+    seed             :   Seed for initial random parameter space sample and grating_depth samples
+    n_sample         :   Number of points for initial sample (per dimension?)
+    maxstop          :   Set maximum function evaluations and/or maximum walltime (minutes) per core
+    xtol_rel         :   Relative position tolerance for MMA
+    ftol_rel         :   Relative objective tolerance for MMA
+    param_bounds     :   Ordered list of tuples, one tuple per parameter bound, each tuple containing one lower and one upper bound.
+    return_settings  :   If true, return the optimisation settings. If false, return only the FOM and the grating object.
     """
     
-    ndof = sum(pb is not None for pb in param_bounds)  # number of optimisation parameters
-    if len(fixed_params) != len(param_bounds) - ndof:
-        raise ValueError("Number of fixed parameters must = No. TwoBox parameters - length of not-None parameter bounds")
-    # fixed_param_indices = [i for i,pb in enumerate(param_bounds) if pb==None]
-    twobox_params = []  # Initial TwoBox parameters, length determined by TwoBox
+    ndof = len(param_bounds)  # number of optimisation parameters
     init_params = []  # Initial parameters for the optimiser, length determined by non-None param_bounds
-    fixed_params_idx = 0
     for pb in param_bounds:
-        if pb is not None:  # Set initial value within bounds
-            p_avg = (pb[0]+pb[1])/2
-            twobox_params.append(p_avg)
-            init_params.append(p_avg)
-        else:  # Set initial value to the fixed parameter
-            twobox_params.append(fixed_params[fixed_params_idx])
-            fixed_params_idx += 1
+        p_avg = (pb[0]+pb[1])/2
+        init_params.append(p_avg)
     
     # Set up the grating object to be updated during optimisation and returned
-    wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness = opt_hyperparams
-    grating = TwoBox(*twobox_params, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness)
+    wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, mirror_substrate = opt_hyperparams
+    if mirror_substrate:
+        grating = TwoBox(*init_params, parameters.mirror_substrate_depth, parameters.mirror_substrate_eps, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness, mirror_substrate)
+    else:
+        grating = TwoBox(*init_params, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness, mirror_substrate)
 
     def objective(grating, opt_params):
-        p = np.concatenate((opt_params, fixed_params))  # TODO: Only works if fixed params are at the end of twobox params. Generalise!
-        grating.params = p
+        grating.params = opt_params
         return fom.FOM_uniform(grating, final_speed, goal, return_grad)
 
     def fun_nlopt(params,gradn):
@@ -208,8 +195,8 @@ def global_optimise(fixed_params, opt_hyperparams,
     global_opt.set_maxeval(maxfev)
     global_opt.set_maxtime(maxtime)
 
-    lb = [bounds[0] for bounds in param_bounds if bounds is not None]
-    ub = [bounds[1] for bounds in param_bounds if bounds is not None]
+    lb = [bounds[0] for bounds in param_bounds]
+    ub = [bounds[1] for bounds in param_bounds]
     global_opt.set_lower_bounds(lb)
     global_opt.set_upper_bounds(ub)
 

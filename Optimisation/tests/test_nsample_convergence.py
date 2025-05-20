@@ -38,7 +38,7 @@ from parameters import Hyperparameters, Bounds
 # Global optimisation parameters
 num_cores = 5  # number of cores to run parallel optimisation
 maxfev = 200  # global 1000
-h1_min, h1_max, param_bounds, fixed_params = Bounds()
+h1_min, h1_max, param_bounds = Bounds()
 runID = "nsample_convergence_test"
 
 # Local optimisation parameters
@@ -52,7 +52,7 @@ ndof = 10  # number of optimisation parameters
 
 
 # Initial grating parameters and hyperparameters
-wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness = Hyperparameters()
+wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, mirror_substrate = Hyperparameters()
 
 # Objective function
 def objective(grating,params):
@@ -67,14 +67,15 @@ def objective(grating,params):
 
 ## Converting non-h1 parameter dicts to strings ##
 # Fixed parameters
-fixed_params_dict = {'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs,
-                     'RCWA engine': RCWA_engine, 'TORCWA edge sharpness': torcwa_sharpness}
-fixed_params_line = str(fixed_params_dict)
+hyperparams_dict = {'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs,
+                     'RCWA engine': RCWA_engine, 'TORCWA edge sharpness': torcwa_sharpness,
+                     'Mirror substrate': mirror_substrate}
+hyperparams_line = str(hyperparams_dict)
 FOM_params_dict = {'final_speed': final_speed, 'goal': goal}
 FOM_params_line = str(FOM_params_dict)
 
 # Bounded parameters
-bounds_dict = {'param_bounds': param_bounds, 'fixed_params': fixed_params}
+bounds_dict = {'param_bounds': param_bounds}
 bounds_line = str(bounds_dict)
 
 # Optimiser options
@@ -92,7 +93,7 @@ time_at_execution = str(datetime.now())
 lines_to_file = ["\n\n------------------------------------------------------------------------------------------------------------------------------------\n"
                 , f"Date & time      | {time_at_execution}\n"
                 ,  "\n"
-                , f"Fixed parameters | {fixed_params_line}\n"
+                , f"Hyperparameters  | {hyperparams_line}\n"
                 , f"FOM parameters   | {FOM_params_line}\n"
                 , f"Bounds           | {bounds_line}\n"
                 ,  "\n"
@@ -111,7 +112,7 @@ with open(txt_fname, "a") as result_file:
 
 ### RUN GLOBAL OPTIMISATION ###########################################################################
 def optimise_nsample(nsample):
-    return opt.global_optimise(fixed_params, Hyperparameters(), objective, sampling, seed, nsample, maxfev, xtol_rel, ftol_rel, param_bounds, True)
+    return opt.global_optimise(hyperparams, Hyperparameters(), objective, sampling, seed, nsample, maxfev, xtol_rel, ftol_rel, param_bounds, True)
 
 # Run parallel optimisation
 if __name__ == '__main__':

@@ -40,9 +40,8 @@ from parameters import OptimisationSettings, Hyperparameters, Bounds
 
 # Extract settings from parameters.py
 num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample = OptimisationSettings()
-wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness = Hyperparameters()
-h1_min, h1_max, param_bounds, fixed_params = Bounds()
-
+wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, mirror_substrate = Hyperparameters()
+h1_min, h1_max, param_bounds = Bounds()
 
 
 # RECORDING RESULTS ###########################################################################
@@ -52,13 +51,14 @@ h1_min, h1_max, param_bounds, fixed_params = Bounds()
 ## Converting non-h1 parameter dicts to strings ##
 # Fixed parameters
 hyperparams_dict = {'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs,
-                     'RCWA engine': RCWA_engine, 'TORCWA edge sharpness': torcwa_sharpness}
+                     'RCWA engine': RCWA_engine, 'TORCWA edge sharpness': torcwa_sharpness,
+                     'Mirror substrate': mirror_substrate}
 hyperparams_line = str(hyperparams_dict)
 FOM_params_dict = {'final_speed': final_speed, 'goal': goal}
 FOM_params_line = str(FOM_params_dict)
 
 # Bounded parameters
-bounds_dict = {'param_bounds': param_bounds, 'fixed_params': fixed_params}
+bounds_dict = {'param_bounds': param_bounds}
 bounds_line = str(bounds_dict)
 
 # Optimiser options
@@ -104,7 +104,7 @@ with open(txt_dir, "a") as result_file:
 def optimise_partitioned_depth(h1_bounds):
     _param_bounds = param_bounds[:]
     _param_bounds[1] = tuple([*h1_bounds])  # Must unpack a single argument for pool.imap to be applied correctly
-    return opt.global_optimise(fixed_params, Hyperparameters(), sampling, seed, n_sample, maxstop, xtol_rel, ftol_rel, _param_bounds)
+    return opt.global_optimise(Hyperparameters(), sampling, seed, n_sample, maxstop, xtol_rel, ftol_rel, _param_bounds)
 
 h1_bounds = []
 h1s = np.linspace(h1_min,h1_max,num_cores+1)
