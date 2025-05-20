@@ -598,7 +598,7 @@ class PlotBox:
         return fig, axs
     
     def show_Eigs(self, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plot_points: int=200, 
-                eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, marker: str='o', normalise: bool=False):
+                eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, marker: str='o'):
         """
         Show eigenvalue spectrum for the twobox.
 
@@ -610,7 +610,6 @@ class PlotBox:
         eig_real_log_axis   :   If true, logarithmic scale for real part of eigenvalues
         eig_imag_log_axis   :   If true, logarithmic scale for imaginary part of eigenvalues
         marker              :   Marker style passed to plt.plot()
-        normalise           :   Normalise all Jacobian coefficients by their individual dimensional factors
 
         Returns
         -------
@@ -627,7 +626,7 @@ class PlotBox:
         for idx, lam in enumerate(wavelengths):
             # Calculate eigs for each order
             self.wavelength = self.npa.array(lam)
-            real, imag = fom.Eigs(self, I=I,m=m,c1=c, grad_method="grad", return_vec=False, normalise=normalise)
+            real, imag = fom.Eigs(self, I=I,m=m,c1=c, grad_method="grad", return_vec=False)
             eigvals[:,idx] = real + 1j*imag
             
         self.wavelength = init_wavelength # restore user-initialised wavelength

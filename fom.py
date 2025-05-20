@@ -359,7 +359,7 @@ def sail_stiffness(grating, I: float=10e9, m: float=1/1000, c1:float=299792458,
             raise ValueError("Invalid output format. Must be 'tr' or 'rd'.")
         
 def Eigs(grating, I: float=10e9, m: float=1/1000, c1:float=299792458, 
-         grad_method: str='finite', return_vec: bool = False, normalise: bool=False):
+         grad_method: str='finite', return_vec: bool = False):
     """
     Calculate eigendecomposition of Jacobian matrix at equilibrium
 
@@ -371,7 +371,6 @@ def Eigs(grating, I: float=10e9, m: float=1/1000, c1:float=299792458,
     c1          :   speed of light  # TODO: why is this a parameter?
     grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
     return_vec  :   If true, return eigenvectors as well as eigenvalues
-    normalise   :   Normalise all Jacobian coefficients by their individual dimensional factors
     
     Returns
     -------
@@ -379,7 +378,7 @@ def Eigs(grating, I: float=10e9, m: float=1/1000, c1:float=299792458,
     eigImag :   Imaginary part of Jacobian eigenvalues
     eigvecs :   Eigenvectors of Jacobian matrix, normalised to unit length
     """
-    stiffnesses = sail_stiffness(grating,I,m,c1,grad_method,out="mat",normalise=normalise)
+    stiffnesses = sail_stiffness(grating,I,m,c1,grad_method,out="mat")
     J = grating.npa.concatenate((grating.npa.array([[0,0,1,0],[0,0,0,1]]), stiffnesses))  # Jacobian matrix
     if return_vec:
         eigvals, eigvecs = grating.npa.eig(J)
@@ -419,5 +418,5 @@ def lsa_info(grating, I: float=0.5e9, normalise: bool=False):
     stiffnesses = sail_stiffness(grating,I,m,c,grad_method="grad",out="rd",normalise=normalise)
     rest_coeffs = tuple([*stiffnesses[:4]])
     damp_coeffs = tuple([*stiffnesses[4:]])
-    eigReal, eigImag, eigvecs = Eigs(grating,I,m,c,grad_method="grad",return_vec=True,normalise=normalise)
+    eigReal, eigImag, eigvecs = Eigs(grating,I,m,c,grad_method="grad",return_vec=True)
     return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs
