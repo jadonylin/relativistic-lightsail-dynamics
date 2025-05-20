@@ -13,32 +13,39 @@ from twobox import TwoBox
 t_start = time.time()
 
 ## Initialise grating
-runID = "MdSnpmin20_torcwa"
-num_cores = 96
+runID = "MdSnpmin20_mirror"
+num_cores = 90
 # maxfev = 500
-maxtime = 2760
+maxtime = 1410.0
 # opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxfev{num_cores*maxfev}"
 opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxtime{maxtime}"
-_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=2)
-print(_opt_grating.params)
-
+_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=0)
+op = _opt_grating.params[:]
 
 # Set custom parameters, if needed. If not needed, can just set "grating" to the extracted grating above.
-wavelength      = 1.
-angle           = 0.
-Nx              = 100
-numG            = 12
-Qabs            = np.inf
+wavelength       = 1.
+angle            = 0.
+Nx               = 100
+numG             = 12
+Qabs             = np.inf
+mirror_substrate = True
 
-grating = TwoBox(*_opt_grating.params, wavelength, angle, Nx, numG, Qabs, RCWA_engine="TORCWA", torcwa_edge_sharpness=45)
+# Fdmp_params = [1.226     , 2.90479687, 0.31178695, 0.0071848 , 0.9995    , 2.96553672, 4.30675011]
+# grating = TwoBox(*Fdmp_params, gaussian_width=50., substrate_depth=1., substrate_eps=-1e6,
+#                       wavelength=1., angle=0., Nx=100, nG=12, Qabs=np.inf,
+#                       RCWA_engine="TORCWA", torcwa_edge_sharpness=45, mirror_substrate=True)
 
+if mirror_substrate:
+    op += [1., -1e6]
+
+print(op)
+grating = TwoBox(*op, wavelength=wavelength, angle=angle, Nx=Nx, nG=numG, Qabs=Qabs, 
+                 RCWA_engine="TORCWA", torcwa_edge_sharpness=45, mirror_substrate=mirror_substrate)
 ## Number of lambda' points
 klambda = 1000
 v_final = 20/100 
 lambda_final = 1/D1_ND(v_final)
 lambda_array = np.linspace( wavelength, lambda_final, klambda )
-
-runID = "MdSnpmin20_torcwa"  # String to add to .pkl filename
 
 ## Storage arrays
 Q1_array            = np.zeros( klambda )
