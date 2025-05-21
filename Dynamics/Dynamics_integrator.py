@@ -27,24 +27,19 @@ runID_load = "MdSnpmin20_torcwa"
 nonlinear_run = False  # Flag to load the nonlinear data and acceleration function
 damping_scaler = 1.  # Only applies if nonlinear_run is False. Set to 0 to disable damping.
 
+# Extract optimised grating (in particular, Gaussian width)
+num_processes = 96  # number of processes used in the optimisation to produce opt_gratings_data_fname.pkl
+maxtime = 2760
+output_opt_idx = 2  # Index of the optimum grating to output, lower corresponding to larger FOM
+
 if nonlinear_run:
     lookup_data_fname = f'./Data/{runID_load}_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
 else:
     lookup_data_fname = f'./Data/{runID_load}_lsa_Lookup_table_lambda_{klambda}.pkl'
-num_processes = 96  # number of processes used in the optimisation to produce opt_gratings_data_fname.pkl
-maxtime = 2760
-opt_gratings_data_fname = f'../Optimisation/Data/{runID_load}_FOM_optimisation_maxtime{maxtime}'
-output_opt_idx = 2  # Index of the optimum grating to output, lower corresponding to larger FOM
 
+opt_gratings_data_fname = f'../Optimisation/Data/{runID_load}_FOM_optimisation_maxtime{maxtime}'
 w, lookup_data = forces.load_essential_data(opt_gratings_data_fname, num_processes, output_opt_idx, lookup_data_fname)
 interpolation_funcs = forces.create_interpolation_funcs(lookup_data, has_angle_data=nonlinear_run)
-
-if nonlinear_run:
-    accel = forces.aM  # Choose time derivative state vector function
-    accel_args = (w, interpolation_funcs)  # Passed to accel
-else:
-    accel = forces.aM_linear  
-    accel_args = (w, interpolation_funcs, damping_scaler)  
 
 ## Optimisation parameters and initial conditions ##
 t0 = 0.
@@ -57,14 +52,27 @@ phi0    = 0.1*np.pi/180  # degrees converted to radians
 vy0     = -0.1  # metres per second
 omega0  = -0.05*2*np.pi  # revolutions per second converted to radians per second
 
+# # RReduced perturbation
+# y0      = 0.001*w  # metres
+# phi0    = 0.01*np.pi/180  # degrees converted to radians
+# vy0     = -0.01  # metres per second
+# omega0  = -0.05*2*np.pi  # revolutions per second converted to radians per second
 
-Y0 = np.array([x0,y0,phi0,vx0,vy0,omega0])
-# time_MAX = 72.*60*60  # Maximum runtime (seconds)
-time_MAX = 10  # Maximum runtime (seconds)
+time_MAX = 72.*60*60  # Maximum runtime (seconds)
+# time_MAX = 10  # Maximum runtime (seconds)
 velocity_MAX = 0.2*c
 h = 1e-3   # Step size  
-runID = f"MdSnpmin20_torcwa_lsa"  # Added to the output data filename
+runID = "MdSnpmin20_torcwa_dQ2ddelta6"  # For saving dynamics data
 
+
+if nonlinear_run:
+    accel = forces.aM  # Choose time derivative state vector function
+    accel_args = (w, interpolation_funcs)  # Passed to accel
+else:
+    accel = forces.aM_linear  
+    accel_args = (w, interpolation_funcs, damping_scaler)  
+
+Y0 = np.array([x0,y0,phi0,vx0,vy0,omega0])
 positions, angles, times, accels, loop_data = odecmvint(accel, Y0, t0, time_MAX, velocity_MAX, args=accel_args, hstep=h, 
                                                         save_idx=10000, save_file=runID)
 
