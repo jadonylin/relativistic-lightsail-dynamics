@@ -1,6 +1,8 @@
-# File to defin ilic grating parameters
-# use for twobox_test.ipynb: from ilic import *
+"""
+A module to define Ilic-Atwater 2019 stability-grating parameters
+"""
 import numpy as np
+
 wavelength      = 1.5 #/ D1_ND(1.2/100)
 grating_pitch   = 1.8 / wavelength
 # grating_pitch   = 2.5 / wavelength # original Ilic grating is 1.8, this is for testing over broader wl range
@@ -17,9 +19,8 @@ substrate_eps   = 1.45**2
 
 wavelength      = 1.
 angle           = 0.0
+Nx              = 300
+numpoints       = 1
+numG_torcwa     = 25
+numG            = 2*numG_torcwa
 Qabs            = np.inf
-numpoints=1
-numG_torcwa=25
-numG=2*numG_torcwa
-
-Nx=300
