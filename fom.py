@@ -41,6 +41,38 @@ def FoM(grating, I: float=1e9, grad_method: str="finite") -> float:
     efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
     the unit cell along the x-axis about the unit-cell centre.
 
+    Damping FOM: For translation-only motion. Minimise the ratio of the damping-force coefficient to 
+                 the longitudinal-force coefficient.
+
+    Parameters
+    ----------
+    grating     :   Calculate figure of merit for this grating
+    grad_method :   Method to calculate gradient ("finite", "grad")
+    
+    Returns
+    -------
+    F_lam :   Figure of merit
+    """
+    if grad_method != "grad":
+        raise ValueError("grad_method must be 'grad' for efficient F_damp calculation. Use TORCWA engine.")
+    l = grating.wavelength/grating.grating_pitch # must be normalised to pitch!
+    Q1,Q2 = grating.Q()
+    damp = l*(grating.PDrNeg1(0.) + grating.PDtNeg1(0.) - grating.PDr1(0.) - grating.PDt1(0.))
+    F_lam = damp/Q1
+    return F_lam
+
+
+def FoM_asymp(grating, I: float=1e9, grad_method: str="finite") -> float:
+    """
+    Calculate the grating single-wavelength figure of merit F_lam.
+
+    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
+    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
+    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
+    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
+    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
+    the unit cell along the x-axis about the unit-cell centre.
+
     MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
                 negative eigenvalue with the smallest real part. 
 
