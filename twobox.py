@@ -1,7 +1,8 @@
 """
 A class to create and simulate a TwoBox grating, storing all grating parameters and hyperparameters.
 
-Contains plotting methods to show: grating permittivity profile, spectra, fields and angle dependence.
+Inherits from PlotBox and QprBox classes, which provide plotting and 
+radiation pressure efficiency calculations respectively.
 """
 
 # IMPORTS ###########################################################################################################################################################################
@@ -34,10 +35,11 @@ from autolib import AutoLib
 import parameters
 I0, L, m, c = parameters.Parameters()
 from plotbox import PlotBox
+from qprbox import QprBox
 
 
 
-class TwoBox(PlotBox):
+class TwoBox(PlotBox, QprBox):
     """
     A TwoBox grating is a grating with two "boxes" (dielectric squares/resonators) in the unit cell. 
 
@@ -256,44 +258,19 @@ class TwoBox(PlotBox):
         self.build_grating_gradable()  # TODO: I think every instance method calls init_RCWA, so this is not needed
 
 
-    def build_grating(self):
-        """
-        Build the grating permittivity grid as an array of permittivities based on initialised box parameters. 
+    # Needed for pickling - removes autograd information, written by chatgpt
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        # Remove parts that can't be pickled
+        if 'RCWA' in state:
+            del state['RCWA']
+            del state['npa']
+        return self.detach_tensors(state)
+    
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        # TODO: may need to add RCWA/TORCWA init, and redefine npa as these are not pickled.
 
-        Does not account for boundary permittivities in the finite grid, so is not correctly differentiable by autograd.
-        You can still take the gradient of build_grating, but the results may not be consistent with finite difference
-        for a variety of grating cases.
-        CHECK: Not suitable for torcwa either ?
-        """
-
-        Lam = self.grating_pitch
-        w1 = self.box1_width
-        w2 = self.box2_width
-        bcd = self.box_centre_dist
-        x1 = w1/2 + 0.02*Lam  # box1 centre location (offset to avoid left box left edge clipping)    
-        x2 = x1 + bcd  # box2 centre location
-        
-        x = self.npa.linspace(0,Lam,self.Nx)
-        idx_in_box1 = abs(x - x1) <= w1/2
-        idx_in_box2 = abs(x - x2) <= w2/2
-        
-        # Build grating by looping across the unit cell grids instead of using index assignment to make build_grating 
-        # autograd differentiable.
-        grating = [] 
-        for grid_idx in range(0,self.Nx):
-            if (idx_in_box1[grid_idx] and idx_in_box2[grid_idx]) or idx_in_box1[grid_idx]:  # Overrides box 2 with box 1 if overlapping
-                grating.append(self.box1_eps) 
-            elif idx_in_box2[grid_idx]:
-                grating.append(self.box2_eps)
-            else:  # assumes vacuum permittivity outside the boxes
-                grating.append(1)
-        
-        if self.invert_unit_cell:
-            self.grating_grid = self.npa.array(grating)[::-1]
-        else:
-            self.grating_grid = self.npa.array(grating)
-
-        return self.npa.array(grating)
 
     def build_grating_gradable(self, sigma: float=100.):
         if self.RCWA_engine == 'GRCWA':
@@ -302,6 +279,42 @@ class TwoBox(PlotBox):
             self.build_grating_torcwa()
         else:
             raise ValueError("Invalid RCWA engine. Choose 'GRCWA' or 'TORCWA'.")
+    
+    def return_epsilon(self):
+        p = self.to_numpy(self.grating_pitch)
+        x0 = np.linspace(0, p, self.Nx, endpoint=False)
+        if self.RCWA_engine == 'TORCWA':
+            self.init_TORCWA()
+            # Torcwa does not need flipping this array - check x axis conventions?
+            eps_array = self.to_numpy(self.RCWA.return_layer(0,self.Nx,1)[0])
+        elif self.RCWA_engine == 'GRCWA':
+            self.init_RCWA()
+            eps_array = self.RCWA.Return_eps(which_layer=1,Nx=self.Nx,Ny=self.Ny,component='xx')
+            # flip to match ordering of desired eps vs grid number - 
+            eps_array = np.flip(eps_array)
+        return x0,eps_array
+            
+    def grating_orders(self):
+        """Return list of grating orders given current wavelenth and incident angle"""
+        # if np.isnan(self.to_numpy(wavelength)): wavelength=self.to_numpy(self.wavelength) 
+        # if np.isnan(self.to_numpy(angle)): angle=self.to_numpy(self.angle)
+        angle = self.angle
+        wavelength = self.wavelength
+        p = self.grating_pitch
+        
+        # Calculate the maximum possible diffraction order
+        m_max = self.npa.int((p/wavelength * (1 - self.npa.sin(angle))))
+        
+        # Iterate over possible diffraction orders from -m_max to m_max
+        orders = []
+        for m in range(-m_max-1, m_max+1):
+            # Calculate sin(θ_m) using the grating equation
+            sin_theta_m = (m * wavelength / p) + self.npa.sin(angle)
+            # Check if sin(θ_m) is within the valid range [-1, 1]
+            if -1 <= sin_theta_m <= 1:
+                orders.append(m)
+        return orders
+
         
     def build_grating_GRCWA(self, sigma: float=100.):
         """
@@ -366,6 +379,7 @@ class TwoBox(PlotBox):
             self.grating_grid = self.npa.array(grating)
 
         return self.npa.array(grating)
+
 
 
     def init_RCWA(self):
@@ -452,128 +466,7 @@ class TwoBox(PlotBox):
                 Ts[1+j] = lTs[i]
         return Rs,Ts
 
-    def diffraction_angle(self, m):
-        """
-        Calculate the diffraction angle for a given diffraction order m, if it exists.
-        """
-        sin_delta_m = self.npa.sin(self.npa.array(self.angle)) + m*self.wavelength/self.grating_pitch
-        delta_m = self.npa.arcsin(sin_delta_m)
 
-        return delta_m
-
-    def Q(self):
-        """
-        Calculates efficiency factors Q_{pr,j}'(delta', lambda')
-        todo: check the torch version works...
-        """
-        r,t = self.eff()
-        
-        Q1 = self.npa.array(0.0)
-        Q2 = self.npa.array(0.0)
-        M = [-1,0,1]
-        
-        # M = self.grating_orders()  # this works in pytorch, but not in autograd
-        # begin debugging torch pytorch jacobian returning 0:
-        # M = [0]
-        # end debug
-        if self.RCWA_engine == 'TORCWA':
-            M = self.grating_orders() # this works in pytorch, but not in autograd, which throws an error that int isn't differentiable
-            # however, doing it this way doesn't help with NaN being by  returned for derivatives when only m=0 orders are propagative in torcwa
-        for ord in M:
-            m = 1+ord # convert grating order to index of array, assumes -1,0,1
-            delta_m = self.diffraction_angle(ord)
-            # # if isinstance(delta_m,str):
-            if self.npa.isnan(delta_m):
-                """
-                If no diffraction order, Q_{pr,j}' is unchanged
-                """
-                Q1 = Q1 + 0
-                Q2 = Q2 + 0
-            else:
-            # take back to real as Q are real, complex intermediary only for gradient tracking compatibility
-                Q1 = Q1+ r[m]*(1 + self.npa.cos(self.angle+delta_m)) + t[m]*(1 - self.npa.cos(delta_m-self.angle))
-                Q2 = Q2+ r[m]*self.npa.sin(self.angle+delta_m) + t[m]*self.npa.sin(delta_m-self.angle)
-        Q1 =  self.npa.cos(self.angle)*Q1
-        Q2 = -self.npa.cos(self.angle)*Q2
-        if self.RCWA_engine == 'TORCWA':
-            return torch.stack((Q1,Q2))
-            # return self.npa.array( [Q1, Q2] )  
-        else:
-            return self.npa.array( [Q1, Q2] )
-
-
-    def return_Qs(self, h_angle, h_wavelength):
-        """
-        Calculate efficiency factors and their derivatives
-        NOTE: unchanged from pre-torcwa as it doesn't use autograd or grcwa
-        """
-        
-        # Save user-initialised twobox variables
-        input_angle = self.angle
-        input_wavelength = self.wavelength
-        
-        Q1,Q2 = self.Q()
-
-        self.angle = input_angle - h_angle
-        Q1_back_angle,Q2_back_angle = self.Q()
-        self.angle = input_angle + h_angle
-        Q1_forwards_angle,Q2_forwards_angle = self.Q()
-        self.angle = input_angle
-
-        self.wavelength = input_wavelength - h_wavelength
-        Q1_back_wavelength,Q2_back_wavelength = self.Q()
-        self.wavelength = input_wavelength + h_wavelength
-        Q1_forwards_wavelength,Q2_forwards_wavelength = self.Q()
-
-        PD_Q1_angle = (Q1_forwards_angle - Q1_back_angle) / (2*h_angle)
-        PD_Q2_angle = (Q2_forwards_angle - Q2_back_angle) / (2*h_angle)        
-        PD_Q1_wavelength = (Q1_forwards_wavelength - Q1_back_wavelength) / (2*h_wavelength)
-        PD_Q2_wavelength = (Q2_forwards_wavelength - Q2_back_wavelength) / (2*h_wavelength)
-
-        # Restore user-initialised twobox variables
-        self.angle = input_angle
-        self.wavelength = input_wavelength
-
-        return Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength
-
-
-    def return_Qs_auto(self, return_Q: bool=True):
-        """
-        Calculate efficiency factors, and their derivatives using automatic differentiation.
-        """
-
-        # Save user-initialised twobox variables
-        input_angle = self.angle
-        input_wavelength = self.wavelength        
-        Q1,Q2 = self.Q()
-
-        def Q_both(params):
-            angle, wavelength = params
-            self.angle = angle
-            self.wavelength = wavelength
-            return self.Q()
-            # for debuging
-            # return self.Q_trivial()
-            # end debugging
-
-        # Q_jacobian = self.npa.jacobian(Q_both, argnum=1)
-        params = self.npa.array([input_angle, input_wavelength])
-        Q_jacobian = self.npa.jacobian(Q_both)(params).squeeze() # PD_both_Q(self, params)
-      
-        PD_Q1_angle = Q_jacobian[0][0]
-        PD_Q2_angle = Q_jacobian[1][0]
-        PD_Q1_wavelength = Q_jacobian[0][1]
-        PD_Q2_wavelength = Q_jacobian[1][1]
-
-        # Restore user-initialised twobox variables
-        self.angle = input_angle
-        self.wavelength = input_wavelength
-
-        if return_Q:
-            return Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength
-        else:
-            return PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength
-    
     # TORCWA methods
     def init_TORCWA(self):
         """
@@ -656,21 +549,6 @@ class TwoBox(PlotBox):
             self.grating_grid = np.zeros((self.Nx,0))
         return self.grating_grid
 
-    def return_epsilon(self):
-        p = self.to_numpy(self.grating_pitch)
-        x0 = np.linspace(0, p, self.Nx, endpoint=False)
-        
-        if self.RCWA_engine == 'TORCWA':
-            self.init_TORCWA()
-            # Torcwa does not need flipping this array - check x axis conventions?
-            eps_array = self.to_numpy(self.RCWA.return_layer(0,self.Nx,1)[0])
-        elif self.RCWA_engine == 'GRCWA':
-            self.init_RCWA()
-            eps_array = self.RCWA.Return_eps(which_layer=1,Nx=self.Nx,Ny=self.Ny,component='xx')
-            # flip to match ordering of desired eps vs grid number - 
-            eps_array = np.flip(eps_array)
-        
-        return x0,eps_array
 
     def to_numpy(self,x):
         """ 
@@ -722,41 +600,7 @@ class TwoBox(PlotBox):
                 return x.detach().cpu().numpy()
             else:
                 return np.array(x)
-        
-    def grating_orders(self):
-        """Return list of grating orders given current wavelenth and incident angle"""
-        # if np.isnan(self.to_numpy(wavelength)): wavelength=self.to_numpy(self.wavelength) 
-        # if np.isnan(self.to_numpy(angle)): angle=self.to_numpy(self.angle)
-        angle = self.angle
-        wavelength = self.wavelength
-        p = self.grating_pitch
-        
-        # Calculate the maximum possible diffraction order
-        m_max = self.npa.int((p/wavelength * (1 - self.npa.sin(angle))))
-        
-        # Iterate over possible diffraction orders from -m_max to m_max
-        orders = []
-        for m in range(-m_max-1, m_max+1):
-            # Calculate sin(θ_m) using the grating equation
-            sin_theta_m = (m * wavelength / p) + self.npa.sin(angle)
-            # Check if sin(θ_m) is within the valid range [-1, 1]
-            if -1 <= sin_theta_m <= 1:
-                orders.append(m)
-        return orders
-    
-    # Needed for pickling - removes autograd information, written by chatgpt
-    def __getstate__(self):
-        state = self.__dict__.copy()
-        # Remove parts that can't be pickled
-        if 'RCWA' in state:
-            del state['RCWA']
-            del state['npa']
-        return self.detach_tensors(state)
-    
-    def __setstate__(self, state):
-        self.__dict__.update(state)
-        # TODO: may need to add RCWA/TORCWA init, and redefine npa as these are not pickled.
-    
+
     def detach_tensors(self,obj):
         if isinstance(obj, torch.Tensor):
             return obj.detach()
