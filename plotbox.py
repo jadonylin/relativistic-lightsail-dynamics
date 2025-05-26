@@ -74,6 +74,45 @@ class PlotBox:
     """
     Plotting methods for TwoBox gratings.
     """
+    def build_grating(self):
+        """
+        Build the grating permittivity grid as an array of permittivities based on initialised box parameters. 
+
+        Does not account for boundary permittivities in the finite grid, so is not correctly differentiable by autograd.
+        You can still take the gradient of build_grating, but the results may not be consistent with finite difference
+        for a variety of grating cases.
+        CHECK: Not suitable for torcwa either ?
+        """
+
+        Lam = self.grating_pitch
+        w1 = self.box1_width
+        w2 = self.box2_width
+        bcd = self.box_centre_dist
+        x1 = w1/2 + 0.02*Lam  # box1 centre location (offset to avoid left box left edge clipping)    
+        x2 = x1 + bcd  # box2 centre location
+        
+        x = self.npa.linspace(0,Lam,self.Nx)
+        idx_in_box1 = abs(x - x1) <= w1/2
+        idx_in_box2 = abs(x - x2) <= w2/2
+        
+        # Build grating by looping across the unit cell grids instead of using index assignment to make build_grating 
+        # autograd differentiable.
+        grating = [] 
+        for grid_idx in range(0,self.Nx):
+            if (idx_in_box1[grid_idx] and idx_in_box2[grid_idx]) or idx_in_box1[grid_idx]:  # Overrides box 2 with box 1 if overlapping
+                grating.append(self.box1_eps) 
+            elif idx_in_box2[grid_idx]:
+                grating.append(self.box2_eps)
+            else:  # assumes vacuum permittivity outside the boxes
+                grating.append(1)
+        
+        if self.invert_unit_cell:
+            self.grating_grid = self.npa.array(grating)[::-1]
+        else:
+            self.grating_grid = self.npa.array(grating)
+
+        return self.npa.array(grating)
+    
     def show_permittivity(self, show_analytic_box: bool=False, show_box_edges: bool=False):
         """
         Show permittivity profile for the twobox.
