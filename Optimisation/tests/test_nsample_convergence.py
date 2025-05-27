@@ -52,7 +52,7 @@ ndof = 10  # number of optimisation parameters
 
 
 # Initial grating parameters and hyperparameters
-wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, mirror_substrate = Hyperparameters()
+wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters = Hyperparameters()
 
 # Objective function
 def objective(grating,params):
@@ -69,7 +69,7 @@ def objective(grating,params):
 # Fixed parameters
 hyperparams_dict = {'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs,
                      'RCWA engine': RCWA_engine, 'TORCWA edge sharpness': torcwa_sharpness,
-                     'Mirror substrate': mirror_substrate}
+                     'Fixed parameters': fixed_parameters}
 hyperparams_line = str(hyperparams_dict)
 FOM_params_dict = {'final_speed': final_speed, 'goal': goal}
 FOM_params_line = str(FOM_params_dict)

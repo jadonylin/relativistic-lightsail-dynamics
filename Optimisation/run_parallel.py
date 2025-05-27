@@ -40,7 +40,7 @@ from parameters import OptimisationSettings, Hyperparameters, Bounds
 
 # Extract settings from parameters.py
 num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample = OptimisationSettings()
-wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, mirror_substrate = Hyperparameters()
+wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters = Hyperparameters()
 h1_min, h1_max, param_bounds = Bounds()
 
 
@@ -52,7 +52,7 @@ h1_min, h1_max, param_bounds = Bounds()
 # Fixed parameters
 hyperparams_dict = {'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs,
                      'RCWA engine': RCWA_engine, 'TORCWA edge sharpness': torcwa_sharpness,
-                     'Mirror substrate': mirror_substrate}
+                     'Fixed parameters': fixed_parameters}
 hyperparams_line = str(hyperparams_dict)
 FOM_params_dict = {'final_speed': final_speed, 'goal': goal}
 FOM_params_line = str(FOM_params_dict)

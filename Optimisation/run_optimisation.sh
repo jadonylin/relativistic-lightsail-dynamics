@@ -4,7 +4,7 @@
 #PBS -q normal
 #PBS -l ncpus=2
 #PBS -l mem=2GB
-#PBS -l walltime=00:02:00
+#PBS -l walltime=00:05:00
 
 module load use.own
 module load python3/3.12.1
