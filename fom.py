@@ -8,41 +8,38 @@ TODO: need better separation between opt and fom, otherwise figures of merit are
 """
 
 import adaptive as adp
-
 import numpy as np
-
-import matplotlib.pyplot as plt
-plt.rcParams['figure.figsize'] = [15, 7.5] # change inline figure size
-# plt.rcParams["font.family"] = "Helvetica"
-LINE_WIDTH = 2.2
-SMALL_SIZE = 16
-MEDIUM_SIZE = 18
-BIGGER_SIZE = 20
-plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
-plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
-plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
-plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
-plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
-
 from parameters import Parameters, D1_ND
 I0, L, m, c = Parameters()
 
 
 def FoM(grating, I: float=1e9, grad_method: str="finite") -> float:
     """
-    Calculate the grating single-wavelength figure of merit F_lam.
+    Choose the grating single-wavelength figure of merit F_lam.
 
+    Parameters
+    ----------
+    grating     :   Calculate figure of merit for this grating
+    grad_method :   Method to calculate gradient ("finite", "grad")
+    
+    Returns
+    -------
+    F_lam :   Figure of merit
+    """
+    return FoM_asymp(grating,I,grad_method)
+
+
+def FoM_damp(grating, I: float=1e9, grad_method: str="finite") -> float:
+    """
+    Damping FOM: For translation-only motion. Minimise the ratio of the damping-force coefficient 
+                 to the longitudinal-force coefficient.
+    
     This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
     using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
     implementation, the optimised grating recorded via the twobox instance is the right-half grating,
     i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
     efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
     the unit cell along the x-axis about the unit-cell centre.
-
-    Damping FOM: For translation-only motion. Minimise the ratio of the damping-force coefficient to 
-                 the longitudinal-force coefficient.
 
     Parameters
     ----------
@@ -57,24 +54,21 @@ def FoM(grating, I: float=1e9, grad_method: str="finite") -> float:
         raise ValueError("grad_method must be 'grad' for efficient F_damp calculation. Use TORCWA engine.")
     l = grating.wavelength/grating.grating_pitch # must be normalised to pitch!
     Q1,Q2 = grating.Q()
-    damp = l*(grating.PDrNeg1(0.) + grating.PDtNeg1(0.) - grating.PDr1(0.) - grating.PDt1(0.))
+    damp = l*(grating.PDrNeg1(grating.npa.array(grating.npa.array(0.))) + grating.PDtNeg1(grating.npa.array(0.)) - grating.PDr1(grating.npa.array(0.)) - grating.PDt1(grating.npa.array(0.)))
     F_lam = damp/Q1
     return F_lam
 
-
 def FoM_asymp(grating, I: float=1e9, grad_method: str="finite") -> float:
     """
-    Calculate the grating single-wavelength figure of merit F_lam.
-
+    Asymptotic stability FOM: Minimise the eigenvalue of the linear stability Jacobian with the 
+    largest real part. Equivalent to maximising the negative eigenvalue with the smallest real part. 
+    
     This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
     using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
     implementation, the optimised grating recorded via the twobox instance is the right-half grating,
     i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
     efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
     the unit cell along the x-axis about the unit-cell centre.
-
-    MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
-                negative eigenvalue with the smallest real part. 
 
     Parameters
     ----------
@@ -99,8 +93,6 @@ def FoM_asymp(grating, I: float=1e9, grad_method: str="finite") -> float:
 
 def FoM_quality_factor(grating, I: float=1e9, grad_method: str="finite") -> float:
     """
-    Calculate the grating single-wavelength figure of merit F_lam.
-
     Quality factor FoM: Maximise the magnitude of the quality factor (Re(xi)/Im(xi)) 
                         for the eigenvalue with the smallest quality factor. Issue:
                         Im(xi) --> 0 will blow this up, and we need to track the sign.
