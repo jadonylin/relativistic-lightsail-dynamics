@@ -119,16 +119,24 @@ def global_optimise(opt_hyperparams,
     
     ndof = len(param_bounds)  # number of optimisation parameters
     init_params = []  # Initial parameters for the optimiser, length determined by non-None param_bounds
-    for pb in param_bounds:
-        p_avg = (pb[0]+pb[1])/2
-        init_params.append(p_avg)
-    
+    init_all_params = []
+    param_bound_idx = 0
+    fixed_param_idx = 0
+    for param_name in parameters.param_names:
+        if param_name not in parameters.fixed_parameters:
+            pb = param_bounds[param_bound_idx]
+            p_avg = (pb[0]+pb[1])/2
+            init_params.append(p_avg)
+            init_all_params.append(p_avg)
+            param_bound_idx += 1
+        else:
+            # If the parameter is fixed, use the fixed value from parameters.py
+            init_all_params.append(parameters.fix_parameter_values[fixed_param_idx])
+            fixed_param_idx += 1
+
     # Set up the grating object to be updated during optimisation and returned
-    wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, mirror_substrate = opt_hyperparams
-    if mirror_substrate:
-        grating = TwoBox(*init_params, parameters.mirror_substrate_depth, parameters.mirror_substrate_eps, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness, mirror_substrate)
-    else:
-        grating = TwoBox(*init_params, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness, mirror_substrate)
+    wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters = opt_hyperparams
+    grating = TwoBox(*init_all_params, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness, fixed_parameters)
 
     def objective(grating, opt_params):
         grating.params = opt_params

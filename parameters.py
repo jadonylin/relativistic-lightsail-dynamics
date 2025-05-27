@@ -68,7 +68,12 @@ def Parameters():
 
 wavelength = 1.  # Laser wavelength
 final_speed = 20  # percentage of c
-mirror_substrate = False  # Perfectly reflective substrate (True) or dielectric substrate (False)
+param_names = ["grating_pitch", "grating_depth", 
+                "box1_width", "box2_width", "box_centre_dist", 
+                "box1_eps", "box2_eps", 
+                "gaussian_width", "substrate_depth", "substrate_eps"]  # Names of all optimisable twobox parameters
+fixed_parameters = ["gaussian_width", "substrate_depth", "substrate_eps"]  # Fix parameters during optimisation
+fix_parameter_values = [20., 1., -1e6]  # Values of fixed parameters, in the same order as fixed_parameters
 def Hyperparameters():
     # Engine parameters
     RCWA_engine = "TORCWA"
@@ -91,21 +96,21 @@ def Hyperparameters():
     goal = 0.1  # Stopping criteria for adaptive sampling in the FOM (set float for loss_goal, set int for npoints_goal)
     return_grad = True  # Return FOM and gradient of FOM
 
-    return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, mirror_substrate
+    return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters
 
 
 def OptimisationSettings():
     # Global optimisation parameters
     num_cores = 2  # number of cores to run parallel optimisation
-    maxtime = 3  # Stop after maxtime minutes
+    maxtime = 2  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
-    runID = "reflective_test"
+    runID = "fixed_gaussian_test"
 
     # Local optimisation parameters
     xtol_rel = 1e-4  
     ftol_rel = 1e-8  
 
-    seed = 20250519  # LDS seed
+    seed = 20250527  # LDS seed
     sampling = 'sobol'  # 'sobol' or 'random'
     n_sample_exp = 4
     n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
@@ -147,16 +152,26 @@ def Bounds():
     substrate_eps_min = box_eps_min 
     substrate_eps_max = box_eps_max
 
-    # Setting parameter bounds
+    # # All params
+    # param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
+    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
+    #                 (box_centre_dist_min, box_centre_dist_max),
+    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
+    #                 (gaussian_width_min, gaussian_width_max),                    
+    #                 (substrate_depth_min, substrate_depth_max),
+    #                 (substrate_eps_min, substrate_eps_max)]
+    
+    # # Fixed substrate 
+    # param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
+    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
+    #                 (box_centre_dist_min, box_centre_dist_max),
+    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
+    #                 (gaussian_width_min, gaussian_width_max)]
+    
+    # Fixed Gaussian and substrate
     param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
                     (box_width_min, box_width_max), (box_width_min, box_width_max),
                     (box_centre_dist_min, box_centre_dist_max),
-                    (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-                    (gaussian_width_min, gaussian_width_max)]
-    if mirror_substrate:
-        pass
-    else:
-        param_bounds += [(substrate_depth_min, substrate_depth_max), 
-                        (substrate_eps_min, substrate_eps_max)]
+                    (box_eps_min, box_eps_max), (box_eps_min, box_eps_max)]
 
     return h1_min, h1_max, param_bounds

@@ -67,7 +67,7 @@ class TwoBox(PlotBox, QprBox):
     RCWA_engine           :   A string for the RCWA engine to use - 'GRCWA' or 'TORCWA'
     torcwa_edge_sharpness :   An integer for the sharpness of the edge of the unit cell in TORCWA
     title                 :   A string for the title of plots
-    fix_parameters        :   A list for specifying which parameters cannot be changed by setting
+    fixed_parameters      :   A list for specifying which parameters cannot be changed by setting
                               self.params after initialisation, such as grating_pitch, grating_depth, etc.
     """
 
@@ -75,7 +75,7 @@ class TwoBox(PlotBox, QprBox):
                  gaussian_width: float, substrate_depth: float, substrate_eps: float, 
                  wavelength: float=1., angle: float=0.,
                  Nx: float=1000, nG: int=25, Qabs: float=np.inf,
-                 RCWA_engine: float='GRCWA', torcwa_edge_sharpness: int=45, fix_parameters: list=[], 
+                 RCWA_engine: float='GRCWA', torcwa_edge_sharpness: int=45, fixed_parameters: list=[], 
                  title: str=None,) -> None:
 
         self.RCWA_engine = RCWA_engine
@@ -105,7 +105,7 @@ class TwoBox(PlotBox, QprBox):
         self.substrate_depth = self.npa.array(float(substrate_depth))
         self.substrate_eps = self.npa.array(float(substrate_eps))
 
-        self.fix_parameters = fix_parameters
+        self.fixed_parameters = fixed_parameters
         
         self.wavelength = self.npa.array(float(wavelength))
         self.angle = self.npa.array(float(angle))
@@ -242,31 +242,23 @@ class TwoBox(PlotBox, QprBox):
         self.all_params, the length of self.params varies depending on how many parameters are fixed.
 
         The order of parameters in self.params is the same as self.all_params, however, without the 
-        fixed parameters in self.fix_parameters.
+        fixed parameters in self.fixed_parameters.
         
         Manipulate self.params instance variable using getter and setter properties rather than defining
         in __init__. Also, need to define self.params here instead of in __init__. Both of these are
         needed in order for user changes to instance variables to update self.params (and vice versa). 
         """
         self._params = []
-        param_names = ["grating_pitch", "grating_depth", 
-                       "box1_width", "box2_width", "box_centre_dist", 
-                       "box1_eps", "box2_eps", 
-                       "gaussian_width", "substrate_depth", "substrate_eps"]
-        for param_name in param_names:
-            if param_name not in self.fix_parameters:
+        for param_name in parameters.param_names:
+            if param_name not in self.fixed_parameters:
                 self._params.append(getattr(self, param_name))
         return self._params
     @params.setter
     def params(self, new_params: list[float]):  # Don't cast new_params to npa.array, else torch gradients will be zero
         self._params = new_params
-        param_names = ["grating_pitch", "grating_depth", 
-                       "box1_width", "box2_width", "box_centre_dist", 
-                       "box1_eps", "box2_eps", 
-                       "gaussian_width", "substrate_depth", "substrate_eps"]
         new_param_idx = 0
-        for param_name in param_names:
-            if param_name not in self.fix_parameters:
+        for param_name in parameters.param_names:
+            if param_name not in self.fixed_parameters:
                 setattr(self, param_name, new_params[new_param_idx])
                 new_param_idx += 1
         self.build_grating_gradable()  # TODO: I think every instance method calls init_RCWA, so this is not needed
