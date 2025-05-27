@@ -64,18 +64,18 @@ class TwoBox(PlotBox, QprBox):
     Nx                    :   An integer for the number of grid points in the unit cell
     nG                    :   An integer for the number of Fourier components used in the RCWA simulation
     Qabs                  :   A float for the relaxation parameter, determining the strength of the imaginary frequency and thus smoothness of resonances
-    RCWA_engine           :   RCWA engine to use - 'GRCWA' or 'TORCWA'
+    RCWA_engine           :   A string for the RCWA engine to use - 'GRCWA' or 'TORCWA'
     torcwa_edge_sharpness :   An integer for the sharpness of the edge of the unit cell in TORCWA
     title                 :   A string for the title of plots
-    mirror_substrate      :   A boolean for whether the substrate should be a mirror (eps = -1e6). 
-                              Reduces number of parameters by 2.
+    fix_parameters        :   A list for specifying which parameters cannot be changed by setting
+                              self.params after initialisation, such as grating_pitch, grating_depth, etc.
     """
 
     def __init__(self, grating_pitch: float, grating_depth: float, box1_width: float, box2_width: float, box_centre_dist: float, box1_eps: complex, box2_eps: complex, 
                  gaussian_width: float, substrate_depth: float, substrate_eps: float, 
                  wavelength: float=1., angle: float=0.,
                  Nx: float=1000, nG: int=25, Qabs: float=np.inf,
-                 RCWA_engine: float='GRCWA', torcwa_edge_sharpness: int=45, mirror_substrate: bool=False, 
+                 RCWA_engine: float='GRCWA', torcwa_edge_sharpness: int=45, fix_parameters: list=[], 
                  title: str=None,) -> None:
 
         self.RCWA_engine = RCWA_engine
@@ -94,8 +94,6 @@ class TwoBox(PlotBox, QprBox):
         else:
             raise ValueError("Invalid RCWA engine. Choose 'GRCWA' or 'TORCWA'.")
 
-        self.mirror_substrate = mirror_substrate
-
         self.grating_pitch = self.npa.array(float(grating_pitch))
         self.grating_depth = self.npa.array(float(grating_depth))
         self.box1_width = self.npa.array(float(box1_width))
@@ -104,12 +102,10 @@ class TwoBox(PlotBox, QprBox):
         self.box1_eps = self.npa.array(float(box1_eps)) # complex causes problems with FOM (adaptive? gradient? not clear)
         self.box2_eps = self.npa.array(float(box2_eps))  # complex causes problems with FOM (adaptive? gradient? not clear)
         self.gaussian_width = self.npa.array(float(gaussian_width))
-        if self.mirror_substrate:
-            self.substrate_depth = self.npa.array(float(parameters.mirror_substrate_depth))
-            self.substrate_eps = self.npa.array(float(parameters.mirror_substrate_eps))
-        else:
-            self.substrate_depth = self.npa.array(float(substrate_depth))
-            self.substrate_eps = self.npa.array(float(substrate_eps))
+        self.substrate_depth = self.npa.array(float(substrate_depth))
+        self.substrate_eps = self.npa.array(float(substrate_eps))
+
+        self.fix_parameters = fix_parameters
         
         self.wavelength = self.npa.array(float(wavelength))
         self.angle = self.npa.array(float(angle))
@@ -130,7 +126,6 @@ class TwoBox(PlotBox, QprBox):
 
         if self.RCWA_engine == 'GRCWA':
             self.init_RCWA()
-
         elif self.RCWA_engine == 'TORCWA':            
             if Nx<nG*2:
                 raise ValueError("Nx must be at least 2*nG for TORCWA")
@@ -227,34 +222,53 @@ class TwoBox(PlotBox, QprBox):
         self._angle = self.npa.array(new_angle)
 
     @property
+    def all_params(self): 
+        self._all_params = [self.grating_pitch, self.grating_depth, 
+                            self.box1_width, self.box2_width, self.box_centre_dist, self.box1_eps, self.box2_eps, 
+                            self.gaussian_width, self.substrate_depth, self.substrate_eps]
+        return self._all_params
+    @all_params.setter
+    def all_params(self, new_params: list[float]):  # Don't cast new_params to npa.array, else torch gradients will be zero
+        self._all_params = new_params
+        (self.grating_pitch, self.grating_depth, 
+        self.box1_width, self.box2_width, self.box_centre_dist, self.box1_eps, self.box2_eps, 
+        self.gaussian_width, self.substrate_depth, self.substrate_eps) = new_params
+        self.build_grating_gradable()  # TODO: I think every instance method calls init_RCWA, so this is not needed
+
+    @property
     def params(self):
-        # Manipulate self.params instance variable using getter and setter properties rather than defining
-        # in __init__. Also, need to define self.params here instead of in __init__. Both of these are
-        # needed in order for user changes to instance variables to update self.params (and vice versa). 
-        self._params = [self.grating_pitch, self.grating_depth, 
-                        self.box1_width, self.box2_width, self.box_centre_dist, self.box1_eps, self.box2_eps, 
-                        self.gaussian_width, self.substrate_depth, self.substrate_eps]
-        try:  # For older gratings
-            if self.mirror_substrate:
-                self._params = self._params[:-2]
-        except AttributeError:
-            pass
+        """
+        List of parameters that can be changed by the user after twobox initialisation. As opposed to 
+        self.all_params, the length of self.params varies depending on how many parameters are fixed.
+
+        The order of parameters in self.params is the same as self.all_params, however, without the 
+        fixed parameters in self.fix_parameters.
+        
+        Manipulate self.params instance variable using getter and setter properties rather than defining
+        in __init__. Also, need to define self.params here instead of in __init__. Both of these are
+        needed in order for user changes to instance variables to update self.params (and vice versa). 
+        """
+        self._params = []
+        param_names = ["grating_pitch", "grating_depth", 
+                       "box1_width", "box2_width", "box_centre_dist", 
+                       "box1_eps", "box2_eps", 
+                       "gaussian_width", "substrate_depth", "substrate_eps"]
+        for param_name in param_names:
+            if param_name not in self.fix_parameters:
+                self._params.append(getattr(self, param_name))
         return self._params
     @params.setter
     def params(self, new_params: list[float]):  # Don't cast new_params to npa.array, else torch gradients will be zero
-        if not self.mirror_substrate:
-            self._params = new_params
-            (self.grating_pitch, self.grating_depth, 
-            self.box1_width, self.box2_width, self.box_centre_dist, self.box1_eps, self.box2_eps, 
-            self.gaussian_width, self.substrate_depth, self.substrate_eps) = new_params
-        elif len(new_params) == 8 and self.mirror_substrate:
-            # If mirror substrate, new_params should be a list of length 8, not 10
-            self._params = new_params  # TODO: extract mirror values from parameters.py
-            (self.grating_pitch, self.grating_depth, 
-            self.box1_width, self.box2_width, self.box_centre_dist, self.box1_eps, self.box2_eps, 
-            self.gaussian_width) = new_params
-        else:
-            raise ValueError("Invalid number of parameters. Expected 8 for mirror substrate or 10 for full set.")
+        self._params = new_params
+        param_names = ["grating_pitch", "grating_depth", 
+                       "box1_width", "box2_width", "box_centre_dist", 
+                       "box1_eps", "box2_eps", 
+                       "gaussian_width", "substrate_depth", "substrate_eps"]
+        new_param_idx = 0
+        for param_name in param_names:
+            if param_name not in self.fix_parameters:
+                setattr(self, param_name, new_params[new_param_idx])
+                new_param_idx += 1
         self.build_grating_gradable()  # TODO: I think every instance method calls init_RCWA, so this is not needed
 
 
