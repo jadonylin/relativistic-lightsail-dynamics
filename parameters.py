@@ -67,7 +67,7 @@ def Parameters():
 
 
 wavelength = 1.  # Laser wavelength
-final_speed = 20  # percentage of c
+final_speed = 1  # percentage of c
 param_names = ["grating_pitch", "grating_depth", 
                 "box1_width", "box2_width", "box_centre_dist", 
                 "box1_eps", "box2_eps", 
@@ -104,7 +104,7 @@ def OptimisationSettings():
     num_cores = 2  # number of cores to run parallel optimisation
     maxtime = 2  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
-    runID = "fixed_gaussian_test"
+    runID = "Fdamp1_test"
 
     # Local optimisation parameters
     xtol_rel = 1e-4  
