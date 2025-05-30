@@ -25,7 +25,23 @@ class QprBox:
         self.angle = angle
         t = self.eff()[1][0]
         return t
-        
+
+    def r0(self, angle):
+        """
+        Calculates r_{0} reflection efficiency at given excitation-plane-wave angle
+        """
+        self.angle = angle
+        r = self.eff()[0][1]
+        return r
+    
+    def t0(self, angle):
+        """
+        Calculates t_{0} reflection efficiency at given excitation-plane-wave angle
+        """
+        self.angle = angle
+        t = self.eff()[1][1]
+        return t
+
     def r1(self, angle):
         """
         Calculates r_{1} reflection efficiency at given excitation-plane-wave angle
@@ -47,28 +63,42 @@ class QprBox:
         Calculates gradient of r_{-1} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         """
-        return self.npa.grad(self.rNeg1)(angle)
+        return self.npa.grad(self.rNeg1)(self.npa.array(angle))
     
     def PDtNeg1(self, angle):
         """
         Calculates gradient of t_{-1} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         """
-        return self.npa.grad(self.tNeg1)(angle)
+        return self.npa.grad(self.tNeg1)(self.npa.array(angle))
     
+    def PDr0(self, angle):
+        """
+        Calculates gradient of r_{0} reflection efficiency with respect to excitation-plane-wave angle 
+        at a given excitation-plane-wave angle
+        """
+        return self.npa.grad(self.r0)(self.npa.array(angle))
+    
+    def PDt0(self, angle):
+        """
+        Calculates gradient of t_{0} reflection efficiency with respect to excitation-plane-wave angle 
+        at a given excitation-plane-wave angle
+        """
+        return self.npa.grad(self.t0)(self.npa.array(angle))
+
     def PDr1(self, angle):
         """
         Calculates gradient of r_{1} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         """
-        return self.npa.grad(self.r1)(angle)
+        return self.npa.grad(self.r1)(self.npa.array(angle))
     
     def PDt1(self, angle):
         """
         Calculates gradient of t_{1} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         """
-        return self.npa.grad(self.t1)(angle)
+        return self.npa.grad(self.t1)(self.npa.array(angle))
 
     def diffraction_angle(self, m):
         """

@@ -26,8 +26,8 @@ def FoM(grating, I: float=1e9, grad_method: str="finite") -> float:
     -------
     F_lam :   Figure of merit
     """
-    return FoM_asymp(grating,I,grad_method)
-    # return FoM_damp(grating,I,grad_method)
+    # return FoM_asymp(grating,I,grad_method)
+    return FoM_damp(grating,I,grad_method)
 
 
 def FoM_damp(grating, I: float=1e9, grad_method: str="finite") -> float:
@@ -55,7 +55,7 @@ def FoM_damp(grating, I: float=1e9, grad_method: str="finite") -> float:
         raise ValueError("grad_method must be 'grad' for efficient F_damp calculation. Use TORCWA engine.")
     l = grating.wavelength/grating.grating_pitch # must be normalised to pitch!
     Q1,Q2 = grating.Q()
-    angle_zero = grating.npa.array(0.)
+    angle_zero = 0.
     # print(grating.PDrNeg1(angle_zero))
     damp = l*(grating.PDrNeg1(angle_zero) + grating.PDtNeg1(angle_zero) 
               - grating.PDr1(angle_zero) - grating.PDt1(angle_zero))
