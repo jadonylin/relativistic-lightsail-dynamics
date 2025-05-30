@@ -303,8 +303,7 @@ class PlotBox:
         angle               :   Angle of incident plane wave excitation (radians)
         efficiency_quantity :   The efficiency quantity you want spectrum for
                                 "r" - reflection, "PDr" - reflection angular derivative, 
-                                "t" - transmission, "PDr" - transmission angular derivative),
-                                "FoM" - single-wavelength figure of merit
+                                "t" - transmission, "PDr" - transmission angular derivative)
         wavelength_range    :   Wavelength range to plot spectrum (same units as grating pitch)
         num_plot_points     :   Number of points to plot
         I                   :   Laser intensity
@@ -332,13 +331,17 @@ class PlotBox:
             self.wavelength = lam
             
             if efficiency_quantity == "r" or efficiency_quantity == "t":
-                Rs,Ts = self.RT()
+                Rs,Ts = self.eff()
                 efficiencies[:n_orders,idx] = self.to_numpy(Rs)
                 efficiencies[n_orders:,idx] = self.to_numpy(Ts)
             elif efficiency_quantity == "PDr":
-                efficiencies[0,idx] = self.to_numpy(self.PDrNeg1(angle)) # this removes the autograd function -- ok for plotting            
+                efficiencies[0,idx] = self.to_numpy(self.PDrNeg1(angle)) # this removes the autograd function -- ok for plotting
+                efficiencies[1,idx] = self.to_numpy(self.PDr0(angle)) 
+                efficiencies[2,idx] = self.to_numpy(self.PDr1(angle)) 
             elif efficiency_quantity == "PDt":
                 efficiencies[0,idx] = self.to_numpy(self.PDtNeg1(angle)) # this removes the autograd function -- ok for plotting
+                efficiencies[1,idx] = self.to_numpy(self.PDt0(angle)) 
+                efficiencies[2,idx] = self.to_numpy(self.PDt1(angle)) 
 
         self.wavelength = init_wavelength
 
@@ -346,7 +349,7 @@ class PlotBox:
         fig, ax = plt.subplots(1)         
         p = self.to_numpy(self.grating_pitch)
         ax.set_xlim(wavelength_range/p)  # normalise wavelength to grating pitch
-        legend_needed = ("r", "t")
+        legend_needed = ("r", "t", "PDr", "PDt")
         symlog_needed = ("PDr", "PDt")
 
 
@@ -372,11 +375,15 @@ class PlotBox:
             ax.set_ylim([-0.01, 1.01]) 
             ylabel = rf"Efficiency at $\theta' = {inc_angle_deg:.2f}°$"
         elif efficiency_quantity == "PDr":
-            ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', lw = LINE_WIDTH) 
-            ylabel = rf"$\frac{{\partial r_{{-1}}'}}{{\partial\theta'}}({inc_angle_deg:.2f}°)$"
+            ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$m=-1$", lw = LINE_WIDTH) 
+            ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$m=0$", lw = LINE_WIDTH) 
+            ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$m=1$", lw = LINE_WIDTH) 
+            ylabel = rf"$\frac{{\partial r_{{m}}'}}{{\partial\theta'}}({inc_angle_deg:.2f}°)$"
         elif efficiency_quantity == "PDt":
-            ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', lw = LINE_WIDTH) 
-            ylabel = rf"$\frac{{\partial t_{{-1}}'}}{{\partial\theta'}}({inc_angle_deg:.2f}°)$"
+            ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$m=-1$", lw = LINE_WIDTH) 
+            ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$m=0$", lw = LINE_WIDTH) 
+            ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$m=1$", lw = LINE_WIDTH) 
+            ylabel = rf"$\frac{{\partial t_{{m}}'}}{{\partial\theta'}}({inc_angle_deg:.2f}°)$"
 
       
         if efficiency_quantity in legend_needed:
@@ -497,7 +504,7 @@ class PlotBox:
             ax.yaxis.set_minor_locator(MinorSymLogLocator(linthr))
         
         # Axis labels
-        ax.axhline(y=0, color='black', linestyle='-', lw = '1')
+        ax.axhline(y=0, color='black', linestyle='-', lw=0.5)
         ax.tick_params(axis='both', which='both', direction='in') # ticks inside box
         ax.set(title=rf"{self.title} Efficiencies at $\theta' = {inc_angle_deg:.2f}°$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda$", xlabel=r"$h_1'/\lambda$", ylabel=ylabel)
 
