@@ -270,30 +270,6 @@ class PlotBox:
         
         return fig, ax
 
-# the following functions for plotting and debugging autograd/torch
-    def rNeg1(self, angle):
-        self.angle = angle
-        ra,_ = self.eff()
-        # r = ra[1]
-        r = ra[0]
-        return r
-
-    def tNeg1(self, angle):
-        self.angle = angle
-        _,ta= self.eff()
-        t=ta[0]
-        return t
-
-    def PDrNeg1(self, angle):
-        a=self.npa.grad(self.rNeg1)(self.npa.array(angle))
-        return a
-
-
-    def PDtNeg1(self, angle):
-        a=self.npa.grad(self.tNeg1)(self.npa.array(angle))
-        return a
-# end debug functions
-
     def show_spectrum(self, angle: float=0., efficiency_quantity: str="PDr", wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9, grad_method: str="grad"):
         """
         Show spectrum of various efficiency quantities for the twobox.
