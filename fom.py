@@ -34,6 +34,8 @@ def FoM_damp(grating, I: float=1e9, grad_method: str="finite") -> float:
     """
     Damping FOM: For translation-only motion. Minimise the ratio of the damping-force coefficient 
                  to the longitudinal-force coefficient.
+
+    Only valid when the grating has up to ±1 diffraction orders.
     
     This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
     using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
@@ -53,12 +55,16 @@ def FoM_damp(grating, I: float=1e9, grad_method: str="finite") -> float:
     """
     if grad_method != "grad":
         raise ValueError("grad_method must be 'grad' for efficient F_damp calculation. Use TORCWA engine.")
+    if grating.substrate_eps > 0:
+        # TODO: implement damping FOM for gratings with transmissive substrate
+        raise ValueError("Damping FOM currently only valid for gratings with reflective substrate.")
     l = grating.wavelength/grating.grating_pitch # must be normalised to pitch!
     Q1,Q2 = grating.Q()
-    angle_zero = 0.
-    # print(grating.PDrNeg1(angle_zero))
-    damp = l*(grating.PDrNeg1(angle_zero) + grating.PDtNeg1(angle_zero) 
-              - grating.PDr1(angle_zero) - grating.PDt1(angle_zero))
+    # TODO: FOM_uniform is NaN when angle is non-zero, even though damp is not NaN. 
+    #       We are only interested in the case where angle is zero, but it would be good to know 
+    #       why it is NaN.
+    damp = 2*l*grating.PDrNeg1()
+    # damp = l*(grating.PDrNeg1(0.) + grating.PDtNeg1(0.) - grating.PDr1(0.) - grating.PDt1(0.))
     F_lam = damp/Q1
     return F_lam
 
