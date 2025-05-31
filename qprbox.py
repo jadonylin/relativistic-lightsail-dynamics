@@ -58,47 +58,73 @@ class QprBox:
         t = self.eff()[1][2]
         return t
     
-    def PDrNeg1(self, angle):
+    def PDrNeg1(self):
         """
         Calculates gradient of r_{-1} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
+
+        TODO: Make this function work with variable input angle. At the moment, can't have angle as a variable,
+              otherwise it leads to either RuntimeError: bad_optional_access or an "internal asset failed" error.
+              Strangely, the gradient calculation works fine for some cases (e.g. relatively large loss goal like
+              0.1 in the FOM function), but fails for smaller loss goals (e.g. 0.01) or when pickling.
+              I suspect it breaks because angle as an argument is not tracked by the autograd engine, whereas 
+              self.angle is (because self.angle is cast to npa.array with requires_grad=True on creation). 
+              Would need to modify self.npa.array to somehow mark new variables to be tracked.
         """
-        return self.npa.grad(self.rNeg1)(self.npa.array(angle))
+        input_angle = self.angle
+        _PDrNeg1 = self.npa.grad(self.rNeg1)(self.npa.array(input_angle)) # PD_both_Q(self, params)
+        self.angle = input_angle  
+        return _PDrNeg1
     
-    def PDtNeg1(self, angle):
+    def PDtNeg1(self):
         """
         Calculates gradient of t_{-1} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         """
-        return self.npa.grad(self.tNeg1)(self.npa.array(angle))
+        input_angle = self.angle
+        _PDtNeg1 = self.npa.grad(self.tNeg1)(self.npa.array(input_angle)) # PD_both_Q(self, params)
+        self.angle = input_angle  
+        return _PDtNeg1
     
-    def PDr0(self, angle):
+    def PDr0(self):
         """
         Calculates gradient of r_{0} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         """
-        return self.npa.grad(self.r0)(self.npa.array(angle))
+        input_angle = self.angle
+        _PDr0 = self.npa.grad(self.r0)(self.npa.array(input_angle)) # PD_both_Q(self, params)
+        self.angle = input_angle  
+        return _PDr0
     
-    def PDt0(self, angle):
+    def PDt0(self):
         """
         Calculates gradient of t_{0} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         """
-        return self.npa.grad(self.t0)(self.npa.array(angle))
+        input_angle = self.angle
+        _PDt0 = self.npa.grad(self.t0)(self.npa.array(input_angle)) # PD_both_Q(self, params)
+        self.angle = input_angle  
+        return _PDt0
 
-    def PDr1(self, angle):
+    def PDr1(self):
         """
         Calculates gradient of r_{1} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         """
-        return self.npa.grad(self.r1)(self.npa.array(angle))
+        input_angle = self.angle
+        _PDr1 = self.npa.grad(self.r1)(self.npa.array(input_angle)) # PD_both_Q(self, params)
+        self.angle = input_angle  
+        return _PDr1
     
-    def PDt1(self, angle):
+    def PDt1(self):
         """
         Calculates gradient of t_{1} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         """
-        return self.npa.grad(self.t1)(self.npa.array(angle))
+        input_angle = self.angle
+        _PDt1 = self.npa.grad(self.t1)(self.npa.array(input_angle)) # PD_both_Q(self, params)
+        self.angle = input_angle  
+        return _PDt1
 
     def diffraction_angle(self, m):
         """
