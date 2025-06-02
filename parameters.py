@@ -67,7 +67,7 @@ def Parameters():
 
 
 wavelength = 1.  # Laser wavelength
-final_speed = 1  # percentage of c
+final_speed = 1.  # percentage of c
 param_names = ["grating_pitch", "grating_depth", 
                 "box1_width", "box2_width", "box_centre_dist", 
                 "box1_eps", "box2_eps", 
@@ -101,8 +101,8 @@ def Hyperparameters():
 
 def OptimisationSettings():
     # Global optimisation parameters
-    num_cores = 2  # number of cores to run parallel optimisation
-    maxtime = 2  # Stop after maxtime minutes
+    num_cores = 4  # number of cores to run parallel optimisation
+    maxtime = 4  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
     runID = "Fdamp1_test"
 
@@ -110,7 +110,7 @@ def OptimisationSettings():
     xtol_rel = 1e-4  
     ftol_rel = 1e-8  
 
-    seed = 20250527  # LDS seed
+    seed = 20250602  # LDS seed
     sampling = 'sobol'  # 'sobol' or 'random'
     n_sample_exp = 4
     n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
