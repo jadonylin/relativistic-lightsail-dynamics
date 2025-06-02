@@ -20,17 +20,20 @@ def FoM(grating, I: float=1e9, grad_method: str="finite") -> float:
     Parameters
     ----------
     grating     :   Calculate figure of merit for this grating
+    I           :   Laser intensity
     grad_method :   Method to calculate gradient ("finite", "grad")
     
     Returns
     -------
     F_lam :   Figure of merit
     """
+    # TODO: implement switching between FOMs. Difficult due to the many instances of FOM calls that
+    #       need a string argument added.
     # return FoM_asymp(grating,I,grad_method)
     return FoM_damp(grating,I,grad_method)
 
 
-def FoM_damp(grating, I: float=1e9, grad_method: str="finite") -> float:
+def FoM_damp(grating, I: float=1e9, grad_method: str="grad") -> float:
     """
     Damping FOM: For translation-only motion. Minimise the ratio of the damping-force coefficient 
                  to the longitudinal-force coefficient.
@@ -90,7 +93,8 @@ def FoM_asymp(grating, I: float=1e9, grad_method: str="finite") -> float:
     -------
     F_lam :   Figure of merit
     """
-    
+    if grating.angle != 0:
+        raise ValueError("Asymptotic stability FOM only valid for gratings with zero angle, i.e. the linear regime.")
     eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
 
     # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
