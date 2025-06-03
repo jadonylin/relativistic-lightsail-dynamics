@@ -271,7 +271,10 @@ def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: i
     # Sort the optima based on the FOM value
     maxima_and_maximisers_sorted = sorted(maxima_and_maximisers, key=itemgetter(0), reverse=True)
     opt_gratings_sorted = sorted(maxima_and_gratings, key=itemgetter(0), reverse=True)
-    chosen_best_grating = opt_gratings_sorted[output_opt_idx][1]
+    try:
+        chosen_best_grating = opt_gratings_sorted[output_opt_idx][1]
+    except IndexError:  # TODO: search for the file name directly rather than handling here
+        raise FileNotFoundError(f"Warning: optimisation results were not loaded correctly. Check file name.")
 
     return maxima_and_maximisers_sorted, opt_gratings_sorted, chosen_best_grating
 
