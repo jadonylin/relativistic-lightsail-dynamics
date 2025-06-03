@@ -45,7 +45,7 @@ class TwoBox(PlotBox, QprBox):
 
     Uses GRCWA or TORCWA library to simulate the grating.
     Simulation is re-run if you change instance variables. 
-    All physical lengths pertaining to the grating are normalised by the excitation/laser wavelength.
+    All physical lengths pertaining to the grating are in units of the excitation wavelength.
 
     Attributes
     ----------
@@ -59,7 +59,7 @@ class TwoBox(PlotBox, QprBox):
     gaussian_width        :   A float for the Gaussian beam width (metres)
     substrate_depth       :   A float for the substrate layer depth/height/thickness
     substrate_eps         :   A float for the substrate permittiivty
-    wavelength            :   A float for the excitation-plane-wave wavelength (laser-frame wavelength)
+    wavelength            :   A float for the excitation-plane-wave wavelength 
     angle                 :   A float for the excitation-plane-wave angle
     Nx                    :   An integer for the number of grid points in the unit cell
     nG                    :   An integer for the number of Fourier components used in the RCWA simulation
@@ -250,17 +250,27 @@ class TwoBox(PlotBox, QprBox):
         """
         self._params = []
         for param_name in parameters.param_names:
-            if param_name not in self.fixed_parameters:
-                self._params.append(getattr(self, param_name))
+            try:
+                if param_name not in self.fixed_parameters:
+                    self._params.append(getattr(self, param_name))
+            except AttributeError:
+                print("Warning: self.fixed_parameters was not defined for this grating. Returning all params")
+                _all_params = [self.grating_pitch, self.grating_depth, 
+                               self.box1_width, self.box2_width, self.box_centre_dist, self.box1_eps, self.box2_eps, 
+                               self.gaussian_width, self.substrate_depth, self.substrate_eps]
+                return _all_params
         return self._params
     @params.setter
     def params(self, new_params: list[float]):  # Don't cast new_params to npa.array, else torch gradients will be zero
         self._params = new_params
         new_param_idx = 0
         for param_name in parameters.param_names:
-            if param_name not in self.fixed_parameters:
-                setattr(self, param_name, new_params[new_param_idx])
-                new_param_idx += 1
+            try:
+                if param_name not in self.fixed_parameters:
+                    setattr(self, param_name, new_params[new_param_idx])
+                    new_param_idx += 1
+            except AttributeError:
+                print("Warning: self.fixed_parameters was not defined for this grating. Ignoring params setter")
         self.build_grating_gradable()  # TODO: I think every instance method calls init_RCWA, so this is not needed
 
 
