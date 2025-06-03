@@ -29,8 +29,8 @@ def FoM(grating, I: float=1e9, grad_method: str="finite") -> float:
     """
     # TODO: implement switching between FOMs. Difficult due to the many instances of FOM calls that
     #       need a string argument added.
-    # return FoM_asymp(grating,I,grad_method)
-    return FoM_damp(grating,I,grad_method)
+    return FoM_asymp(grating,I,grad_method)
+    # return FoM_damp(grating,I,grad_method)
 
 
 def FoM_damp(grating, I: float=1e9, grad_method: str="grad") -> float:
