@@ -270,19 +270,26 @@ class PlotBox:
         
         return fig, ax
 
-    def show_spectrum(self, angle: float=0., efficiency_quantity: str="PDr", wavelength_range: list=[1., 1.5], num_plot_points: int=200, I: float=10e9, grad_method: str="grad"):
+    def show_spectrum(self, angle: float=0., efficiency_quantity: str="PDr", wavelength_range: list=[1., 1.5], I: float=10e9, 
+                      num_plot_points: int=200, grad_method: str="grad", **kwargs):
         """
         Show spectrum of various efficiency quantities for the twobox.
 
         Parameters
         ----------
         angle               :   Angle of incident plane wave excitation (radians)
-        efficiency_quantity :   The efficiency quantity you want spectrum for
-                                "r" - reflection, "PDr" - reflection angular derivative, 
-                                "t" - transmission, "PDr" - transmission angular derivative)
+        efficiency_quantity :   The efficiency quantity you want spectrum for:
+                                    "r" - reflection
+                                    "PDr" - reflection angular derivative, 
+                                    "PDrlam" - reflection wavelength derivative, 
+                                    "t" - transmission
+                                    "PDt" - transmission angular derivative
+                                    "PDtlam" - transmission wavelength derivative
         wavelength_range    :   Wavelength range to plot spectrum (same units as grating pitch)
         num_plot_points     :   Number of points to plot
         I                   :   Laser intensity
+        kwargs              :   Additional keyword arguments for plotting:
+                                    "wavelength_to_freq_offset" to convert wavelength to frequency offset derivative
 
         Returns
         -------
@@ -290,19 +297,21 @@ class PlotBox:
         ax  :   Spectrum axs object
         """
 
-        allowed_quantities = ("r", "t", "PDr", "PDt")
+        allowed_quantities = ("r", "t", "PDr", "PDt", "PDrlam", "PDtlam")
         if efficiency_quantity not in allowed_quantities:
             invalid_quantity_message = f"Invalid efficiency quantity. Allowed quantities are: {allowed_quantities}"
             raise ValueError(invalid_quantity_message)
         
         wavelengths = np.linspace(*wavelength_range, num_plot_points)
         init_wavelength = self.wavelength  # record user-initialised wavelength
+        init_angle = self.angle  # record user-initialised angle
         inc_angle_deg = angle*180/np.pi
      
         RT_orders = [-1,0,1]
         n_orders = len(RT_orders)
         efficiencies = np.zeros((2*n_orders,num_plot_points), dtype=float)
         
+        self.angle = angle  # temporarily update grating angle for efficiency calculations
         for idx, lam in enumerate(wavelengths):
             self.wavelength = lam
             
@@ -313,28 +322,43 @@ class PlotBox:
             elif efficiency_quantity == "PDr":
                 efficiencies[0,idx] = self.to_numpy(self.PDrNeg1(angle)) # this removes the autograd function -- ok for plotting
                 efficiencies[1,idx] = self.to_numpy(self.PDr0(angle)) 
+                # TODO: for some reason, calling derivative functions 3 times in a row throws an undiagonsable 
+                #       RuntimeError: internal asset failed. Fixed by resetting a parameter in between, 
+                #       e.g. wavelength. Is torch trying to save the results of each call between runs?
+                self.wavelength = lam  
                 efficiencies[2,idx] = self.to_numpy(self.PDr1(angle)) 
             elif efficiency_quantity == "PDt":
                 efficiencies[0,idx] = self.to_numpy(self.PDtNeg1(angle)) # this removes the autograd function -- ok for plotting
                 efficiencies[1,idx] = self.to_numpy(self.PDt0(angle)) 
+                self.wavelength = lam
                 efficiencies[2,idx] = self.to_numpy(self.PDt1(angle)) 
+            elif efficiency_quantity == "PDrlam":
+                efficiencies[0,idx] = self.to_numpy(self.PDrNeg1PDwavelength(lam))
+                efficiencies[1,idx] = self.to_numpy(self.PDr0PDwavelength(lam))
+                # self.wavelength = lam
+                efficiencies[2,idx] = self.to_numpy(self.PDr1PDwavelength(lam))
+                wavelength_to_freq_offset = True  # TODO: make this an argument in a neat way. Perhaps kwarg?
+                if wavelength_to_freq_offset:
+                    efficiencies = lam**2/init_wavelength*efficiencies
+            elif efficiency_quantity == "PDtlam":
+                efficiencies[0,idx] = self.to_numpy(self.PDtNeg1PDwavelength(lam))
+                efficiencies[1,idx] = self.to_numpy(self.PDt0PDwavelength(lam))
+                self.wavelength = lam
+                efficiencies[2,idx] = self.to_numpy(self.PDt1PDwavelength(lam))
 
         self.wavelength = init_wavelength
-
+        self.angle = init_angle  
 
         fig, ax = plt.subplots(1)         
         p = self.to_numpy(self.grating_pitch)
         ax.set_xlim(wavelength_range/p)  # normalise wavelength to grating pitch
-        legend_needed = ("r", "t", "PDr", "PDt")
+        legend_needed = ("r", "t", "PDr", "PDt", "PDrlam", "PDtlam")
         symlog_needed = ("PDr", "PDt")
 
-
+        # TODO: simplify this control flow
         if efficiency_quantity == "r":
-            # -1 order
             ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$r_{-1}'$", lw = LINE_WIDTH) 
-            # 0 order
             ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$r_0'$", lw = LINE_WIDTH) 
-            # 1 order
             ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$r_1'$", lw = LINE_WIDTH) 
             ax.set_ylim([-0.01, 1.01]) 
             ylabel = rf"Reflection at $\theta' = {inc_angle_deg:.2f}°$"
@@ -360,6 +384,22 @@ class PlotBox:
             ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$m=0$", lw = LINE_WIDTH) 
             ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$m=1$", lw = LINE_WIDTH) 
             ylabel = rf"$\frac{{\partial t_{{m}}'}}{{\partial\theta'}}({inc_angle_deg:.2f}°)$"
+        elif efficiency_quantity == "PDrlam":
+            ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$m=-1$", lw = LINE_WIDTH) 
+            ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$m=0$", lw = LINE_WIDTH) 
+            ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$m=1$", lw = LINE_WIDTH)
+            # ax.plot(wavelengths/p, np.sum(efficiencies,axis=0), color='black', linestyle='-', label="$\sum$", lw = LINE_WIDTH) 
+            ax.plot(wavelengths/p, efficiencies[2]+efficiencies[0], color='orange', linestyle='--', label="$\Sigma r$", lw = LINE_WIDTH) 
+            ax.plot(wavelengths/p, efficiencies[2]-efficiencies[0], color='red', linestyle='--', label="$\Delta r$", lw = LINE_WIDTH) 
+            if wavelength_to_freq_offset:
+                ylabel = rf"$\frac{{\partial r_{{m}}'}}{{\partial\bar{{\nu}}'}}$"
+            else:
+                ylabel = rf"$\frac{{\partial r_{{m}}'}}{{\partial\lambda'}}$"
+        elif efficiency_quantity == "PDtlam":
+            ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$m=-1$", lw = LINE_WIDTH) 
+            ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$m=0$", lw = LINE_WIDTH) 
+            ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$m=1$", lw = LINE_WIDTH) 
+            ylabel = rf"$\frac{{\partial t_{{m}}'}}{{\partial\lambda'}}$"
 
       
         if efficiency_quantity in legend_needed:

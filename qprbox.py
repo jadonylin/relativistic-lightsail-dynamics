@@ -10,51 +10,57 @@ class QprBox:
     """
     Radiation-pressure effiency factor calculations for TwoBox gratings.
     """
-    def rNeg1(self, angle):
+    def rNeg1(self, angle:float, wavelength: float=1.):
         """
         Calculates r_{-1} reflection efficiency at given excitation-plane-wave angle
         """
         self.angle = angle
+        self.wavelength = wavelength
         r = self.eff()[0][0]
         return r
     
-    def tNeg1(self, angle):
+    def tNeg1(self, angle:float, wavelength: float=1.):
         """
         Calculates t_{-1} reflection efficiency at given excitation-plane-wave angle
         """
         self.angle = angle
+        self.wavelength = wavelength
         t = self.eff()[1][0]
         return t
 
-    def r0(self, angle):
+    def r0(self, angle:float, wavelength: float=1.):
         """
         Calculates r_{0} reflection efficiency at given excitation-plane-wave angle
         """
         self.angle = angle
+        self.wavelength = wavelength
         r = self.eff()[0][1]
         return r
     
-    def t0(self, angle):
+    def t0(self, angle:float, wavelength: float=1.):
         """
         Calculates t_{0} reflection efficiency at given excitation-plane-wave angle
         """
         self.angle = angle
+        self.wavelength = wavelength
         t = self.eff()[1][1]
         return t
 
-    def r1(self, angle):
+    def r1(self, angle:float, wavelength: float=1.):
         """
         Calculates r_{1} reflection efficiency at given excitation-plane-wave angle
         """
         self.angle = angle
+        self.wavelength = wavelength
         r = self.eff()[0][2]
         return r
     
-    def t1(self, angle):
+    def t1(self, angle:float, wavelength: float=1.):
         """
         Calculates t_{1} reflection efficiency at given excitation-plane-wave angle
         """
         self.angle = angle
+        self.wavelength = wavelength
         t = self.eff()[1][2]
         return t
 
@@ -63,11 +69,14 @@ class QprBox:
         Calculates gradient of r_{-1} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         
-        NOTE: I think it is necessary to set and restore self.angle for the angle derivatives to be gradable
+        NOTE: For some reason, you have to set and restore self.angle and self.wavelength in order for 
+              consecutive PDrNeg1 calls and optimisation gradient, respectively, to function. 
         """
         input_angle = self.angle  
-        _PDrNeg1 = self.npa.grad(self.rNeg1)(self.npa.array(angle)) 
+        input_wavelength = self.wavelength
+        _PDrNeg1 = self.npa.grad(self.rNeg1, argnum=0)(self.npa.array(angle), self.wavelength)
         self.angle = input_angle  
+        self.wavelength = input_wavelength
         return _PDrNeg1
     
     def PDtNeg1(self, angle: float=0.):
@@ -75,9 +84,11 @@ class QprBox:
         Calculates gradient of t_{-1} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         """
-        input_angle = self.angle
-        _PDtNeg1 = self.npa.grad(self.tNeg1)(self.npa.array(angle)) # PD_both_Q(self, params)
+        input_angle = self.angle  
+        input_wavelength = self.wavelength
+        _PDtNeg1 = self.npa.grad(self.tNeg1, argnum=0)(self.npa.array(angle), self.wavelength)
         self.angle = input_angle  
+        self.wavelength = input_wavelength
         return _PDtNeg1
     
     def PDr0(self, angle: float=0.):
@@ -85,9 +96,11 @@ class QprBox:
         Calculates gradient of r_{0} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         """
-        input_angle = self.angle
-        _PDr0 = self.npa.grad(self.r0)(self.npa.array(angle)) # PD_both_Q(self, params)
+        input_angle = self.angle  
+        input_wavelength = self.wavelength
+        _PDr0 = self.npa.grad(self.r0, argnum=0)(self.npa.array(angle), self.wavelength)
         self.angle = input_angle  
+        self.wavelength = input_wavelength
         return _PDr0
     
     def PDt0(self, angle: float=0.):
@@ -95,9 +108,11 @@ class QprBox:
         Calculates gradient of t_{0} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         """
-        input_angle = self.angle
-        _PDt0 = self.npa.grad(self.t0)(self.npa.array(angle)) # PD_both_Q(self, params)
+        input_angle = self.angle  
+        input_wavelength = self.wavelength
+        _PDt0 = self.npa.grad(self.t0, argnum=0)(self.npa.array(angle), self.wavelength)
         self.angle = input_angle  
+        self.wavelength = input_wavelength
         return _PDt0
 
     def PDr1(self, angle: float=0.):
@@ -105,9 +120,11 @@ class QprBox:
         Calculates gradient of r_{1} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         """
-        input_angle = self.angle
-        _PDr1 = self.npa.grad(self.r1)(self.npa.array(angle)) # PD_both_Q(self, params)
+        input_angle = self.angle  
+        input_wavelength = self.wavelength
+        _PDr1 = self.npa.grad(self.r1, argnum=0)(self.npa.array(angle), self.wavelength)
         self.angle = input_angle  
+        self.wavelength = input_wavelength
         return _PDr1
     
     def PDt1(self, angle: float=0.):
@@ -115,9 +132,101 @@ class QprBox:
         Calculates gradient of t_{1} reflection efficiency with respect to excitation-plane-wave angle 
         at a given excitation-plane-wave angle
         """
-        input_angle = self.angle
-        _PDt1 = self.npa.grad(self.t1)(self.npa.array(angle)) # PD_both_Q(self, params)
+        input_angle = self.angle  
+        input_wavelength = self.wavelength
+        _PDt1 = self.npa.grad(self.t1, argnum=0)(self.npa.array(angle), self.wavelength)
         self.angle = input_angle  
+        self.wavelength = input_wavelength
+        return _PDt1
+
+    def PDrNeg1PDwavelength(self, wavelength: float=1.):
+        """
+        Calculates gradient of r_{-1} reflection efficiency with respect to excitation-plane-wave wavelength 
+        at a given excitation-plane-wave wavelength
+        
+        NOTE: I think it is necessary to set and restore self.wavelength for the wavelength derivatives 
+              to be gradable
+        """
+        input_angle = self.angle
+        input_wavelength = self.wavelength
+        _PDrNeg1 = self.npa.grad(self.rNeg1, argnum=1)(self.angle, self.npa.array(wavelength))
+        self.angle = input_angle  
+        self.wavelength = input_wavelength
+        return _PDrNeg1
+    
+    def PDtNeg1PDwavelength(self, wavelength: float=1.):
+        """
+        Calculates gradient of t_{-1} reflection efficiency with respect to excitation-plane-wave wavelength 
+        at a given excitation-plane-wave wavelength
+        
+        NOTE: I think it is necessary to set and restore self.wavelength for the wavelength derivatives 
+              to be gradable
+        """
+        input_angle = self.angle  
+        input_wavelength = self.wavelength
+        _PDtNeg1 = self.npa.grad(self.tNeg1, argnum=1)(self.angle, self.npa.array(wavelength))
+        self.angle = input_angle  
+        self.wavelength = input_wavelength
+        return _PDtNeg1
+    
+    def PDr0PDwavelength(self, wavelength: float=1.):
+        """
+        Calculates gradient of r_{0} reflection efficiency with respect to excitation-plane-wave wavelength 
+        at a given excitation-plane-wave wavelength
+        
+        NOTE: I think it is necessary to set and restore self.wavelength for the wavelength derivatives 
+              to be gradable
+        """
+        input_angle = self.angle  
+        input_wavelength = self.wavelength
+        _PDr0 = self.npa.grad(self.r0, argnum=1)(self.angle, self.npa.array(wavelength))
+        self.angle = input_angle  
+        self.wavelength = input_wavelength
+        return _PDr0
+    
+    def PDt0PDwavelength(self, wavelength: float=1.):
+        """
+        Calculates gradient of t_{0} reflection efficiency with respect to excitation-plane-wave wavelength 
+        at a given excitation-plane-wave wavelength
+        
+        NOTE: I think it is necessary to set and restore self.wavelength for the wavelength derivatives 
+              to be gradable
+        """
+        input_angle = self.angle  
+        input_wavelength = self.wavelength
+        _PDt0 = self.npa.grad(self.t0, argnum=1)(self.angle, self.npa.array(wavelength))
+        self.angle = input_angle  
+        self.wavelength = input_wavelength
+        return _PDt0
+    
+    def PDr1PDwavelength(self, wavelength: float=1.):
+        """
+        Calculates gradient of r_{1} reflection efficiency with respect to excitation-plane-wave wavelength 
+        at a given excitation-plane-wave wavelength
+        
+        NOTE: I think it is necessary to set and restore self.wavelength for the wavelength derivatives 
+              to be gradable
+        """
+        input_angle = self.angle  
+        input_wavelength = self.wavelength
+        _PDr1 = self.npa.grad(self.r1, argnum=1)(self.angle, self.npa.array(wavelength))
+        self.angle = input_angle  
+        self.wavelength = input_wavelength
+        return _PDr1
+    
+    def PDt1PDwavelength(self, wavelength: float=1.):
+        """
+        Calculates gradient of t_{1} reflection efficiency with respect to excitation-plane-wave wavelength 
+        at a given excitation-plane-wave wavelength
+        
+        NOTE: I think it is necessary to set and restore self.wavelength for the wavelength derivatives 
+              to be gradable
+        """
+        input_angle = self.angle  
+        input_wavelength = self.wavelength
+        _PDt1 = self.npa.grad(self.t1, argnum=1)(self.angle, self.npa.array(wavelength))
+        self.angle = input_angle  
+        self.wavelength = input_wavelength
         return _PDt1
 
     def diffraction_angle(self, m):
@@ -204,7 +313,6 @@ class QprBox:
 
         return Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength
 
-
     def return_Qs_auto(self, return_Q: bool=True):
         """
         Calculate efficiency factors, and their derivatives using automatic differentiation.
@@ -220,13 +328,9 @@ class QprBox:
             self.angle = angle
             self.wavelength = wavelength
             return self.Q()
-            # for debuging
-            # return self.Q_trivial()
-            # end debugging
 
-        # Q_jacobian = self.npa.jacobian(Q_both, argnum=1)
         params = self.npa.array([input_angle, input_wavelength])
-        Q_jacobian = self.npa.jacobian(Q_both)(params).squeeze() # PD_both_Q(self, params)
+        Q_jacobian = self.npa.jacobian(Q_both)(params).squeeze() 
       
         PD_Q1_angle = Q_jacobian[0][0]
         PD_Q2_angle = Q_jacobian[1][0]
@@ -241,4 +345,3 @@ class QprBox:
             return Q1, Q2, PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength
         else:
             return PD_Q1_angle, PD_Q2_angle, PD_Q1_wavelength, PD_Q2_wavelength
-    
