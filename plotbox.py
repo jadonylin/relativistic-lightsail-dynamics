@@ -289,7 +289,7 @@ class PlotBox:
         num_plot_points     :   Number of points to plot
         I                   :   Laser intensity
         kwargs              :   Additional keyword arguments for plotting:
-                                    "wavelength_to_freq_offset" to convert wavelength to frequency offset derivative
+                                    "show_freq_grad" to convert wavelength to frequency offset derivative
 
         Returns
         -------
@@ -322,28 +322,20 @@ class PlotBox:
             elif efficiency_quantity == "PDr":
                 efficiencies[0,idx] = self.to_numpy(self.PDrNeg1(angle)) # this removes the autograd function -- ok for plotting
                 efficiencies[1,idx] = self.to_numpy(self.PDr0(angle)) 
-                # TODO: for some reason, calling derivative functions 3 times in a row throws an undiagonsable 
-                #       RuntimeError: internal asset failed. Fixed by resetting a parameter in between, 
-                #       e.g. wavelength. Is torch trying to save the results of each call between runs?
-                self.wavelength = lam  
                 efficiencies[2,idx] = self.to_numpy(self.PDr1(angle)) 
             elif efficiency_quantity == "PDt":
                 efficiencies[0,idx] = self.to_numpy(self.PDtNeg1(angle)) # this removes the autograd function -- ok for plotting
                 efficiencies[1,idx] = self.to_numpy(self.PDt0(angle)) 
-                self.wavelength = lam
                 efficiencies[2,idx] = self.to_numpy(self.PDt1(angle)) 
             elif efficiency_quantity == "PDrlam":
                 efficiencies[0,idx] = self.to_numpy(self.PDrNeg1PDwavelength(lam))
                 efficiencies[1,idx] = self.to_numpy(self.PDr0PDwavelength(lam))
-                # self.wavelength = lam
                 efficiencies[2,idx] = self.to_numpy(self.PDr1PDwavelength(lam))
-                wavelength_to_freq_offset = True  # TODO: make this an argument in a neat way. Perhaps kwarg?
-                if wavelength_to_freq_offset:
-                    efficiencies = lam**2/init_wavelength*efficiencies
+                if kwargs["show_freq_grad"]:
+                    efficiencies[:,idx] = lam**2/self.to_numpy(init_wavelength)*efficiencies[:,idx]
             elif efficiency_quantity == "PDtlam":
                 efficiencies[0,idx] = self.to_numpy(self.PDtNeg1PDwavelength(lam))
                 efficiencies[1,idx] = self.to_numpy(self.PDt0PDwavelength(lam))
-                self.wavelength = lam
                 efficiencies[2,idx] = self.to_numpy(self.PDt1PDwavelength(lam))
 
         self.wavelength = init_wavelength
@@ -389,9 +381,9 @@ class PlotBox:
             ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$m=0$", lw = LINE_WIDTH) 
             ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$m=1$", lw = LINE_WIDTH)
             # ax.plot(wavelengths/p, np.sum(efficiencies,axis=0), color='black', linestyle='-', label="$\sum$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[2]+efficiencies[0], color='orange', linestyle='--', label="$\Sigma r$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[2]-efficiencies[0], color='red', linestyle='--', label="$\Delta r$", lw = LINE_WIDTH) 
-            if wavelength_to_freq_offset:
+            ax.plot(wavelengths/p, efficiencies[2]+efficiencies[0], color='orange', linestyle='--', label=r"$\Sigma r$", lw = LINE_WIDTH) 
+            ax.plot(wavelengths/p, efficiencies[2]-efficiencies[0], color='red', linestyle='--', label=r"$\Delta r$", lw = LINE_WIDTH) 
+            if kwargs["show_freq_grad"]:
                 ylabel = rf"$\frac{{\partial r_{{m}}'}}{{\partial\bar{{\nu}}'}}$"
             else:
                 ylabel = rf"$\frac{{\partial r_{{m}}'}}{{\partial\lambda'}}$"
