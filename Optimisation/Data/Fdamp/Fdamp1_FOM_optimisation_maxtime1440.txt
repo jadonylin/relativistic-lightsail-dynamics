@@ -1,0 +1,195 @@
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-02 10:05:59.221504
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 186, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-02 10:35:12.144700
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 380, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-02 12:13:00.578591
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 160, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-02 13:11:20.021895
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 320, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-02 13:18:05.938756
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 320, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-02 13:23:24.882746
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 96, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-02 13:55:07.122620
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 90, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-02 16:48:38.454786
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 180, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-02 16:56:21.599973
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 180, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-02 17:08:27.907470
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 360, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-02 17:27:49.816573
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 360, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-02 17:32:26.557783
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 720, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-02 17:35:46.719410
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 720, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-02 17:38:36.412558
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 720, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-03 09:20:32.665249
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['gaussian_width', 'substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 1.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.106), np.float64(1.605)), (0.01, np.float64(2.4074999999999998)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.016050000000000002), np.float64(1.605)), (np.float64(0.04815), np.float64(0.8025)), (2.25, 12.25), (2.25, 12.25)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+6', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 200, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
