@@ -397,7 +397,7 @@ def sail_stiffness(grating, I: float=10e9, m: float=1/1000, c1:float=299792458,
             raise ValueError("Invalid output format. Must be 'tr' or 'rd'.")
         
 def Eigs(grating, I: float=10e9, m: float=1/1000, c1:float=299792458, 
-         grad_method: str='finite', return_vec: bool = False):
+         grad_method: str='finite', return_vec: bool = False, normalise: bool=False):
     """
     Calculate eigendecomposition of Jacobian matrix at equilibrium
 
@@ -416,7 +416,12 @@ def Eigs(grating, I: float=10e9, m: float=1/1000, c1:float=299792458,
     eigImag :   Imaginary part of Jacobian eigenvalues
     eigvecs :   Eigenvectors of Jacobian matrix, normalised to unit length
     """
-    stiffnesses = sail_stiffness(grating,I,m,c1,grad_method,out="mat")
+    stiffnesses = sail_stiffness(grating,I,m,c1,grad_method,out="mat",normalise=normalise)
+    if normalise:
+        Ev = I*L**2/(m*c1**3)  # Dimensionless energy-velocity product
+        MoIEv = 12*Ev  # Multiplied by moment of inertia inverse prefactor. TODO: generalise to arbitrary moment of inertia 
+        stiffnesses[0,:] = Ev*stiffnesses[0,:]
+        stiffnesses[1,:] = MoIEv*stiffnesses[1,:]
     J = grating.npa.concatenate((grating.npa.array([[0,0,1,0],[0,0,0,1]]), stiffnesses))  # Jacobian matrix
     if return_vec:
         eigvals, eigvecs = grating.npa.eig(J)
@@ -456,5 +461,5 @@ def lsa_info(grating, I: float=0.5e9, normalise: bool=False):
     stiffnesses = sail_stiffness(grating,I,m,c,grad_method="grad",out="rd",normalise=normalise)
     rest_coeffs = tuple([*stiffnesses[:4]])
     damp_coeffs = tuple([*stiffnesses[4:]])
-    eigReal, eigImag, eigvecs = Eigs(grating,I,m,c,grad_method="grad",return_vec=True)
+    eigReal, eigImag, eigvecs = Eigs(grating,I,m,c,grad_method="grad",return_vec=True, normalise=normalise)
     return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs
