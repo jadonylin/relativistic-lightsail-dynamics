@@ -28,17 +28,14 @@ import Optimisation.opt as opt
 t_start = time.time()
 
 ## Initialise grating
-runID = "MdSnpmin20_mirror"
-num_cores = 90
+runID = "Fasymp20_fixed_gaussian_near_cutoff"
+num_cores = 200
 # maxfev = 500
-maxtime = 1410.0
+maxtime = 1440
 # opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxfev{num_cores*maxfev}"
 opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxtime{maxtime}"
-_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=0)
-try:
-    op = _opt_grating.all_params[:]
-except AttributeError:
-    op = _opt_grating.params
+_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=3)
+op = _opt_grating.all_params[:]
 
 # Set custom parameters, if needed. If not needed, can just set "grating" to the extracted grating above.
 wavelength       = 1.
@@ -47,14 +44,9 @@ Nx               = 100
 numG             = 12
 Qabs             = np.inf
 
-# Fdmp_params = [1.226     , 2.90479687, 0.31178695, 0.0071848 , 0.9995    , 2.96553672, 4.30675011]
-# grating = TwoBox(*Fdmp_params, gaussian_width=50., substrate_depth=1., substrate_eps=-1e6,
-#                       wavelength=1., angle=0., Nx=100, nG=12, Qabs=np.inf,
-#                       RCWA_engine="TORCWA", torcwa_edge_sharpness=45)
-
 print(op)
 grating = TwoBox(*op, wavelength=wavelength, angle=angle, Nx=Nx, nG=numG, Qabs=Qabs, 
-                 RCWA_engine="TORCWA", torcwa_edge_sharpness=45, fixed_parameters=)
+                 RCWA_engine="TORCWA", torcwa_edge_sharpness=45)
 
 
 klambda = 1000  # Number of lambda' points
@@ -63,7 +55,7 @@ lambda_final = 1/D1_ND(v_final)
 lambda_array = np.linspace(wavelength, lambda_final, klambda)
 
 kdelta = 1000  # Number of delta' points
-delta_max = 5.*np.pi/180  # IMPORTANT: must be set according to the grating cutoffs
+delta_max = 0.97*np.pi/180  # IMPORTANT: must be set according to the grating cutoffs
 delta_min = -delta_max
 delta_array = np.linspace(delta_min, delta_max, kdelta)
 
