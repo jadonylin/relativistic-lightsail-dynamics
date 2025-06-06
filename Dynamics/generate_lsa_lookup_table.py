@@ -17,9 +17,10 @@ runID = "Fasymp20_fixed_gaussian_near_cutoff"
 num_cores = 200
 # maxfev = 500
 maxtime = 1440
+output_opt_idx = 7
 # opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxfev{num_cores*maxfev}"
 opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxtime{maxtime}"
-_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=3)
+_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=output_opt_idx)
 try:
     op = _opt_grating.all_params[:]
 except AttributeError:
