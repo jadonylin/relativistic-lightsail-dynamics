@@ -35,6 +35,7 @@ import sys
 sys.path.append("../")
 
 import opt 
+import parameters
 from parameters import OptimisationSettings, Hyperparameters, Bounds
 
 
@@ -100,10 +101,13 @@ with open(txt_dir, "a") as result_file:
 # subsidiary parameter ranges whose union is the full h1 parameter range set by the user. Each core optimises over one of 
 # those subsidiary h1 ranges, and saves the found most-optimal grating and all optimisation parameters into a dictionary 
 # that is stored in .pkl file. The optimisation results for all cores are stored in the same .pkl file.
-
+if "grating_pitch" in parameters.fixed_parameters:
+    h1_idx = 0
+else:
+    h1_idx = 1
 def optimise_partitioned_depth(h1_bounds):
     _param_bounds = param_bounds[:]
-    _param_bounds[1] = tuple([*h1_bounds])  # Must unpack a single argument for pool.imap to be applied correctly
+    _param_bounds[h1_idx] = tuple([*h1_bounds])  # Must unpack a single argument for pool.imap to be applied correctly
     return opt.global_optimise(Hyperparameters(), sampling, seed, n_sample, maxstop, xtol_rel, ftol_rel, _param_bounds)
 
 h1_bounds = []
