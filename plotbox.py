@@ -297,103 +297,152 @@ class PlotBox:
         ax  :   Spectrum axs object
         """
 
-        allowed_quantities = ("r", "t", "PDr", "PDt", "PDrlam", "PDtlam")
+        allowed_quantities = ("r", "t", "rt", "PDr", "PDt", "PDrt", "PDrlam", "PDtlam", "PDrtlam")
         if efficiency_quantity not in allowed_quantities:
             invalid_quantity_message = f"Invalid efficiency quantity. Allowed quantities are: {allowed_quantities}"
             raise ValueError(invalid_quantity_message)
         
         wavelengths = np.linspace(*wavelength_range, num_plot_points)
+        p = self.to_numpy(self.grating_pitch)
         init_wavelength = self.wavelength  # record user-initialised wavelength
         init_angle = self.angle  # record user-initialised angle
         inc_angle_deg = angle*180/np.pi
      
         RT_orders = [-1,0,1]
         n_orders = len(RT_orders)
-        efficiencies = np.zeros((2*n_orders,num_plot_points), dtype=float)
+        efficiencies = np.zeros((2*n_orders,num_plot_points), dtype=float)  # rows 0-5: r_-1, r_0, r_1, t_-1, t_0, t_1
+        diffraction_trig = np.zeros((2*n_orders,num_plot_points), dtype=float)  # sines and cosines of diffraction angles
         
         self.angle = angle  # temporarily update grating angle for efficiency calculations
         for idx, lam in enumerate(wavelengths):
             self.wavelength = lam
-            
-            if efficiency_quantity == "r" or efficiency_quantity == "t":
-                Rs,Ts = self.eff()
-                efficiencies[:n_orders,idx] = self.to_numpy(Rs)
-                efficiencies[n_orders:,idx] = self.to_numpy(Ts)
-            elif efficiency_quantity == "PDr":
-                efficiencies[0,idx] = self.to_numpy(self.PDrNeg1(angle)) # this removes the autograd function -- ok for plotting
-                efficiencies[1,idx] = self.to_numpy(self.PDr0(angle)) 
-                efficiencies[2,idx] = self.to_numpy(self.PDr1(angle)) 
-            elif efficiency_quantity == "PDt":
-                efficiencies[0,idx] = self.to_numpy(self.PDtNeg1(angle)) # this removes the autograd function -- ok for plotting
-                efficiencies[1,idx] = self.to_numpy(self.PDt0(angle)) 
-                efficiencies[2,idx] = self.to_numpy(self.PDt1(angle)) 
-            elif efficiency_quantity == "PDrlam":
-                efficiencies[0,idx] = self.to_numpy(self.PDrNeg1PDwavelength(lam))
-                efficiencies[1,idx] = self.to_numpy(self.PDr0PDwavelength(lam))
-                efficiencies[2,idx] = self.to_numpy(self.PDr1PDwavelength(lam))
-                if kwargs["show_freq_grad"]:
-                    efficiencies[:,idx] = lam**2/self.to_numpy(init_wavelength)*efficiencies[:,idx]
-            elif efficiency_quantity == "PDtlam":
-                efficiencies[0,idx] = self.to_numpy(self.PDtNeg1PDwavelength(lam))
-                efficiencies[1,idx] = self.to_numpy(self.PDt0PDwavelength(lam))
-                efficiencies[2,idx] = self.to_numpy(self.PDt1PDwavelength(lam))
-
+            sm = lam/p
+            diffraction_trig[0,idx] = -sm
+            diffraction_trig[1,idx] = 0.
+            diffraction_trig[2,idx] = sm
+            diffraction_trig[3,idx] = diffraction_trig[5,idx] = np.sqrt(1 - sm**2) 
+            diffraction_trig[4,idx] = 1.
+            match efficiency_quantity: 
+                case "r" | "t" | "rt":
+                    Rs,Ts = self.eff()
+                    efficiencies[:n_orders,idx] = self.to_numpy(Rs)
+                    efficiencies[n_orders:,idx] = self.to_numpy(Ts)
+                case "PDr":
+                    efficiencies[0,idx] = self.to_numpy(self.PDrNeg1(angle)) # this removes the autograd function -- ok for plotting
+                    efficiencies[1,idx] = self.to_numpy(self.PDr0(angle)) 
+                    efficiencies[2,idx] = self.to_numpy(self.PDr1(angle)) 
+                case "PDt":
+                    efficiencies[3,idx] = self.to_numpy(self.PDtNeg1(angle)) # this removes the autograd function -- ok for plotting
+                    efficiencies[4,idx] = self.to_numpy(self.PDt0(angle)) 
+                    efficiencies[5,idx] = self.to_numpy(self.PDt1(angle)) 
+                case "PDrt":
+                    efficiencies[0,idx] = self.to_numpy(self.PDrNeg1(angle)) # this removes the autograd function -- ok for plotting
+                    efficiencies[1,idx] = self.to_numpy(self.PDr0(angle)) 
+                    efficiencies[2,idx] = self.to_numpy(self.PDr1(angle)) 
+                    efficiencies[3,idx] = self.to_numpy(self.PDtNeg1(angle))
+                    efficiencies[4,idx] = self.to_numpy(self.PDt0(angle)) 
+                    efficiencies[5,idx] = self.to_numpy(self.PDt1(angle)) 
+                case "PDrlam":
+                    efficiencies[0,idx] = self.to_numpy(self.PDrNeg1PDwavelength(lam))
+                    efficiencies[1,idx] = self.to_numpy(self.PDr0PDwavelength(lam))
+                    efficiencies[2,idx] = self.to_numpy(self.PDr1PDwavelength(lam))
+                    if kwargs["show_freq_grad"]:
+                        efficiencies[:,idx] = lam**2/self.to_numpy(init_wavelength)*efficiencies[:,idx]
+                case "PDtlam":
+                    efficiencies[3,idx] = self.to_numpy(self.PDtNeg1PDwavelength(lam))
+                    efficiencies[4,idx] = self.to_numpy(self.PDt0PDwavelength(lam))
+                    efficiencies[5,idx] = self.to_numpy(self.PDt1PDwavelength(lam))
+                    if kwargs["show_freq_grad"]:
+                        efficiencies[:,idx] = lam**2/self.to_numpy(init_wavelength)*efficiencies[:,idx]
+                case "PDrtlam":
+                    efficiencies[0,idx] = self.to_numpy(self.PDrNeg1PDwavelength(lam))
+                    efficiencies[1,idx] = self.to_numpy(self.PDr0PDwavelength(lam))
+                    efficiencies[2,idx] = self.to_numpy(self.PDr1PDwavelength(lam))
+                    efficiencies[3,idx] = self.to_numpy(self.PDtNeg1PDwavelength(lam))
+                    efficiencies[4,idx] = self.to_numpy(self.PDt0PDwavelength(lam))
+                    efficiencies[5,idx] = self.to_numpy(self.PDt1PDwavelength(lam))
+                    if kwargs["show_freq_grad"]:
+                        efficiencies[:,idx] = lam**2/self.to_numpy(init_wavelength)*efficiencies[:,idx]
         self.wavelength = init_wavelength
         self.angle = init_angle  
 
         fig, ax = plt.subplots(1)         
         p = self.to_numpy(self.grating_pitch)
         ax.set_xlim(wavelength_range/p)  # normalise wavelength to grating pitch
-        legend_needed = ("r", "t", "PDr", "PDt", "PDrlam", "PDtlam")
-        symlog_needed = ("PDr", "PDt")
+        legend_needed = ("r", "t", "rt", "PDr", "PDt", "PDrt", "PDrlam", "PDtlam", "PDrtlam")
+        symlog_needed = ("PDr", "PDt", "PDrt", "PDrlam", "PDtlam", "PDrtlam")
 
-        # TODO: simplify this control flow
-        if efficiency_quantity == "r":
-            ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$r_{-1}'$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$r_0'$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$r_1'$", lw = LINE_WIDTH) 
-            ax.set_ylim([-0.01, 1.01]) 
-            ylabel = rf"Reflection at $\theta' = {inc_angle_deg:.2f}°$"
-        elif efficiency_quantity == "t":
-            # -1 order
-            ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$r_{-1}'$", lw = LINE_WIDTH)
-            ax.plot(wavelengths/p, efficiencies[3], color=(0.7, 0, 0), linestyle='-.', label="$t_{-1}'$", lw = LINE_WIDTH)  
-            # 0 order
-            ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$r_0'$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[4], color='0.4', linestyle='-.', label="$t_0'$", lw = LINE_WIDTH) 
-            # 1 order
-            ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$r_1'$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[5], color=(0, 0, 0.7), linestyle='-.', label="$t_1'$", lw = LINE_WIDTH) 
-            ax.set_ylim([-0.01, 1.01]) 
-            ylabel = rf"Efficiency at $\theta' = {inc_angle_deg:.2f}°$"
-        elif efficiency_quantity == "PDr":
-            ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$m=-1$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$m=0$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$m=1$", lw = LINE_WIDTH) 
-            ylabel = rf"$\frac{{\partial r_{{m}}'}}{{\partial\theta'}}({inc_angle_deg:.2f}°)$"
-        elif efficiency_quantity == "PDt":
-            ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$m=-1$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$m=0$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$m=1$", lw = LINE_WIDTH) 
-            ylabel = rf"$\frac{{\partial t_{{m}}'}}{{\partial\theta'}}({inc_angle_deg:.2f}°)$"
-        elif efficiency_quantity == "PDrlam":
-            ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$m=-1$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$m=0$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$m=1$", lw = LINE_WIDTH)
-            # ax.plot(wavelengths/p, np.sum(efficiencies,axis=0), color='black', linestyle='-', label="$\sum$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[2]+efficiencies[0], color='orange', linestyle='--', label=r"$\Sigma r$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[2]-efficiencies[0], color='red', linestyle='--', label=r"$\Delta r$", lw = LINE_WIDTH) 
-            if kwargs["show_freq_grad"]:
-                ylabel = rf"$\frac{{\partial r_{{m}}'}}{{\partial\bar{{\nu}}'}}$"
-            else:
-                ylabel = rf"$\frac{{\partial r_{{m}}'}}{{\partial\lambda'}}$"
-        elif efficiency_quantity == "PDtlam":
-            ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$m=-1$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$m=0$", lw = LINE_WIDTH) 
-            ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$m=1$", lw = LINE_WIDTH) 
-            ylabel = rf"$\frac{{\partial t_{{m}}'}}{{\partial\lambda'}}$"
+        match efficiency_quantity:
+            case "r" | "PDr" | "PDrlam":
+                ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$r_{-1}'$", lw = LINE_WIDTH) 
+                ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$r_0'$", lw = LINE_WIDTH) 
+                ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$r_1'$", lw = LINE_WIDTH) 
+            case "t" | "PDt" | "PDtlam":
+                ax.plot(wavelengths/p, efficiencies[3], color=(0.7, 0, 0), linestyle='-', label="$t_{-1}'$", lw = LINE_WIDTH) 
+                ax.plot(wavelengths/p, efficiencies[4], color='0.4', linestyle='-', label="$t_0'$", lw = LINE_WIDTH) 
+                ax.plot(wavelengths/p, efficiencies[5], color=(0, 0, 0.7), linestyle='-', label="$t_1'$", lw = LINE_WIDTH) 
+            case "rt" | "PDrt" | "PDrtlam":
+                # -1 order
+                ax.plot(wavelengths/p, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$r_{-1}'$", lw = LINE_WIDTH)
+                ax.plot(wavelengths/p, efficiencies[3], color=(0.7, 0, 0), linestyle='-.', label="$t_{-1}'$", lw = LINE_WIDTH)  
+                # 0 order
+                ax.plot(wavelengths/p, efficiencies[1], color='0.4', linestyle='-', label="$r_0'$", lw = LINE_WIDTH) 
+                ax.plot(wavelengths/p, efficiencies[4], color='0.4', linestyle='-.', label="$t_0'$", lw = LINE_WIDTH) 
+                # 1 order
+                ax.plot(wavelengths/p, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$r_1'$", lw = LINE_WIDTH) 
+                ax.plot(wavelengths/p, efficiencies[5], color=(0, 0, 0.7), linestyle='-.', label="$t_1'$", lw = LINE_WIDTH)             
 
-      
+        cm_to_inch = 0.393701
+        fig_width = 20.85*cm_to_inch
+        fig_height = 17.6*cm_to_inch
+        match efficiency_quantity:
+            case "r":
+                ax.set_ylim([-0.01, 1.01]) 
+                ylabel = rf"Reflection at $\delta' = {inc_angle_deg:.2f}°$"
+            case "t":
+                ax.set_ylim([-0.01, 1.01]) 
+                ylabel = rf"Transmission at $\delta' = {inc_angle_deg:.2f}°$"
+            case "rt":
+                ax.set_ylim([-0.01, 1.01]) 
+                ylabel = rf"Efficiency at $\delta' = {inc_angle_deg:.2f}°$"
+            case "PDr":
+                ylabel = rf"$\frac{{\partial r_{{m}}'}}{{\partial\delta'}}({inc_angle_deg:.2f}°)$"
+            case "PDt":
+                ylabel = rf"$\frac{{\partial t_{{m}}'}}{{\partial\delta'}}({inc_angle_deg:.2f}°)$"
+            case "PDrt":
+                PDrs = efficiencies[:3,:]
+                PDts = efficiencies[3:,:]
+                sm = diffraction_trig[:3,:]
+                summand = (PDrs + PDts)*sm
+                ax.plot(wavelengths/p, np.sum(summand,axis=0), color='orange', linestyle='--', 
+                        label=r"$\sum_m(\partial r_m' + \partial t_m')s_m'$", lw = LINE_WIDTH) 
+                fig_width = 30.*cm_to_inch
+                ylabel = rf"$\frac{{\partial (r,t)_{{m}}'}}{{\partial\delta'}}({inc_angle_deg:.2f}°)$"
+            case "PDrlam":
+                ax.plot(wavelengths/p, efficiencies[2]+efficiencies[0], color='orange', linestyle='--', label=r"$\Sigma r$", lw = LINE_WIDTH) 
+                ax.plot(wavelengths/p, efficiencies[2]-efficiencies[0], color='red', linestyle='--', label=r"$\Delta r$", lw = LINE_WIDTH) 
+                if kwargs["show_freq_grad"]:
+                    ylabel = rf"$\frac{{\partial r_{{m}}'}}{{\partial\bar{{\nu}}'}}$"
+                else:
+                    ylabel = rf"$\frac{{\partial r_{{m}}'}}{{\partial\lambda'}}$"
+            case "PDtlam":
+                if kwargs["show_freq_grad"]:
+                    ylabel = rf"$\frac{{\partial t_{{m}}'}}{{\partial\bar{{\nu}}'}}$"
+                else:
+                    ylabel = rf"$\frac{{\partial t_{{m}}'}}{{\partial\lambda'}}$"
+            case "PDrtlam":
+                PDrs = efficiencies[:3,:]
+                PDts = efficiencies[3:,:]
+                cm = diffraction_trig[3:,:]
+                summand = (PDrs - PDts)*cm
+                ax.plot(wavelengths/p, np.sum(summand,axis=0), color='orange', linestyle='--', 
+                        label=r"$\sum_m(\partial r_m' - \partial t_m')c_m'$", lw = LINE_WIDTH) 
+                fig_width = 30.*cm_to_inch
+                if kwargs["show_freq_grad"]:
+                    ylabel = rf"$\frac{{\partial (r,t)_{{m}}'}}{{\partial\bar{{\nu}}'}}$"
+                else:
+                    ylabel = rf"$\frac{{\partial (r,t)_{{m}}'}}{{\partial\lambda'}}$"
+        
         if efficiency_quantity in legend_needed:
             leg = ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
             frame = leg.get_frame()
@@ -402,126 +451,13 @@ class PlotBox:
         if efficiency_quantity in symlog_needed:
             linthr = 0.1
             ax.set_yscale("symlog", linthresh=linthr, linscale=0.4)
-            ax.yaxis.set_minor_locator(MinorSymLogLocator(linthr))
-        
+            ax.yaxis.set_minor_locator(MinorSymLogLocator(linthr))        
 
         ax.axhline(y=0, color='black', linestyle='-', lw = '1')
         ax.tick_params(axis='both', which='both', direction='in') # ticks inside box
         ax.set(title=rf"{self.title} $h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$", xlabel=r"$\lambda'/\Lambda'$", ylabel=ylabel)
-
-
-        cm_to_inch = 0.393701
-        fig_width = 20.85*cm_to_inch
-        fig_height = 17.6*cm_to_inch
         fig.set_size_inches(fig_width/1.2, fig_height/1.2)
         
-        return fig, ax
-
-
-    def show_depth_dependence(self, angle: float=0., efficiency_quantity: str="PDr", depth_range: list=[0., 1.], num_plot_points: int=200):
-        """
-        TODO: update function documentation. This function is basically unused.
-
-        Show grating depth dependence for the twobox.
-
-        Parameters
-        ----------
-        angle               :   Angle of incident plane wave excitation (radians)
-        efficiency_quantity :   Which efficiency quantity you want spectrum for ("r" - reflection, "PDr" - reflection angular derivative, "t" - transmission, "PDr" - transmission angular derivative)
-        depth_range         :   Depth range to plot spectrum (normalised to wavelength)
-        num_plot_points     :   Number of points to plot
-        NOTE: unchaned for Torcwa as no GRCWA/autograd used
-        """
-        ### Setup ###
-        allowed_quantities = ("r", "t", "PDr", "PDt")
-        if efficiency_quantity not in allowed_quantities:
-            invalid_quantity_message = f"Invalid efficiency quantity. Allowed quantities are: {allowed_quantities}"
-            raise ValueError(invalid_quantity_message)
-        
-        heights = np.linspace(*depth_range, num_plot_points)
-        init_depth = self.grating_depth # record user-initialised wavelength
-        inc_angle_deg = angle*180/np.pi
-
-
-        ## CALCULATE EFFICIENCY ##
-        RT_orders = [-1,0,1]
-        n_orders = len(RT_orders)
-        efficiencies = np.zeros((2*n_orders,num_plot_points), dtype=float)
-        # Rows of efficiencies correspond to the order of diffraction (row,order): 
-        # Reflection: (0,-1), (1,0), (2,1)
-        # Transmission: (3,-1), (4,0), (5,1)
-        for idx, d in enumerate(heights):
-            # Calculate efficiencies for each order
-            self.grating_depth = d
-            if efficiency_quantity == "r" or efficiency_quantity == "t":
-                Rs,Ts = self.eff()
-                efficiencies[:n_orders,idx] = self.to_numpy(Rs)
-                efficiencies[n_orders:,idx] = self.to_numpy(Ts)
-            elif efficiency_quantity == "PDr":
-                efficiencies[0,idx] =self.to_numpy(self.PDrNeg1(angle))
-            elif efficiency_quantity == "PDt":
-                efficiencies[0,idx] = self.to_numpy(self.PDtNeg1(angle))
-        self.grating_depth = init_depth # restore user-initialised wavelength
-
-
-        ### PLOTTING ### 
-        # Set up figure
-        fig, ax = plt.subplots(1)         
-        ax.set_xlim(depth_range)
-        legend_needed = ("r", "t")
-        symlog_needed = ("PDr", "PDt")
-
-        ## Plot efficiency vs height ##
-        if efficiency_quantity == "r":
-            # -1 order
-            ax.plot(heights, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$r_{-1}'$", lw = LINE_WIDTH) 
-            # 0 order
-            ax.plot(heights, efficiencies[1], color='0.4', linestyle='-', label="$r_0'$", lw = LINE_WIDTH) 
-            # 1 order
-            ax.plot(heights, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$r_1'$", lw = LINE_WIDTH) 
-            ax.set_ylim([-0.01, 1.01]) # displace from zero to see the transition to evanescence
-            ylabel = rf"Reflection at $\theta' = {inc_angle_deg:.2f}°$"
-        elif efficiency_quantity == "t":
-            # -1 order
-            ax.plot(heights, efficiencies[0], color=(0.7, 0, 0), linestyle='-', label="$r_{-1}'$", lw = LINE_WIDTH)
-            ax.plot(heights, efficiencies[3], color=(0.7, 0, 0), linestyle='-.', label="$t_{-1}'$", lw = LINE_WIDTH)  
-            # 0 order
-            ax.plot(heights, efficiencies[1], color='0.4', linestyle='-', label="$r_0'$", lw = LINE_WIDTH) 
-            ax.plot(heights, efficiencies[4], color='0.4', linestyle='-.', label="$t_0'$", lw = LINE_WIDTH) 
-            # 1 order
-            ax.plot(heights, efficiencies[2], color=(0, 0, 0.7), linestyle='-', label="$r_1'$", lw = LINE_WIDTH) 
-            ax.plot(heights, efficiencies[5], color=(0, 0, 0.7), linestyle='-.', label="$t_1'$", lw = LINE_WIDTH) 
-            ax.set_ylim([-0.01, 1.01]) # displace from zero to see the transition to evanescence
-            ylabel = rf"Efficiency at $\theta' = {inc_angle_deg:.2f}°$"
-        elif efficiency_quantity == "PDr":
-            ax.plot(heights, efficiencies[0], color=(0.7, 0, 0), linestyle='-', lw = LINE_WIDTH) 
-            ylabel = rf"$\frac{{\partial r_{{-1}}'}}{{\partial\theta'}}({inc_angle_deg:.2f}°)$"
-        elif efficiency_quantity == "PDt":
-            ax.plot(heights, efficiencies[0], color=(0.7, 0, 0), linestyle='-', lw = LINE_WIDTH) 
-            ylabel = rf"$\frac{{\partial t_{{-1}}'}}{{\partial\theta'}}({inc_angle_deg:.2f}°)$"
-
-        # Optional plotting
-        if efficiency_quantity in legend_needed:
-            leg = ax.legend(loc='center left', bbox_to_anchor=(1, 0.5))
-            frame = leg.get_frame()
-            frame.set_edgecolor('black')
-        
-        if efficiency_quantity in symlog_needed:
-            linthr = 0.1
-            ax.set_yscale("symlog", linthresh=linthr, linscale=0.4)
-            ax.yaxis.set_minor_locator(MinorSymLogLocator(linthr))
-        
-        # Axis labels
-        ax.axhline(y=0, color='black', linestyle='-', lw=0.5)
-        ax.tick_params(axis='both', which='both', direction='in') # ticks inside box
-        ax.set(title=rf"{self.title} Efficiencies at $\theta' = {inc_angle_deg:.2f}°$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda$", xlabel=r"$h_1'/\lambda$", ylabel=ylabel)
-
-        # Modify axes
-        cm_to_inch = 0.393701
-        fig_width = 20.85*cm_to_inch
-        fig_height = 17.6*cm_to_inch
-        fig.set_size_inches(fig_width/1.2, fig_height/1.2)
-
         return fig, ax
     
 
