@@ -74,8 +74,8 @@ param_names = ["grating_pitch", "grating_depth",
                 "box1_width", "box2_width", "box_centre_dist", 
                 "box1_eps", "box2_eps", 
                 "gaussian_width", "substrate_depth", "substrate_eps"]  # Names of all optimisable twobox parameters
-fixed_parameters = ["substrate_depth", "substrate_eps"]  # Fix parameters during optimisation
-fix_parameter_values = [1., -1e6]  # Values of fixed parameters, in the same order as fixed_parameters
+fixed_parameters = ["grating_pitch", "gaussian_width"]  # Fix parameters during optimisation
+fix_parameter_values = [1.227, 50.]  # Values of fixed parameters, in the same order as fixed_parameters
 def Hyperparameters():
     # Engine parameters
     RCWA_engine = "TORCWA"
@@ -103,16 +103,16 @@ def Hyperparameters():
 
 def OptimisationSettings():
     # Global optimisation parameters
-    num_cores = 200  # number of cores to run parallel optimisation
+    num_cores = 2  # number of cores to run parallel optimisation
     maxtime = 5  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
-    runID = "Fasymp20_mirror_test"
+    runID = "Fasymp20_cutoff"
 
     # Local optimisation parameters
     xtol_rel = 1e-4  
     ftol_rel = 1e-8  
 
-    seed = 20250602  # LDS seed
+    seed = 20250609  # LDS seed
     sampling = 'sobol'  # 'sobol' or 'random'
     n_sample_exp = 4
     n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
@@ -129,7 +129,7 @@ def Bounds():
     # The maximum pitch must be set because any larger pitches would result in the -2 order appearing for small rotation angles. 
     # The +1 and -2 orders are selected because they appear/disappear before the -1/+2 orders (at positive rotation angle)
     wavelength_max = wavelength/D1_ND(final_speed/100)
-    max_angle_cutoff1 = 5*np.pi/180  # maximum angle before order +1 is evanescent
+    max_angle_cutoff1 = 0.1*np.pi/180  # maximum angle before order +1 is evanescent
     min_angle_cutoff2 = 15*np.pi/180  # minimum angle before order -2 is non-evanescent
     pitch_min = np.round(1*wavelength_max/(1 - np.sin(max_angle_cutoff1)), 3)  
     pitch_max = np.round(2*wavelength_max/(1 + np.sin(min_angle_cutoff2)), 3)
@@ -143,11 +143,11 @@ def Bounds():
     box_centre_dist_min = 0.03*pitch_max  # Offset from zero to avoid zero Jacobian determinant and symmetric unit cell
     box_centre_dist_max = 0.5*pitch_max  # redundant space if > 0.5*pitch
 
-    box_eps_min = 1.5**2  # Minimum allowed grating permittivity set above vacuum to avoid zero Jacobian determinant 
+    box_eps_min = 1.1**2  # Minimum allowed grating permittivity set above vacuum to avoid zero Jacobian determinant 
     box_eps_max = 3.5**2  # Maximum allowed grating permittivity set to silicon
 
     gaussian_width_min = 0.5*L 
-    gaussian_width_max = 10*L
+    gaussian_width_max = 5*L
 
     substrate_depth_min = h1_min  # Offset from zero to avoid zero Jacobian determinant 
     substrate_depth_max = 1.5*pitch_max 
@@ -163,17 +163,33 @@ def Bounds():
     #                 (substrate_depth_min, substrate_depth_max),
     #                 (substrate_eps_min, substrate_eps_max)]
     
-    # Fixed substrate 
-    param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
-                    (box_width_min, box_width_max), (box_width_min, box_width_max),
-                    (box_centre_dist_min, box_centre_dist_max),
-                    (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-                    (gaussian_width_min, gaussian_width_max)]
+    ## Fixed substrate 
+    #param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
+    #                (box_width_min, box_width_max), (box_width_min, box_width_max),
+    #                (box_centre_dist_min, box_centre_dist_max),
+    #                (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
+    #                (gaussian_width_min, gaussian_width_max)]
     
     # # Fixed Gaussian and substrate
     # param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
     #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
     #                 (box_centre_dist_min, box_centre_dist_max),
     #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max)]
+    
+    # Fixed Gaussian
+    # param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
+    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
+    #                 (box_centre_dist_min, box_centre_dist_max),
+    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),                    
+    #                 (substrate_depth_min, substrate_depth_max),
+    #                 (substrate_eps_min, substrate_eps_max)]
+    
+    # Fixed pitch and Gaussian
+    param_bounds = [(h1_min, h1_max),
+                    (box_width_min, box_width_max), (box_width_min, box_width_max),
+                    (box_centre_dist_min, box_centre_dist_max),
+                    (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
+                    (substrate_depth_min, substrate_depth_max),
+                    (substrate_eps_min, substrate_eps_max)]
 
     return h1_min, h1_max, param_bounds
