@@ -248,7 +248,7 @@ def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: i
     total_fev = 0
     for n in range(num_processes):
         try: 
-            data_fname = data_basefile_name + f"_process{n}.pkl"
+            data_fname = str(data_basefile_name) + f"_process{n}.pkl"
             with open(data_fname, 'rb') as data_file:
                 data = pickle.load(data_file)
         except FileNotFoundError:
@@ -274,7 +274,7 @@ def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: i
     try:
         chosen_best_grating = opt_gratings_sorted[output_opt_idx][1]
     except IndexError:  # TODO: search for the file name directly rather than handling here
-        raise FileNotFoundError(f"Warning: optimisation results were not loaded correctly. Check file name.")
+        raise FileNotFoundError(f"Warning: Optimisation results were not loaded correctly. Check base filename: {data_basefile_name}")
 
     return maxima_and_maximisers_sorted, opt_gratings_sorted, chosen_best_grating
 
