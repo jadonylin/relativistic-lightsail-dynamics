@@ -104,15 +104,15 @@ def Hyperparameters():
 def OptimisationSettings():
     # Global optimisation parameters
     num_cores = 2  # number of cores to run parallel optimisation
-    maxtime = 5  # Stop after maxtime minutes
+    maxtime = 4  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
-    runID = "Fasymp20_cutoff"
+    runID = "test_Fasymp20_cutoff"
 
     # Local optimisation parameters
     xtol_rel = 1e-4  
     ftol_rel = 1e-8  
 
-    seed = 20250609  # LDS seed
+    seed = 20250610  # LDS seed
     sampling = 'sobol'  # 'sobol' or 'random'
     n_sample_exp = 4
     n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
