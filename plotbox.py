@@ -393,8 +393,8 @@ class PlotBox:
                 ax.plot(wavelengths/p, efficiencies[5], color=(0, 0, 0.7), linestyle='-.', label="$t_1'$", lw = LINE_WIDTH)             
 
         cm_to_inch = 0.393701
-        fig_width = 20.85*cm_to_inch
-        fig_height = 17.6*cm_to_inch
+        fig_width_scale = 20.85
+        wide_fig_scale = 22.
         match efficiency_quantity:
             case "r":
                 ax.set_ylim([-0.01, 1.01]) 
@@ -416,7 +416,7 @@ class PlotBox:
                 summand = (PDrs + PDts)*sm
                 ax.plot(wavelengths/p, np.sum(summand,axis=0), color='orange', linestyle='--', 
                         label=r"$\sum_m(\partial r_m' + \partial t_m')s_m'$", lw = LINE_WIDTH) 
-                fig_width = 30.*cm_to_inch
+                fig_width_scale = wide_fig_scale
                 ylabel = rf"$\frac{{\partial (r,t)_{{m}}'}}{{\partial\delta'}}({inc_angle_deg:.2f}°)$"
             case "PDrlam":
                 ax.plot(wavelengths/p, efficiencies[2]+efficiencies[0], color='orange', linestyle='--', label=r"$\Sigma r$", lw = LINE_WIDTH) 
@@ -437,7 +437,7 @@ class PlotBox:
                 summand = (PDrs - PDts)*cm
                 ax.plot(wavelengths/p, np.sum(summand,axis=0), color='orange', linestyle='--', 
                         label=r"$\sum_m(\partial r_m' - \partial t_m')c_m'$", lw = LINE_WIDTH) 
-                fig_width = 30.*cm_to_inch
+                fig_width_scale = wide_fig_scale
                 if kwargs["show_freq_grad"]:
                     ylabel = rf"$\frac{{\partial (r,t)_{{m}}'}}{{\partial\bar{{\nu}}'}}$"
                 else:
@@ -452,7 +452,9 @@ class PlotBox:
             linthr = 0.1
             ax.set_yscale("symlog", linthresh=linthr, linscale=0.4)
             ax.yaxis.set_minor_locator(MinorSymLogLocator(linthr))        
-
+        
+        fig_width = fig_width_scale*cm_to_inch
+        fig_height = 17.6*cm_to_inch
         ax.axhline(y=0, color='black', linestyle='-', lw = '1')
         ax.tick_params(axis='both', which='both', direction='in') # ticks inside box
         ax.set(title=rf"{self.title} $h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$", xlabel=r"$\lambda'/\Lambda'$", ylabel=ylabel)
