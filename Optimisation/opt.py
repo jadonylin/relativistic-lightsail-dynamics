@@ -94,7 +94,7 @@ def boxes_clip_unit_cell(params,gradn):
     return condition
 
 
-def global_optimise(opt_hyperparams,
+def global_optimise(objective_fom, opt_hyperparams,
                     sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxstop: dict={'maxfev': 1000, 'maxtime': 600},
                     xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[], return_settings: bool=False):
     """
@@ -106,6 +106,7 @@ def global_optimise(opt_hyperparams,
 
     Parameters
     ----------
+    objective_fom    :   Figure of merit function to be optimised, passed to FOM_uniform
     opt_hyperparams  :   Hyperparameters for the optimisation 
     sampling_method  :   "sobol" or "random" initial point sampling
     seed             :   Seed for initial random parameter space sample and grating_depth samples
@@ -140,7 +141,7 @@ def global_optimise(opt_hyperparams,
 
     def objective(grating, opt_params):
         grating.params = opt_params
-        return fom.FOM_uniform(grating, final_speed, goal, return_grad)
+        return fom.FOM_uniform(grating, objective_fom, final_speed, goal, return_grad)
 
     def fun_nlopt(params,gradn):
         """
