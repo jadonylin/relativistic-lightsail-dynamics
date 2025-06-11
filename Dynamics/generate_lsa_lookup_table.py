@@ -4,6 +4,10 @@ sys.path.append('../')
 import numpy as np
 import dill as pickle
 
+from pathlib import PosixPath
+user_home_path = PosixPath('~/')
+user_home_path_full = user_home_path.expanduser()
+
 import time
 
 import Optimisation.opt as opt
@@ -13,13 +17,17 @@ from twobox import TwoBox
 t_start = time.time()
 
 ## Initialise grating
-runID = "Fasymp20_fixed_gaussian_near_cutoff"
+runID = "Fasymp20_cutoff"
+final_speed = 20.
 num_cores = 200
-# maxfev = 500
 maxtime = 1440
-output_opt_idx = 7
-# opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxfev{num_cores*maxfev}"
-opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxtime{maxtime}"
+output_opt_idx = 18
+
+common_path = user_home_path_full / "Library/CloudStorage/OneDrive-TheUniversityofSydney(Students)/Doppler Damping - Jadon Lin/Documentation/Data/relativistic-lightsail-dynamics/Optimisation/Jadon's results"
+custom_folder_path = f"Fasymp/final_speed{int(final_speed)}/maxtime{int(maxtime)}/{runID}"
+fname_preamble = common_path / custom_folder_path
+
+opt_grating_basefname = fname_preamble / f"{runID}_FOM_optimisation_maxtime{maxtime}"
 _, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=output_opt_idx)
 try:
     op = _opt_grating.all_params[:]
@@ -39,7 +47,7 @@ grating = TwoBox(*op, wavelength=wavelength, angle=angle, Nx=Nx, nG=numG, Qabs=Q
 
 ## Number of lambda' points
 klambda = 1000
-v_final = 20/100 
+v_final = final_speed/100 
 lambda_final = 1/D1_ND(v_final)
 lambda_array = np.linspace( wavelength, lambda_final, klambda )
 
