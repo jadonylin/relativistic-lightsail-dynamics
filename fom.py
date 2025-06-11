@@ -13,25 +13,17 @@ from parameters import Parameters, D1_ND
 I0, L, m, c = Parameters()
 
 
-def FoM(grating, I: float=1e9, grad_method: str="finite") -> float:
+def FoM_default(grating, I: float=1e9, grad_method: str="finite") -> float:
     """
-    Choose the grating single-wavelength figure of merit F_lam.
+    Choose default FOM across scripts.
 
     Parameters
     ----------
     grating     :   Calculate figure of merit for this grating
     I           :   Laser intensity
     grad_method :   Method to calculate gradient ("finite", "grad")
-    
-    Returns
-    -------
-    F_lam :   Figure of merit
     """
-    # TODO: implement switching between FOMs. Difficult due to the many instances of FOM calls that
-    #       need a string argument added.
-    return FoM_asymp(grating,I,grad_method)
-    # return FoM_damp(grating,I,grad_method)
-
+    return FoM_asymp(grating, I=I, grad_method=grad_method)
 
 def FoM_damp(grating, I: float=1e9, grad_method: str="grad") -> float:
     """
@@ -103,6 +95,34 @@ def FoM_asymp(grating, I: float=1e9, grad_method: str="finite") -> float:
     # F_lam = grating.npa.sum(-eigReal*grating.npa.softmin(-eigReal,1.))  # softened minimum
     # F_lam = grating.npa.min(-eigReal) + grating.npa.max(-eigReal)
     
+    return F_lam
+
+def FoM_max_eigval(grating, I: float=1e9, grad_method: str="finite") -> float:
+    """
+    Asymptotic stability supplementary FOM: Calculate eigenvalue of the linear stability Jacobian with the 
+    smallest real part. 
+    
+    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
+    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
+    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
+    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
+    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
+    the unit cell along the x-axis about the unit-cell centre.
+
+    Parameters
+    ----------
+    grating     :   Calculate figure of merit for this grating
+    I           :   Laser intensity
+    grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+    
+    Returns
+    -------
+    F_lam :   Figure of merit
+    """
+    if grating.angle != 0:
+        raise ValueError("Asymptotic stability FOM only valid for gratings with zero angle, i.e. the linear regime.")
+    eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
+    F_lam = grating.npa.max(-eigReal) 
     return F_lam
 
 def FoM_quality_factor(grating, I: float=1e9, grad_method: str="finite") -> float:
@@ -211,14 +231,35 @@ def FoM_LvR(grating, I: float=1e9, grad_method: str="finite") -> float:
     return F_lam
 
 
+def FoM(grating, fom: callable=FoM_default, I: float=1e9, grad_method: str="finite") -> float:
+    """
+    Choose the grating single-wavelength figure of merit F_lam.
 
-def _F_lam(grating) -> float:
+    Parameters
+    ----------
+    grating     :   Calculate figure of merit for this grating
+    I           :   Laser intensity
+    grad_method :   Method to calculate gradient ("finite", "grad")
+    fom         :   Figure of merit function to use. Default is FoM_asymp, but can be any 
+                    callable that takes grating, I, and grad_method as arguments.
+    
+    Returns
+    -------
+    F_lam :   Figure of merit
+    """
+    # TODO: implement switching between FOMs. Difficult due to the many instances of FOM calls that
+    #       need a string argument added.
+    return FoM_asymp(grating,I,grad_method)
+    # return FoM_max_eigval(grating,I,grad_method)
+    # return FoM_damp(grating,I,grad_method)
+
+def _F_lam(grating, fom: callable=FoM_default) -> float:
     if grating.RCWA_engine=="TORCWA":
-        return FoM(grating, I0, grad_method="grad")
+        return FoM(grating, fom=fom, I=I0, grad_method="grad")
     else:
-        return FoM(grating, I0, grad_method="finite")
+        return FoM(grating, fom=fom, I=I0, grad_method="finite")
 
-def F_lam(grating, params):
+def F_lam(grating, params, fom: callable=FoM_default):
     """
     Calculate the grating single-wavelength figure of merit.
     lam is short for lambda (wavelength)
@@ -230,10 +271,11 @@ def F_lam(grating, params):
                 The return value is calculated for a grating with these parameters.
     """
     grating.params = params
-    return _F_lam(grating)
+    return _F_lam(grating,fom)
 
 
-def FOM_uniform(grating, final_speed: float=20., goal: float=0.1, return_grad: bool=True) -> float:
+def FOM_uniform(grating, fom: callable=FoM_default, final_speed: float=20., 
+                goal: float=0.1, return_grad: bool=True) -> float:
     """
     Calculate the figure of merit (FOM) for the given grating over a fixed wavelength range determined by the final speed.
     
@@ -260,7 +302,7 @@ def FOM_uniform(grating, final_speed: float=20., goal: float=0.1, return_grad: b
     # Define a single-argument function, needed when passing to learner
     def weighted_F_lam(l):
         grating.wavelength = l*laser_wavelength 
-        return PDF_unif*grating.to_numpy(_F_lam(grating)) # losing autograd here by calling to_numpy, but torch tensors are not compatible with adaptive
+        return PDF_unif*grating.to_numpy(_F_lam(grating,fom)) # losing autograd here by calling to_numpy, but torch tensors are not compatible with adaptive
     
     F_lam_learner = adp.Learner1D(weighted_F_lam, bounds=l_range)
     if isinstance(goal, int):
