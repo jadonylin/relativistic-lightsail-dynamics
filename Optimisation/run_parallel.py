@@ -34,6 +34,7 @@ import dill as pickle
 import sys
 sys.path.append("../")
 
+import fom
 import opt 
 import parameters
 from parameters import OptimisationSettings, Hyperparameters, Bounds
@@ -104,7 +105,7 @@ with open(txt_dir, "a") as result_file:
 def optimise_partitioned_depth(h1_bounds):
     _param_bounds = param_bounds[:]
     _param_bounds[0 if "grating_pitch" in parameters.fixed_parameters else 1] = tuple([*h1_bounds])  # Must unpack a single argument for pool.imap to be applied correctly
-    return opt.global_optimise(Hyperparameters(), sampling, seed, n_sample, maxstop, xtol_rel, ftol_rel, _param_bounds)
+    return opt.global_optimise(fom.FoM_default, Hyperparameters(), sampling, seed, n_sample, maxstop, xtol_rel, ftol_rel, _param_bounds)
 
 h1_bounds = []
 h1s = np.linspace(h1_min,h1_max,num_cores+1)
