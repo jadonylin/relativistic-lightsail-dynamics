@@ -205,7 +205,7 @@ def aM(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, interpolati
     I2L = w/(16*B_int**3) * (  4*w*(A_int*expMID - XR*expL) - np.sqrt(2*np.pi)*(4*A_int**2 + w**2)*(erfL - erfMID) )
 
     # Forces
-    I_peak = I0*L/w*np.sqrt(np.pi/2)  # peak intensity is dependent on Gaussian width
+    I_peak = I0*L/w*np.sqrt(2/np.pi)  # peak intensity is dependent on Gaussian width
     fx = ((1/m)*(D**2*I_peak/c)
             * ( (Q1R*costheta - Q2R*sintheta)*I0R + (Q1L*costheta - Q2L*sintheta)*I0L
                 + (vphiM/c)
@@ -282,10 +282,7 @@ def aM_linear(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, inte
 
     D   = Dv(vL)
     g   = Gamma(vL)
-    print(g)
     lam = wavelength / D  # Incident wavelength in Frame Mn
-    g1   = (wavelength**2 + lam**2)/(2*wavelength*lam) 
-    print(g1)
       
     Q1_call, Q2_call, PD_Q1_delta_call, PD_Q2_delta_call, PD_Q1_lambda_call, PD_Q2_lambda_call = interpolation_funcs
     try:  
