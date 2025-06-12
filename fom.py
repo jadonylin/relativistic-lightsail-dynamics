@@ -409,8 +409,6 @@ def calculate_force_coeff(exp_funcs: list[callable], wavelength: float, Qprs: li
         fphi_phi    *= Isqrt*L**2/(J*c1)
         fphi_vy     *= Isqrt*L**2/(J*c1**2)
         fphi_phidot *= Isqrt*L**3/(J*c1**2)
-    
-    print([fy_y, fy_phi, fy_vy, fy_phidot, fphi_y, fphi_phi, fphi_vy, fphi_phidot])
 
     return [fy_y, fy_phi, fy_vy, fy_phidot, fphi_y, fphi_phi, fphi_vy, fphi_phidot]
 
