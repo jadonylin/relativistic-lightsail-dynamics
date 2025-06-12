@@ -62,7 +62,8 @@ def D1_ND(v):
 
 L = 10  # grating width (metres in 2D model)
 def Parameters():
-    I0 = 0.5e9  # laser intensity (might need to be halved)
+    P = 5e9  # laser power (watts)
+    I0 = P/L  # laser power per unit grating length
     m = 1/1000  # mass (kilograms)
     c = scipy.constants.c
     return I0, L, m, c

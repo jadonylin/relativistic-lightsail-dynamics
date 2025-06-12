@@ -17,7 +17,7 @@ import forces
 from parameters import Parameters
 
 
-I, L, m, c = Parameters()
+I0, L, m, c = Parameters()
 wavelength = 1
 
 # The efficiency factors are too expensive to calculate in real time, so pre-calculated tables are used.
@@ -94,7 +94,7 @@ save_data = {'YL': positions, 'phiM': phi_nparray, 'phidot': omega_nparray,
              'eps': eps_nparray, 'epsdot': eps_rate_nparray, 'theta': theta_nparray,
              'accel': accels,
              'step': h, 'Runtime (sec)': runtime, 'i': steps, 'Stopped': STOPPED,
-             'Initial': Y0, 'Intensity': I}
+             'Initial': Y0, 'Intensity': I0}
 save_fname = f'./Data/{runID}_Dynamics.pkl'
 
 # Save result

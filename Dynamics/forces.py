@@ -15,13 +15,14 @@ from scipy.special import erf
 import sys
 sys.path.append("../")
 
+import fom
 from cmvint import InterpolateError
 from Optimisation.opt import extract_opt
 from parameters import Parameters
 from specrel import Gamma, Dv, SinCosTheta, ABSC, E_eps, Lorentz
 
 
-I, L, m, c = Parameters()
+I0, L, m, c = Parameters()
 wavelength = 1
 
 
@@ -204,7 +205,8 @@ def aM(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, interpolati
     I2L = w/(16*B_int**3) * (  4*w*(A_int*expMID - XR*expL) - np.sqrt(2*np.pi)*(4*A_int**2 + w**2)*(erfL - erfMID) )
 
     # Forces
-    fx = ((1/m)*(D**2*I/c)
+    I_peak = I0*L/w*np.sqrt(np.pi/2)  # peak intensity is dependent on Gaussian width
+    fx = ((1/m)*(D**2*I_peak/c)
             * ( (Q1R*costheta - Q2R*sintheta)*I0R + (Q1L*costheta - Q2L*sintheta)*I0L
                 + (vphiM/c)
                     * ( (costheta*(2*cosphi*Q1R - T1R) - sintheta*(2*cosphi*Q2R - T2R))*I1R
@@ -215,7 +217,7 @@ def aM(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, interpolati
             )
     )
     
-    fy = ((1/m)*(D**2*I/c)
+    fy = ((1/m)*(D**2*I_peak/c)
             * ( (Q1R*sintheta + Q2R*costheta)*I0R + (Q1L*sintheta + Q2L*costheta)*I0L
                 + (vphiM/c)
                     * ( (sintheta*(2*cosphi*Q1R - T1R) + costheta*(2*cosphi*Q2R - T2R))*I1R
@@ -226,7 +228,7 @@ def aM(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, interpolati
             )
     ) 
     
-    fphi = (-(12/(m*L**2))*(D**2*I/c) 
+    fphi = (-(12/(m*L**2))*(D**2*I_peak/c) 
             * ( (Q1R*cosdelta - Q2R*sindelta)*I1R - (Q1L*cosdelta - Q2L*sindelta)*I1L 
                 + (vphiM/c)
                     * ( (cosdelta*(2*cosphi*Q1R - T1R) - sindelta*(2*cosphi*Q2R - T2R))*I2R 
@@ -280,8 +282,10 @@ def aM_linear(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, inte
 
     D   = Dv(vL)
     g   = Gamma(vL)
+    print(g)
     lam = wavelength / D  # Incident wavelength in Frame Mn
-    w_bar = w/L
+    g1   = (wavelength**2 + lam**2)/(2*wavelength*lam) 
+    print(g1)
       
     Q1_call, Q2_call, PD_Q1_delta_call, PD_Q2_delta_call, PD_Q1_lambda_call, PD_Q2_lambda_call = interpolation_funcs
     try:  
@@ -326,21 +330,15 @@ def aM_linear(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, inte
     I1R = w/(4*B_int**2) * ( w*(expMID - expR) - np.sqrt(2*np.pi)*A_int*(erfR - erfMID) )
     I1L = w/(4*B_int**2) * ( w*(expMID - expL) - np.sqrt(2*np.pi)*A_int*(erfL - erfMID) )
 
-    # NOTE: derivatives with respect to lambda differ from derivatives with respect to frequency offset, the latter
-    # being presented in Liam's thesis
-    fy_y    = - D**2 * I/(m*c) * (Q2R - Q2L) * (1 - np.exp(-1/(2*w_bar**2)))
-    fy_phi  = - D**2 * I/(m*c) * (dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * erf(1/(w_bar*np.sqrt(2)))
-    fy_vy   = - D**2 * I/(m*c) * 1/c * (D+1)/(D*(g+1)) * (Q1R + Q1L + dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * erf(1/(w_bar*np.sqrt(2)))
-    fy_vphi =   D**2 * I/(m*c) * 1/c * (2*(Q2R - Q2L) - lam*(dQ2dlambdaR - dQ2dlambdaL)) * (w/2)**2 * (1 - np.exp(-1/(2*w_bar**2)))
-
-    # TODO: generalise for non-flat-geometry moments of inertia
-    fphi_y    =  D**2 * 12*I/(m*c*L**2) * (Q1R + Q1L) * (w/2*np.sqrt(np.pi/2) * erf(1/(w_bar*np.sqrt(2))) - L/2*np.exp(-1/(2*w_bar**2))) 
-    fphi_phi  =  D**2 * 12*I/(m*c*L**2) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - np.exp(-1/(2*w_bar**2)))
-    fphi_vy   =  D**2 * 12*I/(m*c*L**2) * 1/c * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - np.exp(-1/(2*w_bar**2)))
-    fphi_vphi = -D**2 * 12*I/(m*c*L**2) * 1/c * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*np.sqrt(np.pi/2) * erf(1/(w_bar*np.sqrt(2))) - L/2*np.exp(-1/(2*w_bar**2))) 
+    Qprs = [Q1R, Q1L, Q2R, Q2L, 
+            dQ1ddeltaR, dQ1ddeltaL, dQ2ddeltaR, dQ2ddeltaL, 
+            dQ1dlambdaR, dQ1dlambdaL, dQ2dlambdaR, dQ2dlambdaL]
+    stiffnesses = fom.calculate_force_coeff([np.exp, erf], lam, Qprs, w, I0, m, c, normalise=False)
+    fy_y, fy_phi, fy_vy, fy_phidot, fphi_y, fphi_phi, fphi_vy, fphi_phidot = stiffnesses
 
     # x-acceleration is unchanged from nonlinear version
-    fx = (1/m)*(D**2*I/c) * ( (Q1R + delta*dQ1ddeltaR - theta*Q2R)*I0R + (Q1L + delta*dQ1ddeltaL - theta*Q2L)*I0L
+    I_peak = I0*L/w*np.sqrt(2/np.pi)  # peak intensity is dependent on Gaussian width
+    fx = (1/m)*(D**2*I_peak/c) * ( (Q1R + delta*dQ1ddeltaR - theta*Q2R)*I0R + (Q1L + delta*dQ1ddeltaL - theta*Q2L)*I0L
                               + (vphiM/c)*((2*Q1R - lam*dQ1dlambdaR)*I1R - (2*Q1L - lam*dQ1dlambdaL)*I1L) 
                             )
     
@@ -351,108 +349,9 @@ def aM_linear(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, inte
     # Gamma factor in front of the vy derivatives because the vy derivative is the derivative 
     # with respect to vy in the accelerating-frame U, not L. They are related to each other by
     # a gamma factor.
-    fy = fy_y*yL + fy_phi*phiM + damping_scaler*(g*fy_vy*vy + fy_vphi*phidot) 
-    fphi = fphi_y*yL + fphi_phi*phiM + damping_scaler*(g*fphi_vy*vy + fphi_vphi*phidot)
+    fy = fy_y*yL + fy_phi*phiM + damping_scaler*(g*fy_vy*vy + fy_phidot*phidot) 
+    fphi = fphi_y*yL + fphi_phi*phiM + damping_scaler*(g*fphi_vy*vy + fphi_phidot*phidot)
 
     F = np.array([vxM,vyM,vphiM,fx,fy,fphi])
     
-    return F
-
-
-def aM_forces_linear(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, interpolation_funcs: callable):
-    """
-    Calculate the lightsail state-vector acceleration using the linearised frame M forces. Linearisation
-    with respect to position, angle and velocities are applied to the explicit force coefficients, but 
-    not to the intensity distribution.
-    See aM for further documentation.
-
-    Parameters
-    ----------
-    t                   :   Time measured in Frame Mn (seconds)
-    yvec                :   State vector measured in Frame Mn - [x, y, phi, vx, vy, vphi]
-    vL                  :   Velocity of Frame Mn relative to Frame L - [vx, vy] (metres/second)
-    i                   :   Input step (for troubleshooting)
-    w                   :   Gaussian-beam width
-    interpolation_funcs :   Interpolation functions for Qprj and their derivatives
-    
-    Returns
-    -------
-    [vx,vy,vphi,fx,fy,fphi] :   The derivative of the state vector with respect to the sail's proper time
-    """
-    
-    # State vector information. Is transferred from Mn to L to Mn+1
-    xM  = yvec[0];     yM = yvec[1];    phiM = yvec[2]
-    vxM = yvec[3];    vyM = yvec[4];   vphiM = yvec[5]
-    vx  = vL[0];       vy = vL[1]
-
-    # Convenience factors in the equations of motion
-    theta = SinCosTheta(vL)[2]
-
-    # Rotation information. Is transferred from Mn directly to Mn+1
-    delta    = theta - phiM
-    sinphi   = np.sin(phiM)
-    cosphi   = np.cos(phiM)
-
-    D   = Dv(vL)
-    g   = Gamma(vL)
-    lam = wavelength / D  # Incident wavelength in Frame Mn
-      
-    Q1_call, Q2_call, PD_Q1_delta_call, PD_Q2_delta_call, PD_Q1_lambda_call, PD_Q2_lambda_call = interpolation_funcs
-    try:  
-        # TODO: incorporate these interpolation calculations into a function
-        # TODO: user script shouldn't need to manually catch exceptions, that should all be handled by cmvint. 
-        #       Moving the interpolation calculators into a function might help with that.
-        Q1R = Q1_call(lam);     Q2R =  Q2_call(lam);    
-        Q1L = Q1R;              Q2L = -Q2R;   
-
-        dQ1ddeltaR  =  PD_Q1_delta_call(lam); dQ2ddeltaR  = PD_Q2_delta_call(lam)
-        dQ1ddeltaL  = -dQ1ddeltaR;            dQ2ddeltaL  = dQ2ddeltaR
-
-        dQ1dlambdaR = PD_Q1_lambda_call(lam); dQ2dlambdaR =  PD_Q2_lambda_call(lam)
-        dQ1dlambdaL = dQ1dlambdaR;            dQ2dlambdaL = -dQ2dlambdaR
-    except ValueError as ve:  
-        # Should be caught when interpolator tries to extrapolate outside the lookup table bounds
-        print(f"Failed on delta' = {delta}, lambda' = {lam}")
-        print(f"Failed on i = {i}, t = {t}, v = {vL}")
-        print(f"\nOriginal error: {ve}")
-        raise InterpolateError("Interpolator moved out of bounds")
-    
-    # Transformed Gaussian intensity distribution from Frame L to Frame Mn
-    A_int = yM     * (1 + g**2/(g+1)*vy**2/c**2) + xM     * g**2/(g+1)*vx*vy/c**2 + g*vy*t
-    B_int = cosphi * (1 + g**2/(g+1)*vy**2/c**2) + sinphi * g**2/(g+1)*vx*vy/c**2
-
-    XR = A_int + B_int*L/2
-    XL = A_int - B_int*L/2
-
-    expR = np.exp(-2/w**2 * XR**2)
-    expL = np.exp(-2/w**2 * XL**2)
-    
-    erfR = erf(np.sqrt(2)/w*XR)
-    erfL = erf(np.sqrt(2)/w*XL)
-    
-    expMID = np.exp(-2*A_int**2/w**2)
-    erfMID = erf(np.sqrt(2)/w*A_int)
-
-    # Integrated moments of intensity
-    I0R =  w/(2*B_int) * np.sqrt(np.pi/2) * (erfR - erfMID)
-    I0L = -w/(2*B_int) * np.sqrt(np.pi/2) * (erfL - erfMID)
-    
-    I1R = w/(4*B_int**2) * ( w*(expMID - expR) - np.sqrt(2*np.pi)*A_int*(erfR - erfMID) )
-    I1L = w/(4*B_int**2) * ( w*(expMID - expL) - np.sqrt(2*np.pi)*A_int*(erfL - erfMID) )
-    
-    I2R = w/(16*B_int**3) * ( -4*w*(A_int*expMID - XL*expR) + np.sqrt(2*np.pi)*(4*A_int**2 + w**2)*(erfR - erfMID) )
-    I2L = w/(16*B_int**3) * (  4*w*(A_int*expMID - XR*expL) - np.sqrt(2*np.pi)*(4*A_int**2 + w**2)*(erfL - erfMID) )
-
-    # Linearised forces
-    fx = (1/m)*(D**2*I/c) * ( (Q1R + delta*dQ1ddeltaR - theta*Q2R)*I0R + (Q1L + delta*dQ1ddeltaL - theta*Q2L)*I0L
-                              + (vphiM/c)*((2*Q1R - lam*dQ1dlambdaR)*I1R - (2*Q1L - lam*dQ1dlambdaL)*I1L) 
-                            )
-    fy = (1/m)*(D**2*I/c) * ( (Q2R + delta*dQ2ddeltaR + theta*Q1R)*I0R + (Q2L + delta*dQ2ddeltaL + theta*Q1L)*I0L
-                              + (vphiM/c)*((2*Q2R - lam*dQ2dlambdaR)*I1R - (2*Q2L - lam*dQ2dlambdaL)*I1L) 
-                            )
-    fphi = -12/(m*L**2)*(D**2*I/c) * ( (Q1R + delta*(dQ1ddeltaR - Q2R))*I1R - (Q1L + delta*(dQ1ddeltaL - Q2L))*I1L
-                              + (vphiM/c)*((2*Q1R - lam*dQ1dlambdaR)*I2R + (2*Q1L - lam*dQ1dlambdaL)*I2L) 
-                            )
-
-    F = np.array([vxM,vyM,vphiM,fx,fy,fphi])
     return F

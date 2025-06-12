@@ -9,8 +9,10 @@ TODO: need better separation between opt and fom, otherwise figures of merit are
 
 import adaptive as adp
 import numpy as np
+import parameters
 from parameters import Parameters, D1_ND
 I0, L, m, c = Parameters()
+laser_wavelength = parameters.wavelength
 
 
 def FoM_default(grating, I: float=1e9, grad_method: str="finite") -> float:
@@ -247,11 +249,7 @@ def FoM(grating, fom: callable=FoM_default, I: float=1e9, grad_method: str="fini
     -------
     F_lam :   Figure of merit
     """
-    # TODO: implement switching between FOMs. Difficult due to the many instances of FOM calls that
-    #       need a string argument added.
-    return FoM_asymp(grating,I,grad_method)
-    # return FoM_max_eigval(grating,I,grad_method)
-    # return FoM_damp(grating,I,grad_method)
+    return fom(grating, I, grad_method)
 
 def _F_lam(grating, fom: callable=FoM_default) -> float:
     if grating.RCWA_engine=="TORCWA":
@@ -349,18 +347,81 @@ def FOM_uniform(grating, fom: callable=FoM_default, final_speed: float=20.,
         grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
         return FOM
 
-
-
-def sail_stiffness(grating, I: float=10e9, m: float=1/1000, c1:float=299792458, 
-                   grad_method: str='finite', out: str="tr", normalise: bool=False):
+def calculate_force_coeff(exp_funcs: list[callable], wavelength: float, Qprs: list, 
+                          gaussian_width: float, I: float=10e9, m: float=1/1000, c1:float=299792458, 
+                          normalise: bool=False):
     """
-    Calculate stiffness coefficients/Jacobian coefficients for a symmetric lightsail at equilibrium. Here, symmetric 
+    Calculate stiffness coefficients/Jacobian coefficients for a given set of Qpr values.
+
+    Parameters
+    ----------
+    exp_funcs      :   [exponential function, error function]
+    wavelength     :   Wavelength incident on the sail
+    Qprs           :   [Q1R, Q1L, Q2R, Q2L, 
+                        dQ1ddeltaR, dQ1ddeltaL, dQ2ddeltaR, dQ2ddeltaL, 
+                        dQ1dlambdaR, dQ1dlambdaL, dQ2dlambdaR, dQ1dlambdaL]
+    gaussian_width :   Width of the Gaussian beam (m)
+    I              :   Laser power divided by grating length (W/m^2)
+    m              :   Spacecraft mass (sail membrane + payload)  # TODO why is this a parameter but not grating length?
+    c1             :   speed of light  # TODO: why is this a parameter?
+    normalise      :   Normalise all Jacobian coefficients by their individual dimensional factors
+    """
+    
+    w_bar = gaussian_width/L
+    lam = wavelength
+    exp = exp_funcs[0]
+    erf = exp_funcs[1]
+    Q1R, Q1L, Q2R, Q2L, \
+        dQ1ddeltaR, dQ1ddeltaL, dQ2ddeltaR, dQ2ddeltaL, \
+            dQ1dlambdaR, dQ1dlambdaL, dQ2dlambdaR, dQ2dlambdaL = Qprs
+    
+    D = laser_wavelength/lam
+    g = (laser_wavelength**2 + lam**2)/(2*laser_wavelength*lam) 
+
+    # Width-exponential factors
+    # "slow" and "fast" refers to how quickly the factors decay to zero at infinite beam width
+    w_inf   = (1 - exp(-1/(2*w_bar**2)))/w_bar
+    w_pi2_slow  = 1/2 * np.sqrt(np.pi/2) * erf(1/(w_bar*np.sqrt(2)))
+    w_pi2_fast   = w_pi2_slow - exp(-1/(2*w_bar**2))/(2*w_bar)
+    w_0_slow  = (w_bar/2)**2 * w_inf
+    w_0_fast = (w_bar/2)**2 * w_pi2_fast
+    
+    # NOTE: derivatives with respect to lambda are equal to derivatives with respect to frequency offset
+    #       multiplied by a factor of D/lambda
+    fy_y        = -D**2 * (Q2R - Q2L) * w_inf
+    fy_phi      = -D**2 * (dQ2ddeltaR + dQ2ddeltaL) * w_pi2_slow
+    fy_vy       = -D**2 * (D+1)/(D*(g+1)) * (Q1R + Q1L + dQ2ddeltaR + dQ2ddeltaL) * w_pi2_slow
+    fy_phidot   =  D**2 * (2*(Q2R - Q2L) - lam*(dQ2dlambdaR - dQ2dlambdaL)) * w_0_slow
+
+    fphi_y      =  D**2 * (Q1R + Q1L) * w_pi2_fast
+    fphi_phi    =  D**2 * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * w_0_slow
+    fphi_vy     =  (D+1)/(D*(g+1)) * fphi_phi
+    fphi_phidot = -D**2 * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * w_0_fast 
+
+    if not normalise:
+        J = m*L**2/12  # moment of inertia about the CoM
+        Isqrt = I*np.sqrt(2/np.pi)
+        fy_y        *= Isqrt/(m*c1)
+        fy_phi      *= Isqrt*L/(m*c1)
+        fy_vy       *= Isqrt*L/(m*c1**2)
+        fy_phidot   *= Isqrt*L**2/(m*c1**2)
+        fphi_y      *= Isqrt*L/(J*c1)
+        fphi_phi    *= Isqrt*L**2/(J*c1)
+        fphi_vy     *= Isqrt*L**2/(J*c1**2)
+        fphi_phidot *= Isqrt*L**3/(J*c1**2)
+    
+    return [fy_y, fy_phi, fy_vy, fy_phidot, fphi_y, fphi_phi, fphi_vy, fphi_phidot]
+
+def force_coeff(grating, I: float=10e9, m: float=1/1000, c1:float=299792458, 
+                grad_method: str='finite', out: str="tr", normalise: bool=False):
+    """
+    Return stiffness coefficients/Jacobian coefficients for a symmetric lightsail at equilibrium. Here, symmetric 
     means symmetric with respect to reflections about the laser-beam axis (when the CoM lies on the laser-beam axis).
 
     Parameters
     ----------
     grating     :   Calculate stiffnesses for this grating
-    I           :   Laser intensity
+    I           :   Laser power divided by grating length (W/m^2)
     m           :   Spacecraft mass (sail membrane + payload)
     c1          :   speed of light  # TODO: why is this a parameter?
     grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
@@ -384,50 +445,23 @@ def sail_stiffness(grating, I: float=10e9, m: float=1/1000, c1:float=299792458,
         case "grad":
             Q1R, Q2R, dQ1ddeltaR, dQ2ddeltaR, dQ1dlambdaR, dQ2dlambdaR = grating.return_Qs_auto(return_Q=True)
         case _:
-            raise ValueError("grad_method not recognised. Must be 'finite' or 'grad'.")
-
-    w = grating.gaussian_width
-    w_bar = w/L  # width normalised to total grating length
-    lam = grating.wavelength 
-
-    # Convert velocity factors to wavelength factors
-    # TODO: may need to change these factors to account for non-unity starting wavelengths
-    D = 1/lam  # Doppler factor assuming starting wavelength is 1
-    g = (grating.npa.power(lam,2) + 1)/(2*lam)  # Lorentz factor
+            raise ValueError("grad_method not recognised. Must be 'finite' or 'grad'.") 
 
     # Lightsail reflection-symmetry conditions
     Q1L = Q1R                ; Q2L = -Q2R;   
     dQ1ddeltaL  = -dQ1ddeltaR; dQ2ddeltaL  = dQ2ddeltaR
     dQ1dlambdaL = dQ1dlambdaR; dQ2dlambdaL = -dQ2dlambdaR        
+    Qprs = [Q1R, Q1L, Q2R, Q2L, 
+            dQ1ddeltaR, dQ1ddeltaL, dQ2ddeltaR, dQ2ddeltaL, 
+            dQ1dlambdaR, dQ1dlambdaL, dQ2dlambdaR, dQ2dlambdaL]
     
-    # y acceleration terms
-    # NOTE: derivatives with respect to lambda differ from derivatives with respect to frequency offset, the latter
-    # being presented in Liam's thesis
-    fy_y      = - D**2 * I/(m*c1) * (Q2R - Q2L) * (1 - grating.npa.exp(-1/(2*w_bar**2)))
-    fy_phi    = - D**2 * I/(m*c1) * (dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * grating.npa.erf(1/(w_bar*np.sqrt(2)))
-    fy_vy     = - D**2 * I/(m*c1) * 1/c1 * (D+1)/(D*(g+1)) * (Q1R + Q1L + dQ2ddeltaR + dQ2ddeltaL) * w/2 * np.sqrt(np.pi/2) * grating.npa.erf(1/(w_bar*np.sqrt(2)))
-    fy_phidot =   D**2 * I/(m*c1) * 1/c1 * (2*(Q2R - Q2L) - lam*(dQ2dlambdaR - dQ2dlambdaL)) * (w/2)**2 * (1 - grating.npa.exp(-1/(2*w_bar**2)))
-
-    # phi acceleration terms
-    J = m*L**2/12  # moment of inertia about the CoM
-    fphi_y      =  D**2 * I/(J*c1) * (Q1R + Q1L) * (w/2*np.sqrt(np.pi/2) * grating.npa.erf(1/(w_bar*np.sqrt(2))) - L/2*grating.npa.exp(-1/(2*w_bar**2))) 
-    fphi_phi    =  D**2 * I/(J*c1) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - grating.npa.exp(-1/(2*w_bar**2)))
-    fphi_vy     =  D**2 * I/(J*c1) * 1/c1 * (D+1)/(D*(g+1)) * (dQ1ddeltaR - dQ1ddeltaL - (Q2R - Q2L)) * (w/2)**2 * (1 - grating.npa.exp(-1/(2*w_bar**2)))
-    fphi_phidot = -D**2 * I/(J*c1) * 1/c1 * (2*(Q1R + Q1L) - lam*(dQ1dlambdaR + dQ1dlambdaL)) * (w/2)**2 * (w/2*np.sqrt(np.pi/2) * grating.npa.erf(1/(w_bar*np.sqrt(2))) - L/2*grating.npa.exp(-1/(2*w_bar**2))) 
-
-    if normalise:
-        fy_y        /= I/(m*c1)
-        fy_phi      /= I*L/(m*c1)
-        fy_vy       /= I*L/(m*c1**2)
-        fy_phidot   /= I*L**2/(m*c1**2)
-        fphi_y      /= I*L/(J*c1)
-        fphi_phi    /= I*L**2/(J*c1)
-        fphi_vy     /= I*L**2/(J*c1**2)
-        fphi_phidot /= I*L**3/(J*c1**2)
+    stiffnesses = calculate_force_coeff([grating.npa.exp, grating.npa.erf], 
+                                        grating.wavelength, Qprs, grating.gaussian_width, I, m, c1, normalise)
+    fy_y, fy_phi, fy_vy, fy_phidot, fphi_y, fphi_phi, fphi_vy, fphi_phidot = stiffnesses
 
     match out:
         case "tr":
-            return grating.npa.stack((fy_y, fy_phi, fy_vy, fy_phidot, fphi_y, fphi_phi, fphi_vy, fphi_phidot))
+            return grating.npa.array(stiffnesses)
         case "rd":
             return grating.npa.stack((fy_y, fy_phi, fphi_y, fphi_phi, fy_vy, fy_phidot, fphi_vy, fphi_phidot))
         case "mat":
@@ -436,7 +470,7 @@ def sail_stiffness(grating, I: float=10e9, m: float=1/1000, c1:float=299792458,
             mat = grating.npa.stack((row1,row2))
             return mat
         case _:
-            raise ValueError("Invalid output format. Must be 'tr' or 'rd'.")
+            raise ValueError("Invalid output format. Must be 'tr', 'rd' or 'mat'.")
         
 def Eigs(grating, I: float=10e9, m: float=1/1000, c1:float=299792458, 
          grad_method: str='finite', return_vec: bool = False, normalise: bool=False):
@@ -458,9 +492,10 @@ def Eigs(grating, I: float=10e9, m: float=1/1000, c1:float=299792458,
     eigImag :   Imaginary part of Jacobian eigenvalues
     eigvecs :   Eigenvectors of Jacobian matrix, normalised to unit length
     """
-    stiffnesses = sail_stiffness(grating,I,m,c1,grad_method,out="mat",normalise=normalise)
+    stiffnesses = force_coeff(grating,I,m,c1,grad_method,out="mat",normalise=normalise)
     if normalise:
-        Ev = I*L**2/(m*c1**3)  # Dimensionless energy-velocity product
+        Isqrt = I*np.sqrt(2/np.pi)  
+        Ev = Isqrt*L**2/(m*c1**3)  # Dimensionless energy-velocity product
         MoIEv = 12*Ev  # Multiplied by moment of inertia inverse prefactor. TODO: generalise to arbitrary moment of inertia 
         stiffnesses[0,:] = Ev*stiffnesses[0,:]
         stiffnesses[1,:] = MoIEv*stiffnesses[1,:]
@@ -500,7 +535,7 @@ def lsa_info(grating, I: float=0.5e9, normalise: bool=False):
     eigImag      :   Imaginary component of eigenvalues
     """
     efficiencies = tuple(grating.return_Qs_auto(return_Q=True))
-    stiffnesses = sail_stiffness(grating,I,m,c,grad_method="grad",out="rd",normalise=normalise)
+    stiffnesses = force_coeff(grating,I,m,c,grad_method="grad",out="rd",normalise=normalise)
     rest_coeffs = tuple([*stiffnesses[:4]])
     damp_coeffs = tuple([*stiffnesses[4:]])
     eigReal, eigImag, eigvecs = Eigs(grating,I,m,c,grad_method="grad",return_vec=True, normalise=normalise)
