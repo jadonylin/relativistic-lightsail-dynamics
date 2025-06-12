@@ -1,0 +1,6 @@
+finalSpeed=20
+maxTime=1440
+runID=Fasymp20_cutoff
+saveDir=/Users/jlin0351/Library/CloudStorage/OneDrive-TheUniversityofSydney\(Students\)/Doppler\ Damping\ -\ Jadon\ Lin/Documentation/Data/relativistic-lightsail-dynamics/Optimisation/Jadon\'s\ results/Fasymp/final_speed${finalSpeed}/maxtime${maxTime}/${runID}
+mkdir "${saveDir}"
+scp jl7180@gadi-dm.nci.org.au:~/RotationTwobox/Data/${runID}* "${saveDir}"

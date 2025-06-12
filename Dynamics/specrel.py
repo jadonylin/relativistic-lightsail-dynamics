@@ -10,8 +10,7 @@ of symmetric lightsails, labelled A, B, C, S and E.
 TODO: update documentation
 """
 
-from autograd import numpy as np
-from autograd.scipy.special import erf as autograd_erf
+import numpy as np
 import scipy
 
 #### All velocities are in m/s (NOT normalised by c)
@@ -103,8 +102,6 @@ def SinCosEpsilon(v,u):
     eps = np.arcsin(sin)
     return sin, cos, eps
 
-# def EpsRateTest(v,u,h):
-
 def ABSC(v,phi):
     """
     ## Inputs
@@ -146,6 +143,3 @@ def E_eps(v, phi):
     """
     g = Gamma(v)
     return (g/(g+1)) * ( np.sin(phi)*v[0]/c - np.cos(phi)*v[1]/c )
-
-def erf(x):
-    return autograd_erf(x)

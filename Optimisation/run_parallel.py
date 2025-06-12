@@ -1,6 +1,8 @@
 """
 Main script for running twobox optimisation on multiple computer cores.
 
+TODO: update doc
+
 How to run:
     Set the parameters for optimisation in the parameters.py module 
     
@@ -20,65 +22,28 @@ os.environ["MKL_NUM_THREADS"] = "1"
 os.environ["VECLIB_MAXIMUM_THREADS"] = "1" 
 os.environ["NUMEXPR_NUM_THREADS"] = "1" 
 
-from copy import deepcopy
 from datetime import datetime
-from multiprocessing import Pool
+from multiprocess import Pool
 
 import numpy as np
 from numpy import *
 
-import pickle
+import pathlib
+import dill as pickle
+
 import sys
 sys.path.append("../")
 
-import time 
+import fom
+import opt 
+import parameters
+from parameters import OptimisationSettings, Hyperparameters, Bounds
 
-from opt import FOM_uniform, global_optimise
-from parameters import Initial_bigrating, opt_Parameters, Bounds
-from twobox import TwoBox
 
-
-# Global optimisation parameters
-num_cores = 2  # number of cores to run parallel optimisation
-maxfev = 2  # global 1000
+# Extract settings from parameters.py
+num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample = OptimisationSettings()
+wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters = Hyperparameters()
 h1_min, h1_max, param_bounds = Bounds()
-runID = "minmax"
-
-# Local optimisation parameters
-xtol_rel = 1e-4  
-ftol_rel = 1e-8  
-
-seed = 20240902  # LDS seed
-sampling = 'sobol'  # 'sobol' or 'random'
-n_sample_exp = 3
-n_sample = 2**n_sample_exp
-ndof = 10  # number of optimisation parameters
-
-
-# Initial grating parameters and hyperparameters
-wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad = opt_Parameters()
-grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = Initial_bigrating()
-grating = TwoBox(grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, 
-                 gaussian_width, substrate_depth, substrate_eps,
-                 wavelength, angle, Nx, nG, Qabs)
-
-
-def objective(params):
-    grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = params
-    grating.grating_pitch = grating_pitch
-    grating.grating_depth = grating_depth
-    grating.box1_width = box1_width
-    grating.box2_width = box2_width
-    grating.box_centre_dist = box_centre_dist
-    grating.box1_eps = box1_eps
-    grating.box2_eps = box2_eps
-
-    grating.gaussian_width=gaussian_width
-    grating.substrate_depth = substrate_depth
-    grating.substrate_eps = substrate_eps
-
-    return FOM_uniform(grating, final_speed, goal, return_grad)
-
 
 
 # RECORDING RESULTS ###########################################################################
@@ -87,8 +52,10 @@ def objective(params):
 
 ## Converting non-h1 parameter dicts to strings ##
 # Fixed parameters
-fixed_params_dict = {'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs}
-fixed_params_line = str(fixed_params_dict)
+hyperparams_dict = {'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs,
+                     'RCWA engine': RCWA_engine, 'TORCWA edge sharpness': torcwa_sharpness,
+                     'Fixed parameters': fixed_parameters}
+hyperparams_line = str(hyperparams_dict)
 FOM_params_dict = {'final_speed': final_speed, 'goal': goal}
 FOM_params_line = str(FOM_params_dict)
 
@@ -101,7 +68,7 @@ sampling_dict = {'Sampling method': sampling, 'n_sample': f'2E+{n_sample_exp}', 
 sampling_line = str(sampling_dict)
 LO_dict = {'xtol_rel': f"{xtol_rel:.1E}", 'ftol_rel': f"{ftol_rel:.1E}"}
 LO_line = str(LO_dict)
-GO_dict = {'number of cores': num_cores, 'maxfev per core': maxfev}
+GO_dict = {'number of cores': num_cores, 'maxstop per core': maxstop}
 GO_line = str(GO_dict)
 
 # Date and time at beginning of run
@@ -111,7 +78,7 @@ time_at_execution = str(datetime.now())
 lines_to_file = ["\n\n------------------------------------------------------------------------------------------------------------------------------------\n"
                 , f"Date & time      | {time_at_execution}\n"
                 ,  "\n"
-                , f"Fixed parameters | {fixed_params_line}\n"
+                , f"Hyperparameters  | {hyperparams_line}\n"
                 , f"FOM parameters   | {FOM_params_line}\n"
                 , f"Non-h1 bounds    | {bounds_line}\n"
                 ,  "\n"
@@ -122,9 +89,10 @@ lines_to_file = ["\n\n----------------------------------------------------------
 
 
 ## Writing to file ##
-# txt_fname = f'./Data/FOM_5th_bounds3_optimisation_maxfev{maxfev*num_cores}.txt'  # What do the numbers mean?
-txt_fname = f'./Data/{runID}_FOM_optimisation_maxfev{maxfev*num_cores}.txt'
-with open(txt_fname, "a") as result_file:
+current_dir = pathlib.Path(__file__).resolve(strict=True).parent
+txt_fname = f'{runID}_FOM_optimisation_maxtime{maxtime}.txt'
+txt_dir = current_dir / "Data" / txt_fname
+with open(txt_dir, "a") as result_file:
     result_file.writelines(lines_to_file)
 
 
@@ -134,11 +102,10 @@ with open(txt_fname, "a") as result_file:
 # subsidiary parameter ranges whose union is the full h1 parameter range set by the user. Each core optimises over one of 
 # those subsidiary h1 ranges, and saves the found most-optimal grating and all optimisation parameters into a dictionary 
 # that is stored in .pkl file. The optimisation results for all cores are stored in the same .pkl file.
-
 def optimise_partitioned_depth(h1_bounds):
     _param_bounds = param_bounds[:]
-    _param_bounds[1] = tuple([*h1_bounds])  # Must unpack a single argument for pool.imap to be applied correctly
-    return global_optimise(objective, sampling, seed, n_sample, maxfev, xtol_rel, ftol_rel, _param_bounds)
+    _param_bounds[0 if "grating_pitch" in parameters.fixed_parameters else 1] = tuple([*h1_bounds])  # Must unpack a single argument for pool.imap to be applied correctly
+    return opt.global_optimise(fom.FoM_default, Hyperparameters(), sampling, seed, n_sample, maxstop, xtol_rel, ftol_rel, _param_bounds)
 
 h1_bounds = []
 h1s = np.linspace(h1_min,h1_max,num_cores+1)
@@ -149,7 +116,6 @@ for p in range(0,num_cores):
 # Run parallel optimisation
 if __name__ == '__main__':
     with Pool(processes=num_cores) as pool:        
-        T1 = time.time()
         print("Begun!")
         
         # Some processes run for too long, so we need to store the results of each process 
@@ -158,18 +124,20 @@ if __name__ == '__main__':
         for opt_index, opt_result in enumerate(pool.imap_unordered(optimise_partitioned_depth, h1_bounds)):
             
             opt_FOM = opt_result[0]
-            opt_params = opt_result[1]
-            is_opt = opt_result[2]
-            
-            # Copy the grating to ensure it is not subsequently modified during optimisation
-            opt_grating = deepcopy(grating)
-            opt_grating.params = opt_params
+            opt_grating = opt_result[1]
+            opt_params = opt_result[2]
+            is_opt = opt_result[3]
+            num_fev = opt_result[4]
+
+            time_at_completion = str(datetime.now())
 
             data = {'Optimised grating': opt_grating, 'FOM': opt_FOM, 'Real optimum?': is_opt,
-                    'Optimised parameters': opt_params,
+                    'Optimised parameters': opt_params, 'Function evaluations': num_fev,
                     'FOM parameters': FOM_params_dict,  'Bounds': bounds_dict,
-                    'Sampling settings': sampling_dict, 'LO settings': LO_dict, 'GO settings': GO_dict}
+                    'Sampling settings': sampling_dict, 'LO settings': LO_dict, 'GO settings': GO_dict,
+                    'Execution time': time_at_execution, 'Completion time': time_at_completion}
             
-            pkl_fname = f'./Data/{runID}_FOM_optimisation_maxfev{maxfev*num_cores}_process{opt_index}.pkl'
-            with open(pkl_fname, 'wb') as data_file:
+            pkl_fname = f'{runID}_FOM_optimisation_maxtime{maxtime}_process{opt_index}.pkl'
+            pkl_dir = current_dir / "Data" / pkl_fname
+            with open(pkl_dir, 'wb') as data_file:
                 pickle.dump(data, data_file)

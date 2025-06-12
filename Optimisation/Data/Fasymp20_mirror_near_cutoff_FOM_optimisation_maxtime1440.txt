@@ -1,0 +1,26 @@
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-04 10:02:56.227387
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 20.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.246), np.float64(1.946)), (0.01, np.float64(2.919)), (np.float64(0.01946), np.float64(1.946)), (np.float64(0.01946), np.float64(1.946)), (np.float64(0.058379999999999994), np.float64(0.973)), (2.25, 12.25), (2.25, 12.25), (5.0, 200)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+4', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 200, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------
+
+
+------------------------------------------------------------------------------------------------------------------------------------
+Date & time      | 2025-06-04 10:26:23.132449
+
+Hyperparameters  | {'wavelength': 1.0, 'angle': 0.0, 'Nx': 100, 'nG': 12, 'Qabs': 10000000.0, 'RCWA engine': 'TORCWA', 'TORCWA edge sharpness': 45, 'Fixed parameters': ['substrate_depth', 'substrate_eps']}
+FOM parameters   | {'final_speed': 20.0, 'goal': 0.1}
+Non-h1 bounds    | {'param_bounds': [(np.float64(1.246), np.float64(1.946)), (0.01, np.float64(2.919)), (np.float64(0.01946), np.float64(1.946)), (np.float64(0.01946), np.float64(1.946)), (np.float64(0.058379999999999994), np.float64(0.973)), (2.25, 12.25), (2.25, 12.25), (5.0, 50)]}
+
+Sampling options | {'Sampling method': 'sobol', 'n_sample': '2E+4', 'seed': 20250602}
+LO options       | {'xtol_rel': '1.0E-04', 'ftol_rel': '1.0E-08'}
+GO options       | {'number of cores': 200, 'maxstop per core': {'maxtime': 1440}}
+------------------------------------------------------------------------------------------------------------------------------------

@@ -2,6 +2,8 @@
 A module to store parameters of a bigrating + laser configuration, and optimisation parameters.
 Some functions are included to calculate velocity-dependent terms from special relativity, including 
 the Lorentz gamma factor and Doppler factor.
+
+TODO: move relativity functions to specrel.py
 """
 
 import numpy as np
@@ -57,125 +59,137 @@ def D1_ND(v):
     return D1
 
 
-## Global Optimisation parameters ##
-# Mission parameters
-I0 = 0.5e9  # laser intensity (might need to be halved)
+
 L = 10  # grating width (metres in 2D model)
-m = 1/1000  # mass (kilograms)
-c = scipy.constants.c
+def Parameters():
+    I0 = 0.5e9  # laser intensity (might need to be halved)
+    m = 1/1000  # mass (kilograms)
+    c = scipy.constants.c
+    return I0, L, m, c
 
 
 wavelength = 1.  # Laser wavelength
-angle = 0.
-Nx = 100  # Number of grid points for RCWA simulation
-nG = 25  # Number of Fourier components for RCWA simulation
+final_speed = 20.  # percentage of c
+param_names = ["grating_pitch", "grating_depth", 
+                "box1_width", "box2_width", "box_centre_dist", 
+                "box1_eps", "box2_eps", 
+                "gaussian_width", "substrate_depth", "substrate_eps"]  # Names of all optimisable twobox parameters
+fixed_parameters = ["grating_pitch", "gaussian_width"]  # Fix parameters during optimisation
+fix_parameter_values = [1.227, 50.]  # Values of fixed parameters, in the same order as fixed_parameters
+def Hyperparameters():
+    # Engine parameters
+    RCWA_engine = "TORCWA"
+    torcwa_sharpness = 45
 
-# Relaxation parameter should be np.inf unless you need to avoid singular matrix at grating cutoffs
-# Note that the optimiser will only find (likely unphysical) large-magnitude, noisy rNeg1 optima when Qabs = np.inf 
-Qabs = 1e7
+    angle = 0.
+    Nx = 100  # Number of grid points for RCWA simulation
 
+    # Number of Fourier components for RCWA simulation
+    if RCWA_engine == "TORCWA":
+        nG = 12
+    elif RCWA_engine == "GRCWA":
+        nG = 25
+    else:
+        raise ValueError("RCWA engine not recognised. Please use 'TORCWA' or 'GRCWA'.")
 
-## FoM parameters ##
-goal = 0.1  # Stopping criteria for adaptive sampling in the FOM (set float for loss_goal, set int for npoints_goal)
-final_speed = 5  # percentage of c
-return_grad = True  # Return FOM and gradient of FOM
+    # Relaxation parameter should be np.inf unless you need to avoid singular matrix at grating cutoffs
+    # Note that the optimiser will only find (likely unphysical) large-magnitude, noisy rNeg1 optima when Qabs = np.inf 
+    Qabs = 1e7
+    goal = 0.1  # Stopping criteria for adaptive sampling in the FOM (set float for loss_goal, set int for npoints_goal)
+    return_grad = True  # Return FOM and gradient of FOM
 
-
-## Global Optimisation bounds ##
-## Parameter bounds
-# Pitch bounds have been set to avoid ±1 or ±2 grating cutoffs, because the grating is rotating.
-# The minimum pitch must be set because any smaller pitches would result in the +1 order being cutoff for small rotation angles. 
-# The maximum pitch must be set because any larger pitches would result in the -2 order appearing for small rotation angles. 
-# The +1 and -2 orders are selected because they appear/disappear before the -1/+2 orders (at positive rotation angle)
-wavelength_max = wavelength/D1_ND(final_speed/100)
-max_angle_cutoff1 = 5*np.pi/180  # maximum angle before order +1 is evanescent
-min_angle_cutoff2 = 15*np.pi/180  # minimum angle before order -2 is non-evanescent
-pitch_min = np.round(1*wavelength_max/(1 - np.sin(max_angle_cutoff1)), 3)  
-pitch_max = np.round(2*wavelength_max/(1 + np.sin(min_angle_cutoff2)), 3)
-
-h1_min = 0.01  # Offset minimum grating thickness from zero to avoid zero Jacobian determinant 
-h1_max = 1.5*pitch_max
-
-box_width_min = 0.
-box_width_max = 1.*pitch_max  # single box width must be smaller than pitch
-
-box_centre_dist_min = 0.
-box_centre_dist_max = 0.5*pitch_max  # redundant space if > 0.5*pitch
-
-box_eps_min = 1.5**2  # Minimum allowed grating permittivity set above vacuum to avoid zero Jacobian determinant 
-box_eps_max = 3.5**2  # Maximum allowed grating permittivity set to silicon
-
-gaussian_width_min = 0.5*L 
-gaussian_width_max = 5*L
-
-substrate_depth_min = h1_min  # Offset minimum substrate thickness from zero to avoid zero Jacobian determinant 
-substrate_depth_max = 1.5*pitch_max 
-
-substrate_eps_min = box_eps_min 
-substrate_eps_max = box_eps_max
-
-param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
-                (box_width_min, box_width_max), (box_width_min, box_width_max),
-                (box_centre_dist_min, box_centre_dist_max),
-                (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-                (gaussian_width_min, gaussian_width_max),
-                (substrate_depth_min, substrate_depth_max), 
-                (substrate_eps_min, substrate_eps_max)]
+    return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters
 
 
-def Parameters():
-    return I0, L, m, c
+def OptimisationSettings():
+    # Global optimisation parameters
+    num_cores = 2  # number of cores to run parallel optimisation
+    maxtime = 4  # Stop after maxtime minutes
+    maxstop = {'maxtime': maxtime}  # global 1000
+    runID = "test_Fasymp20_cutoff"
 
-def opt_Parameters():
-    return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad
+    # Local optimisation parameters
+    xtol_rel = 1e-4  
+    ftol_rel = 1e-8  
 
+    seed = 20250610  # LDS seed
+    sampling = 'sobol'  # 'sobol' or 'random'
+    n_sample_exp = 4
+    n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
+
+    return num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample
+
+
+mirror_substrate_depth = 1.  # Depth of the substrate if mirror_substrate is true (wavelength units)
+mirror_substrate_eps = -1e6  # Permittivity of the substrate if mirror_substrate is true
 def Bounds():
+    ## Parameter bounds
+    # Pitch bounds have been set to avoid ±1 or ±2 grating cutoffs, because the grating is rotating.
+    # The minimum pitch must be set because any smaller pitches would result in the +1 order being cutoff for small rotation angles. 
+    # The maximum pitch must be set because any larger pitches would result in the -2 order appearing for small rotation angles. 
+    # The +1 and -2 orders are selected because they appear/disappear before the -1/+2 orders (at positive rotation angle)
+    wavelength_max = wavelength/D1_ND(final_speed/100)
+    max_angle_cutoff1 = 0.1*np.pi/180  # maximum angle before order +1 is evanescent
+    min_angle_cutoff2 = 15*np.pi/180  # minimum angle before order -2 is non-evanescent
+    pitch_min = np.round(1*wavelength_max/(1 - np.sin(max_angle_cutoff1)), 3)  
+    pitch_max = np.round(2*wavelength_max/(1 + np.sin(min_angle_cutoff2)), 3)
+
+    h1_min = 0.01  # Offset from zero to avoid zero Jacobian determinant 
+    h1_max = 1.5*pitch_max
+
+    box_width_min = 0.01*pitch_max  # Offset from zero to avoid zero Jacobian determinant
+    box_width_max = 1.*pitch_max  # single box width must be smaller than pitch
+
+    box_centre_dist_min = 0.03*pitch_max  # Offset from zero to avoid zero Jacobian determinant and symmetric unit cell
+    box_centre_dist_max = 0.5*pitch_max  # redundant space if > 0.5*pitch
+
+    box_eps_min = 1.1**2  # Minimum allowed grating permittivity set above vacuum to avoid zero Jacobian determinant 
+    box_eps_max = 3.5**2  # Maximum allowed grating permittivity set to silicon
+
+    gaussian_width_min = 0.5*L 
+    gaussian_width_max = 5*L
+
+    substrate_depth_min = h1_min  # Offset from zero to avoid zero Jacobian determinant 
+    substrate_depth_max = 1.5*pitch_max 
+    substrate_eps_min = box_eps_min 
+    substrate_eps_max = box_eps_max
+
+    # # All params
+    # param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
+    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
+    #                 (box_centre_dist_min, box_centre_dist_max),
+    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
+    #                 (gaussian_width_min, gaussian_width_max),                    
+    #                 (substrate_depth_min, substrate_depth_max),
+    #                 (substrate_eps_min, substrate_eps_max)]
+    
+    ## Fixed substrate 
+    #param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
+    #                (box_width_min, box_width_max), (box_width_min, box_width_max),
+    #                (box_centre_dist_min, box_centre_dist_max),
+    #                (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
+    #                (gaussian_width_min, gaussian_width_max)]
+    
+    # # Fixed Gaussian and substrate
+    # param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
+    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
+    #                 (box_centre_dist_min, box_centre_dist_max),
+    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max)]
+    
+    # Fixed Gaussian
+    # param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
+    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
+    #                 (box_centre_dist_min, box_centre_dist_max),
+    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),                    
+    #                 (substrate_depth_min, substrate_depth_max),
+    #                 (substrate_eps_min, substrate_eps_max)]
+    
+    # Fixed pitch and Gaussian
+    param_bounds = [(h1_min, h1_max),
+                    (box_width_min, box_width_max), (box_width_min, box_width_max),
+                    (box_centre_dist_min, box_centre_dist_max),
+                    (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
+                    (substrate_depth_min, substrate_depth_max),
+                    (substrate_eps_min, substrate_eps_max)]
+
     return h1_min, h1_max, param_bounds
-
-
-#######################################################
-## Initial grating
-Start = "middle"
-
-if Start == "Ilic":
-    wavelength = 1.5/D1_ND(2/100)
-
-    grating_pitch = np.float64(1.8/wavelength)
-    grating_depth = np.float64(0.5/wavelength)
-    box1_width = np.float64(0.15*grating_pitch)
-    box2_width = np.float64(0.35*grating_pitch)
-    box_centre_dist = np.float64(0.60*grating_pitch)
-    box1_eps = np.float64(3.5**2)
-    box2_eps = np.float64(3.5**2)
-    gaussian_width = np.float64(2*L)
-    substrate_depth = np.float64(0.5/wavelength)
-    substrate_eps = np.float64(1.45**2)
-
-if Start == "other":
-    grating_pitch   = np.float64(1.3181953910424888)
-    grating_depth   = np.float64(0.9981573495961377)
-    box1_width      = np.float64(0.3925889472885004)
-    box2_width      = np.float64(0.10992496313652637)
-    box_centre_dist = np.float64(0.46325492497782883)
-    box1_eps        = np.float64(2.3183598380520047)
-    box2_eps        = np.float64(2.6699220192321977)
-    gaussian_width  = np.float64(25.03906252365165)
-    substrate_depth = np.float64(2.9915278797460836)
-    substrate_eps   = np.float64(2.3183620304237067)
-
-if Start == "middle":
-    def average(x,y): return (x+y)/2
-    grating_pitch   = average(pitch_min, pitch_max)
-    grating_depth   = average(h1_min, h1_max)
-    box1_width      = average(box_width_min, box_width_max)/2
-    box2_width      = box1_width/2
-    box_centre_dist = average(box_centre_dist_min, box_centre_dist_max)
-    box1_eps        = average(box_eps_min, box_eps_max)
-    box2_eps        = box1_eps
-    gaussian_width  = average(gaussian_width_min, gaussian_width_max)
-    substrate_depth = average(substrate_depth_min, substrate_depth_max)
-    substrate_eps   = average(substrate_eps_min, substrate_eps_max)
-
-
-def Initial_bigrating():
-    return [grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps]

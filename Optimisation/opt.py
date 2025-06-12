@@ -5,9 +5,7 @@ You should import your figure-of-merit functions from opt.py into your main opti
 """
 
 # IMPORTS ########################################################################################################################
-import adaptive as adp
 
-from autograd import grad
 
 import numpy as np
 import nlopt
@@ -20,192 +18,16 @@ os.environ["VECLIB_MAXIMUM_THREADS"] = "1"
 os.environ["NUMEXPR_NUM_THREADS"] = "1" 
 from operator import itemgetter
 
-import pickle
-
-import random
+import dill as pickle
 
 import sys
 sys.path.append("../")
 
-from parameters import Parameters, D1_ND, Initial_bigrating, opt_Parameters
-I0, L, m, c = Parameters()
-_, angle, Nx, nG, Qabs, goal, final_speed, _ = opt_Parameters()
-from twobox import TwoBox, softmin
+import fom
+import parameters
+I0, L, m, c = parameters.Parameters()
+from twobox import TwoBox
 
-
-
-# FUNCTIONS ########################################################################################################################
-def FD(grating: TwoBox) -> float:
-    """
-    Calculate the grating single-wavelength figure of merit FD.
-
-    Parameters
-    ----------
-    grating :           TwoBox instance containing the grating parameters
-    """
-    
-    return grating.FoM(I0, grad_method = "finite")
-
-def FD_params_func(grating, params):
-    grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = params
-    
-    grating.grating_pitch = grating_pitch
-    grating.grating_depth = grating_depth
-    grating.box1_width = box1_width
-    grating.box2_width = box2_width
-    grating.box_centre_dist = box_centre_dist
-    grating.box1_eps = box1_eps
-    grating.box2_eps = box2_eps
-    
-    grating.gaussian_width = gaussian_width
-    grating.substrate_depth = substrate_depth
-    grating.substrate_eps = substrate_eps
-
-    return FD(grating)
-
-FD_grad = grad(FD_params_func, argnum=1)
-
-
-def FOM_uniform(grating: TwoBox, final_speed: float=20., goal: float=0.1, return_grad: bool=True) -> float:
-    """
-    Calculate the figure of merit (FOM) for the given grating over a fixed wavelength range determined by the final speed.
-    
-    The figure of merit we defined is the expectation value of FD over wavelength. Assumes a uniform probability 
-    density over wavelength for weighting FD.
-
-    Parameters
-    ----------
-    grating     :   TwoBox instance containing the grating parameters
-    final_speed :   Final sail speed as percentage of light speed
-    goal        :   Stopping goal for wavelength integration passed to adaptive runner. If int, use npoints_goal; if float, use loss_goal.
-    return_grad :   Return [FOM, FOM gradient] instead of just FOM
-    """
-
-    # Starting wavelength is copied into laser_wavelength just in case grating.wavelength is unexpectedly modified
-    laser_wavelength = grating.wavelength 
-    Doppler = D1_ND([final_speed/100,0])
-    l_min = 1  # l = grating frame wavelength normalised to laser frame wavelength
-    l_max = l_min/Doppler    
-    l_range = (l_min, l_max)
-
-    PDF_unif = 1/(l_max-l_min)  # Perturbation probability density function (PDF)
-    
-    # Define a single-argument function, needed when passing to learner
-    def weighted_FD(l):
-        grating.wavelength = l*laser_wavelength
-        return PDF_unif*FD(grating)
-    
-    FD_learner = adp.Learner1D(weighted_FD, bounds=l_range)
-    if isinstance(goal, int):
-        FD_runner = adp.runner.simple(FD_learner, npoints_goal=goal)
-    elif isinstance(goal, float):
-        FD_runner = adp.runner.simple(FD_learner, loss_goal=goal)
-    else: 
-        raise ValueError("Sampling goal type not recognised. Must be int for npoints_goal or float for loss_goal.")
-    
-    FD_data = FD_learner.to_numpy()
-    l_vals = FD_data[:,0]
-    weighted_FDs = FD_data[:,1]
-    FOM = np.trapz(weighted_FDs,l_vals)
-
-    if return_grad:
-        """
-        Calculate FOM gradient by calculating the gradient of FD for the given grating at all wavelengths then averaging 
-        the gradient over wavelength
-        """
-        
-        # Need to copy the following immutable parameters to pass to FD_grad, otherwise get UFuncTypeError
-        grating_pitch   = grating.grating_pitch
-        grating_depth   = grating.grating_depth
-        box1_width      = grating.box1_width
-        box2_width      = grating.box2_width
-        box_centre_dist = grating.box_centre_dist
-        box1_eps        = grating.box1_eps
-        box2_eps        = grating.box2_eps
-        gaussian_width  = grating.gaussian_width
-        substrate_depth = grating.substrate_depth
-        substrate_eps   = grating.substrate_eps
-
-        params = [grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps,
-                  gaussian_width, substrate_depth, substrate_eps]
-        
-        # Define a single-argument function, needed when passing to learner
-        def weighted_FD_grad(l):
-            grating.wavelength = l*laser_wavelength
-            return PDF_unif*np.array(FD_grad(grating, params))
-
-        # Adaptive sample FD_grad
-        FD_grad_learner = adp.Learner1D(weighted_FD_grad, bounds=l_range)
-
-        if isinstance(goal, int):
-            FD_grad_runner = adp.runner.simple(FD_grad_learner, npoints_goal=goal)
-        elif isinstance(goal, float):
-            FD_grad_runner = adp.runner.simple(FD_grad_learner, loss_goal=goal)
-        
-        FD_grad_data = FD_grad_learner.to_numpy()
-        l_vals = FD_grad_data[:,0]
-        weighted_FD_grads = FD_grad_data[:,1:]
-        
-        FOM_grad = np.trapz(weighted_FD_grads,l_vals, axis=0)
-
-        grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
-        return [FOM,FOM_grad] 
-    else:
-        grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
-        return FOM
-
-
-def average_real_eigs(grating, final_speed, goal, return_eigs: bool=False, I: float=10e9):
-    """
-    Calculates the average of each Re(eig) over the wavelength range. 
-    
-    Assumes starting wavelength = 1.
-
-    Parameters
-    ----------
-    grating     :   TwoBox instance 
-    final_speed :   percentage speed of light
-    goal        :   integer (number of points) or float (loss goal)
-    return_eigs :   If true, return normalised eigenvalues. If false, return averaged eigenvalues
-    I           :   Laser intensity
-
-    Returns
-    -------
-    avg_Reig :   Array containing each eigenvalue's real components averaged over wavelength
-    """
-
-    Doppler = D1_ND([final_speed/100,0])
-    l_min = 1  # l = grating-frame wavelength normalised to laser-frame wavelength
-    l_max = l_min/Doppler    
-    l_range = (l_min, l_max)
-    
-    PDF_unif = 1/(l_max-l_min)  # Probability density function (PDF) for averaging
-
-    def weighted_eig_real(l):
-        grating.wavelength = l
-        return PDF_unif*grating.Eigs(I=I, m=m, c1=c, return_vec=False)[0]
-
-    # Adaptive sample eig_real
-    eig_real_learner = adp.Learner1D(weighted_eig_real, bounds=l_range)
-    if isinstance(goal, int):
-        eig_real_runner = adp.runner.simple(eig_real_learner, npoints_goal=goal)
-    elif isinstance(goal, float):
-        eig_real_runner = adp.runner.simple(eig_real_learner, loss_goal=goal)
-    else: 
-        raise ValueError("Sampling goal type not recognised. Must be int for npoints_goal or float for loss_goal.")
-
-    eig_real_data = eig_real_learner.to_numpy()
-    l_vals = eig_real_data[:,0]
-    eigvals = eig_real_data[:,1:]
-
-    avg_Reig = np.trapz(eigvals, l_vals, axis=0)
-
-    if return_eigs:
-        return avg_Reig, l_vals, eigvals[:,0], eigvals[:,1], eigvals[:,2], eigvals[:,3]
-    if not return_eigs:
-        return avg_Reig
-    if not isinstance(return_eigs, bool):
-        raise ValueError("input return_eigs must be a bool")
 
 
 ## CONSTRAINT FUNCTIONS ##
@@ -214,11 +36,14 @@ def average_real_eigs(grating, final_speed, goal, return_eigs: bool=False, I: fl
 # so the constraint functions should be differentiable with respect to the optimisation parameters. 
 # However, I think the gradients of constrain functions are obtained by MMA internally (likely using
 # finite differences), so autogradability is not needed.
+# Some of these constraints partially overlap with the bound constraints set for the global optimizer,
+# but here, we can pass the exact parameters to the constraints rather than predetermining the bounds.
 def box1_too_wide(params,gradn): 
     """
     Constraint function to prevent box1 from being wider than the unit cell.
     """
-    Lam, _, w1, _, _, _, _, _, _, _ = params
+    Lam = params[0]  
+    w1 = params[2]  # TODO: How do we know which parameter has which index, since params length is variable?
     condition = w1 - Lam 
     return condition
 
@@ -226,7 +51,8 @@ def box2_too_wide(params,gradn):
     """
     Constraint function to prevent box2 from being wider than the unit cell.
     """
-    Lam, _, _, w2, _, _, _, _, _, _ = params
+    Lam = params[0]  
+    w2 = params[3]
     condition = w2 - Lam 
     return condition
 
@@ -236,7 +62,8 @@ def bcd_redundant(params,gradn):
         Symmetry wrt swapping box1 and box2, avoid by taking box centre distance > 0
         Unit cell periodicity means boxes with separation >0.5*Lam are equivalent to boxes with separation <0.5*Lam
     """
-    Lam, _, _, _, bcd, _, _, _, _, _ = params
+    Lam = params[0]  
+    bcd = params[4] 
     condition = np.abs(bcd - 0.25*Lam) - 0.25*Lam 
     return condition
 
@@ -246,7 +73,9 @@ def boxes_overlap(params,gradn):
     TODO: The boxes overlapping can still be asymmetric, so this constraint is slightly too restrictive
             However, would need to find a way to handle gradients in the overlap regime.
     """
-    _, _, w1, w2, bcd, _, _, _, _, _ = params
+    w1 = params[2]
+    w2 = params[3]
+    bcd = params[4]
     condition= (w1+w2)/2 - bcd 
     return condition
 
@@ -257,67 +86,62 @@ def boxes_clip_unit_cell(params,gradn):
     Boxes clipping the unit cell edges can lead to unexpected objective values (user input box widths may not correspond to the 
     box width that RCWA receives). Additionally, gradients become expensive to compute in this case.
     """
-    Lam, _, w1, w2, bcd, _, _, _, _, _ = params
+    Lam = params[0]
+    w1 = params[2]
+    w2 = params[3]
+    bcd = params[4]
     condition = (w1+w2)/2 + bcd - 0.98*Lam
     return condition
 
-# def some_eig_real_avg_positive(params,gradn):
-#     """
-#     Constraint function requiring that the average of all real-part eigenvalues are negative. 
 
-#     TODO: make this function more differentiable
-#     """
-#     grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
-#     avg_eigvals_real = average_real_eigs(grating_check,final_speed,goal,return_eigs=False,I=I0)
-#     largest_avg_Reig = np.max(avg_eigvals_real) 
-#     if largest_avg_Reig == 0:  # Don't want zero-real-part eigenvalues, so set condition to unwanted region 
-#         condition = 1
-#     else:
-#         condition = largest_avg_Reig
-#     return condition
-
-# def some_eig_imag_zero(params,gradn):
-#     """
-#     Constraint function requiring that the imaginary-part eigenvalues are nonzero. 
-
-#     TODO: make this function more differentiable
-#     """
-#     grating_check = TwoBox(*params,1.,angle,Nx,nG,Qabs)
-#     _, eigvals_imag = grating_check.Eigs(I=I0,m=m,c1=c,grad_method="finite")
-#     # probs = softmin(eigvals_imag,sigma=1.)
-#     # smallest_eigval_imag = np.sum(probs*eigvals_imag)
-#     smallest_eigval_imag = np.min(np.abs(eigvals_imag))
-#     if smallest_eigval_imag == 0:  # Don't want zero-imag-part eigenvalues, so set condition to unwanted region 
-#         condition = 1
-#     else:
-#         condition = -smallest_eigval_imag
-#     return condition
-
-def global_optimise(objective, 
-                    sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxfev: int=32000,
-                    xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[]):
+def global_optimise(objective_fom, opt_hyperparams,
+                    sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxstop: dict={'maxfev': 1000, 'maxtime': 600},
+                    xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[], return_settings: bool=False):
     """
     Global optimise the twobox on a single CPU core using MLSL global optimiser with internal MMA local optimiser.
 
+    TODO: Generalise the code to allow for any number of parameters to be omitted. Currently assumes
+          that the first n parameters are to be optimised, and the rest are fixed. Would need to somehow
+          know which parameters are fixed in the constraint functions, which are currently hardcoded.
+
     Parameters
     ----------
-    objective       :   Objective function to optimise. Objective must return (value, gradient)
-    sampling_method :   "sobol" or "random" initial point sampling
-    seed            :   Seed for initial random parameter space sample and grating_depth samples
-    n_sample        :   Number of points for initial sample (per dimension?)
-    maxfev          :   Maximum function evaluations per core
-    xtol_rel        :   Relative position tolerance for MMA
-    ftol_rel        :   Relative objective tolerance for MMA
-    param_bounds    :   Ordered list of tuples, one tuple per parameter bound, each tuple containing one lower and one upper bound
+    objective_fom    :   Figure of merit function to be optimised, passed to FOM_uniform
+    opt_hyperparams  :   Hyperparameters for the optimisation 
+    sampling_method  :   "sobol" or "random" initial point sampling
+    seed             :   Seed for initial random parameter space sample and grating_depth samples
+    n_sample         :   Number of points for initial sample (per dimension?)
+    maxstop          :   Set maximum function evaluations and/or maximum walltime (minutes) per core
+    xtol_rel         :   Relative position tolerance for MMA
+    ftol_rel         :   Relative objective tolerance for MMA
+    param_bounds     :   Ordered list of tuples, one tuple per parameter bound, each tuple containing one lower and one upper bound.
+    return_settings  :   If true, return the optimisation settings. If false, return only the FOM and the grating object.
     """
     
-    ndof = 10  # number of optimisation parameters  
-    h1_min, h1_max = param_bounds[1]    
-    h1_start = random.uniform(h1_min,h1_max)
-    init = Initial_bigrating()
-    init[1] = h1_start  # Use the random h1 start value
-    bcd_constraint = True 
+    ndof = len(param_bounds)  # number of optimisation parameters
+    init_params = []  # Initial parameters for the optimiser, length determined by non-None param_bounds
+    init_all_params = []
+    param_bound_idx = 0
+    fixed_param_idx = 0
+    for param_name in parameters.param_names:
+        if param_name not in parameters.fixed_parameters:
+            pb = param_bounds[param_bound_idx]
+            p_avg = (pb[0]+pb[1])/2
+            init_params.append(p_avg)
+            init_all_params.append(p_avg)
+            param_bound_idx += 1
+        else:
+            # If the parameter is fixed, use the fixed value from parameters.py
+            init_all_params.append(parameters.fix_parameter_values[fixed_param_idx])
+            fixed_param_idx += 1
 
+    # Set up the grating object to be updated during optimisation and returned
+    wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters = opt_hyperparams
+    grating = TwoBox(*init_all_params, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness, fixed_parameters)
+
+    def objective(grating, opt_params):
+        grating.params = opt_params
+        return fom.FOM_uniform(grating, objective_fom, final_speed, goal, return_grad)
 
     def fun_nlopt(params,gradn):
         """
@@ -327,25 +151,20 @@ def global_optimise(objective,
 
         Returns: value of the objective function at the given params
         """
-        y, dy = objective(params)
+        y, dy = objective(grating,params)
         if gradn.size > 0:  # Even for gradient methods, in some calls gradn will be empty []
             gradn[:] = dy
-
-        # Debugging: Print constraint values to ensure optimiser moves to negative regions
-
+        
+        # # Debugging: Print constraint values to ensure optimiser moves to negative regions
         # bcd_red = bcd_redundant(params,gradn)
         # boxes_overl = boxes_overlap(params,gradn)
         # boxes_clip = boxes_clip_unit_cell(params,gradn)
-        # avg_neg = some_eig_real_avg_positive(params,gradn)
-        # zero_imag = some_eig_imag_zero(params,gradn)
-
-        # print("")
+        # print(f"Param: {params}")
+        # print(f"Gradn: {gradn}")
         # print(bcd_red)
         # print(boxes_overl)
         # print(boxes_clip)
-        # print(avg_neg)
-        # print(zero_imag)
-        # print("")
+        # print("\n")
         
         return y
 
@@ -358,38 +177,53 @@ def global_optimise(objective,
     local_opt = nlopt.opt(nlopt.LD_MMA, ndof)
 
     nlopt.srand(seed) 
-    random.seed(seed) 
-
+    n_sample = int(n_sample)
     global_opt.set_population(n_sample)  # set initial sampling points
 
-    if bcd_constraint:
-        local_opt.add_inequality_constraint(bcd_redundant)
+    local_opt.add_inequality_constraint(bcd_redundant)
     local_opt.add_inequality_constraint(box1_too_wide)
     local_opt.add_inequality_constraint(box2_too_wide)
     local_opt.add_inequality_constraint(boxes_clip_unit_cell)
     local_opt.add_inequality_constraint(boxes_overlap)
-    # local_opt.add_inequality_constraint(some_eig_real_avg_positive)
-    # local_opt.add_inequality_constraint(some_eig_imag_zero)
 
     local_opt.set_xtol_rel(xtol_rel)
     local_opt.set_ftol_rel(ftol_rel)
     global_opt.set_local_optimizer(local_opt)
 
     global_opt.set_max_objective(fun_nlopt)
+    if "maxfev" in maxstop:
+        maxfev = maxstop["maxfev"]
+    else:
+        maxfev = -1  # -1 means no limit
+        print("Warning: maxfev not provided in maxstop dictionary. Ignore if this is intentional.")
+    if "maxtime" in maxstop:
+        maxtime = 60*maxstop["maxtime"]  # Seconds
+    else:
+        maxtime = -1  # -1 means no limit
+        print("Warning: maxtime not provided in maxstop dictionary. Ignore if this is intentional.")
     global_opt.set_maxeval(maxfev)
-    
+    global_opt.set_maxtime(maxtime)
+
     lb = [bounds[0] for bounds in param_bounds]
     ub = [bounds[1] for bounds in param_bounds]
     global_opt.set_lower_bounds(lb)
     global_opt.set_upper_bounds(ub)
 
 
-    opt_params = global_opt.optimize(init)
-    optimum = objective(opt_params)[0]
-    print("Success on starting bounds: ", param_bounds[1])
+    opt_params = global_opt.optimize(init_params)
+    optimum = objective(grating,opt_params)[0]
     is_optimum = True
+    num_fev = global_opt.get_numevals()
+    print("Success on starting bounds: ", param_bounds[1])
+    
 
-    return (optimum, opt_params, is_optimum)
+    if return_settings:
+        settings = {"sampling_method": sampling_method, "seed": seed, "n_sample": n_sample,
+                    "maxstop": maxstop, "xtol_rel": xtol_rel, "ftol_rel": ftol_rel,
+                    "param_bounds": param_bounds}
+        return (optimum, grating, opt_params, is_optimum, num_fev, settings)
+    else:
+        return (optimum, grating, opt_params, is_optimum, num_fev)
 
 def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: int=0):
     """
@@ -412,9 +246,10 @@ def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: i
     opt_FOMs = []
     opt_gratings = []
     opt_params = []
+    total_fev = 0
     for n in range(num_processes):
         try: 
-            data_fname = data_basefile_name + f"_process{n}.pkl"
+            data_fname = str(data_basefile_name) + f"_process{n}.pkl"
             with open(data_fname, 'rb') as data_file:
                 data = pickle.load(data_file)
         except FileNotFoundError:
@@ -424,13 +259,23 @@ def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: i
         opt_gratings.append(data["Optimised grating"])
         opt_params.append(data["Optimised parameters"])
 
+        try:
+            total_fev += data["Function evaluations"]
+        except KeyError as ke:
+            print(ke)
+
+    print(f"Total function evaluations: {total_fev}")
+    print(f"Average function evaluations per core: {int(total_fev/num_processes)}")
     maxima_and_maximisers = zip(opt_FOMs, opt_params)
     maxima_and_gratings = zip(opt_FOMs, opt_gratings)
 
     # Sort the optima based on the FOM value
     maxima_and_maximisers_sorted = sorted(maxima_and_maximisers, key=itemgetter(0), reverse=True)
     opt_gratings_sorted = sorted(maxima_and_gratings, key=itemgetter(0), reverse=True)
-    chosen_best_grating = opt_gratings_sorted[output_opt_idx][1]
+    try:
+        chosen_best_grating = opt_gratings_sorted[output_opt_idx][1]
+    except IndexError:  # TODO: search for the file name directly rather than handling here
+        raise FileNotFoundError(f"Warning: Optimisation results were not loaded correctly. Check base filename: {data_basefile_name}")
 
     return maxima_and_maximisers_sorted, opt_gratings_sorted, chosen_best_grating
 

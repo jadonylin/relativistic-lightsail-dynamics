@@ -12,12 +12,12 @@ correspond to the optimum grating chosen by the user and extracted from the glob
 Therefore, the optimisation parameters of this first-step grating are known and can be extracted using
 opt_grating.params. However, for unknown reasons, the optimisation parameters for this first step that 
 are saved in the text file are incorrect, giving weird values. Just ignore!
+
+TODO: Update to account for variable fixed parameters.
 """
 
 # IMPORTS ####################################################################################################################################################################################
-import autograd.numpy as np
-
-from copy import deepcopy
+import numpy as np
 
 from datetime import datetime
 
@@ -26,53 +26,59 @@ import nlopt
 import sys
 sys.path.append('../')
 
+import fom
 import parameters
 import opt
+from twobox import TwoBox
 
 
 # EXTRACT OPTIMISATION RESULT ####################################################################################################################################################################################
 # Initial twobox grating for local optimisation drawn from candidate optima in global optimisation
-num_cores = 18
-global_maxfev = 500
-pkl_fname = f'./Data/FOM_optimisation_maxfev{num_cores*global_maxfev}'
-txt_fname = f'./Data/MdSnpminOpt_maxfev{num_cores*global_maxfev}_LO.txt'  # save results to text file
-_, _, opt_grating = opt.extract_opt(pkl_fname, num_processes=num_cores, output_opt_idx=0)  
+runID = "MdSnpmin1_torcwa"
+num_cores = 90
+# maxfev = 1
+maxtime = 2820
+
+pkl_fname = f'./Data/{runID}_FOM_optimisation_maxtime{maxtime}'
+txt_fname = f'./Data/{runID}_FOM_optimisation_maxtime{maxtime}_curated.txt'
+_, _, opt_grating = opt.extract_opt(pkl_fname, num_processes=num_cores, output_opt_idx=2)
 
 
 # PARAMETERS ####################################################################################################################################################################################
-init_grating = deepcopy(opt_grating)
-
 # In the LO honing, can set Qabs to infinity since we are in the vicinity of a true optimum, 
 # so it shouldn't get caught on unphysical optima (this was a problem for non-rotation optimisation,
 # but I haven't seen it since then)
-init_grating.Qabs = np.inf 
-final_speed = 20.  # percentage of c
-wavelength, angle, Nx, nG, _, goal, _, return_grad = parameters.opt_Parameters()
+try:
+    op = opt_grating.all_params
+except AttributeError:
+    op = opt_grating.params
+init_grating = TwoBox(*op, wavelength=1., angle=0., Nx=100, nG=12, Qabs=np.inf, 
+                      RCWA_engine=opt_grating.RCWA_engine, torcwa_edge_sharpness=opt_grating.torcwa_edge_sharpness,
+                      fixed_parameters=)
+
+goal = 0.1  # Stopping criteria for adaptive sampling in the FOM (set float for loss_goal, set int for npoints_goal)
+final_speed = 1.  # percentage of c
+choose_fom = fom.FoM_asymp
 
 xtol_rel = 1e-7
 ftol_rel = 1e-14
 maxfev = 200
+txt_fname = f'./Data/{runID}_LO_maxfev{maxfev}.txt'  # save results to text file
 
 
 # LOCAL OPTIMISATION ####################################################################################################################################################################################
 ndof = 10
-param_bounds = parameters.param_bounds
-init = init_grating.params
+param_bounds = parameters.Bounds()[2]
+# Must convert arrays to np when passing to nlopt optimiser
+match init_grating.RCWA_engine:
+    case "GRCWA":  # Acquire ArrayBox values
+        init = [p._value for p in init_grating.params]  # UNTESTED
+    case "TORCWA":  # Acquire tensor values
+        init = [p.detach().numpy() for p in init_grating.params]
 
 def objective(params):
-    grating_pitch, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, gaussian_width, substrate_depth, substrate_eps = params
-    init_grating.grating_pitch   = grating_pitch
-    init_grating.grating_depth   = grating_depth
-    init_grating.box1_width      = box1_width
-    init_grating.box2_width      = box2_width
-    init_grating.box_centre_dist = box_centre_dist
-    init_grating.box1_eps        = box1_eps
-    init_grating.box2_eps        = box2_eps
-    init_grating.gaussian_width  = gaussian_width
-    init_grating.substrate_depth = substrate_depth
-    init_grating.substrate_eps   = substrate_eps
-
-    return opt.FOM_uniform(init_grating, final_speed, goal, return_grad)
+    init_grating.params = params
+    return fom.FOM_uniform(init_grating, choose_fom, final_speed, goal, return_grad=True)
 
 init_objective = objective(init)[0]
 
@@ -127,10 +133,12 @@ optimum = local_opt.last_optimum_value()
 init_line = repr(init)
 opt_params_line = repr(opt_params)
 
-fixed_params_dict = {'wavelength': init_grating.wavelength,
+hyperparams_dict = {'wavelength': init_grating.wavelength,
                     'angle': init_grating.angle,
-                    'Nx': init_grating.Nx, 'nG': init_grating.nG, 'Qabs': init_grating.Qabs}
-fixed_params_line = str(fixed_params_dict)
+                    'Nx': init_grating.Nx, 'nG': init_grating.nG, 'Qabs': init_grating.Qabs,
+                    'RCWA engine': init_grating.RCWA_engine, 'TORCWA box sharpness': init_grating.torcwa_edge_sharpness,
+                    'Fixed parameters': init_grating.fixed_parameters}
+hyperparams_line = str(hyperparams_dict)
 FOM_params_dict = {'final_speed': final_speed, 'goal': goal}
 FOM_params_line = str(FOM_params_dict)
 
@@ -146,7 +154,7 @@ init_lines = ["\n\n-------------------------------------------------------------
                 , f"LO Honing \n"
                 , f"Date & time         | {time_at_execution}\n"
                 ,  "\n"
-                , f"Fixed parameters    | {fixed_params_line}\n"
+                , f"Hyperparameters     | {hyperparams_line}\n"
                 , f"FOM parameters      | {FOM_params_line}\n"
                 , f"Bounds              | {bounds_line}\n"
                 ,  "\n"
