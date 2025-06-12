@@ -380,11 +380,11 @@ def calculate_force_coeff(exp_funcs: list[callable], wavelength: float, Qprs: li
 
     # Width-exponential factors
     # "slow" and "fast" refers to how quickly the factors decay to zero at infinite beam width
-    w_inf   = (1 - exp(-1/(2*w_bar**2)))/w_bar
+    w_inf       = (1 - exp(-1/(2*w_bar**2)))/w_bar
     w_pi2_slow  = 1/2 * np.sqrt(np.pi/2) * erf(1/(w_bar*np.sqrt(2)))
-    w_pi2_fast   = w_pi2_slow - exp(-1/(2*w_bar**2))/(2*w_bar)
-    w_0_slow  = (w_bar/2)**2 * w_inf
-    w_0_fast = (w_bar/2)**2 * w_pi2_fast
+    w_pi2_fast  = w_pi2_slow - exp(-1/(2*w_bar**2))/(2*w_bar)
+    w_0_slow    = (w_bar/2)**2 * w_inf
+    w_0_fast    = (w_bar/2)**2 * w_pi2_fast
     
     # NOTE: derivatives with respect to lambda are equal to derivatives with respect to frequency offset
     #       multiplied by a factor of D/lambda
@@ -410,6 +410,8 @@ def calculate_force_coeff(exp_funcs: list[callable], wavelength: float, Qprs: li
         fphi_vy     *= Isqrt*L**2/(J*c1**2)
         fphi_phidot *= Isqrt*L**3/(J*c1**2)
     
+    print([fy_y, fy_phi, fy_vy, fy_phidot, fphi_y, fphi_phi, fphi_vy, fphi_phidot])
+
     return [fy_y, fy_phi, fy_vy, fy_phidot, fphi_y, fphi_phi, fphi_vy, fphi_phidot]
 
 def force_coeff(grating, I: float=10e9, m: float=1/1000, c1:float=299792458, 
