@@ -198,8 +198,8 @@ def Bounds():
                     (box_width_min, box_width_max), (box_width_min, box_width_max),
                     (box_centre_dist_min, box_centre_dist_max),
                     (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
+                    (gaussian_width_min, gaussian_width_max),
                     (substrate_depth_min, substrate_depth_max),
-                    (substrate_eps_min, substrate_eps_max),
-                    (gaussian_width_min, gaussian_width_max)]
+                    (substrate_eps_min, substrate_eps_max)]
 
     return h1_min, h1_max, param_bounds
