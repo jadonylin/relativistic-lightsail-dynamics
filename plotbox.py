@@ -26,7 +26,7 @@ plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
-import fom
+import fom as fom_module
 from parameters import Parameters
 I0, L, m, c = Parameters()
 
@@ -617,7 +617,7 @@ class PlotBox:
         for idx, lam in enumerate(wavelengths):
             # Calculate eigs for each order
             self.wavelength = self.npa.array(lam)
-            real, imag = fom.Eigs(self, I=I,m=m,c1=c, grad_method="grad", return_vec=False)
+            real, imag = fom_module.Eigs(self, I=I,m=m,c1=c, grad_method="grad", return_vec=False)
             eigvals[:,idx] = real + 1j*imag
             
         self.wavelength = init_wavelength # restore user-initialised wavelength
@@ -671,7 +671,7 @@ class PlotBox:
 
         return fig, (ax1, ax2)
 
-    def show_FOM_spectrum(self, fom: callable=fom.FoM_default, angle: float=0., wavelength_range: list=[1., 1.5], 
+    def show_FOM_spectrum(self, fom: callable=fom_module.FoM_default, angle: float=0., wavelength_range: list=[1., 1.5], 
                           num_plot_points: int=200, I: float=10e9, grad_method: str="grad"):
         """
         Show spectrum of various efficiency quantities for the twobox.
@@ -700,7 +700,7 @@ class PlotBox:
         efficiencies = np.zeros(num_plot_points, dtype=float)
         for idx, lam in enumerate(wavelengths):
             self.wavelength = lam
-            efficiencies[idx] = fom.FoM(self, fom=fom, I=I, grad_method=grad_method)
+            efficiencies[idx] = fom_module.FoM(self, fom=fom, I=I, grad_method=grad_method)
         self.wavelength = init_wavelength
 
         fig, ax = plt.subplots(1)         
