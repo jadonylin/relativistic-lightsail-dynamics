@@ -23,14 +23,14 @@ wavelength = 1
 # The efficiency factors are too expensive to calculate in real time, so pre-calculated tables are used.
 klambda = 1000
 kdelta = 1000
-runID_load = "Fasymp20_cutoff"
-nonlinear_run = True  # Flag to load the nonlinear data and acceleration function
+runID_load = "Fasymp20_fixed_pitch"
+nonlinear_run = False  # Flag to load the nonlinear data and acceleration function
 damping_scaler = 1.  # Only applies if nonlinear_run is False. Set to 0 to disable damping.
 
 # Extract optimised grating (in particular, Gaussian width)
 num_processes = 200  # number of processes used in the optimisation to produce opt_gratings_data_fname.pkl
 maxtime = 1440
-output_opt_idx = 18  # Index of the optimum grating to output, lower corresponding to larger FOM
+output_opt_idx = 1  # Index of the optimum grating to output, lower corresponding to larger FOM
 
 if nonlinear_run:
     lookup_data_fname = f'./Data/{runID_load}_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl'
@@ -62,7 +62,7 @@ time_MAX = 72.*60*60  # Maximum runtime (seconds)
 # time_MAX = 10  # Maximum runtime (seconds)
 velocity_MAX = 0.2*c
 h = 1e-3   # Step size  
-runID = "Fasymp20_cutoff"  # For saving dynamics data
+runID = "Fasymp20_fixed_pitch_lsa"  # For saving dynamics data
 
 
 if nonlinear_run:

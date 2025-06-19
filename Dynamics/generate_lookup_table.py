@@ -28,13 +28,11 @@ import Optimisation.opt as opt
 t_start = time.time()
 
 ## Initialise grating
-runID = "Fasymp20_fixed_gaussian_near_cutoff"
+runID = "Fasymp20_fixed_pitch"
 num_cores = 200
-# maxfev = 500
 maxtime = 1440
-# opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxfev{num_cores*maxfev}"
 opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxtime{maxtime}"
-_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=3)
+_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=1)
 op = _opt_grating.all_params[:]
 
 # Set custom parameters, if needed. If not needed, can just set "grating" to the extracted grating above.
@@ -49,17 +47,17 @@ grating = TwoBox(*op, wavelength=wavelength, angle=angle, Nx=Nx, nG=numG, Qabs=Q
                  RCWA_engine="TORCWA", torcwa_edge_sharpness=45)
 
 
-klambda = 1000  # Number of lambda' points
+klambda = 1000 # Number of lambda' points
 v_final = 20/100
 lambda_final = 1/D1_ND(v_final)
 lambda_array = np.linspace(wavelength, lambda_final, klambda)
 
 kdelta = 1000  # Number of delta' points
-delta_max = 0.97*np.pi/180  # IMPORTANT: must be set according to the grating cutoffs
+delta_max = 0.105*np.pi/180  # IMPORTANT: must be set according to the grating cutoffs
 delta_min = -delta_max
 delta_array = np.linspace(delta_min, delta_max, kdelta)
 
-num_processes = 10
+num_processes = 4
 
 def eff_auto(*args):
     grating.wavelength = args[0][0]

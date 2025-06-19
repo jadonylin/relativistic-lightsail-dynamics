@@ -17,11 +17,11 @@ from twobox import TwoBox
 t_start = time.time()
 
 ## Initialise grating
-runID = "Fasymp20_cutoff"
+runID = "Fasymp20_fixed_pitch"
 final_speed = 20.
 num_cores = 200
 maxtime = 1440
-output_opt_idx = 18
+output_opt_idx = 1
 
 common_path = user_home_path_full / "Library/CloudStorage/OneDrive-TheUniversityofSydney(Students)/Doppler Damping - Jadon Lin/Documentation/Data/relativistic-lightsail-dynamics/Optimisation/Jadon's results"
 custom_folder_path = f"Fasymp/final_speed{int(final_speed)}/maxtime{int(maxtime)}/{runID}"
