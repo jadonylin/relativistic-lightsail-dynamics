@@ -28,11 +28,11 @@ import Optimisation.opt as opt
 t_start = time.time()
 
 ## Initialise grating
-runID = "Fasymp20_fixed_pitch"
+runID = "Fasymp20_gaussian100_50GW"
 num_cores = 200
 maxtime = 1440
 opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxtime{maxtime}"
-_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=1)
+_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=41)
 op = _opt_grating.all_params[:]
 
 # Set custom parameters, if needed. If not needed, can just set "grating" to the extracted grating above.
