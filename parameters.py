@@ -75,8 +75,8 @@ param_names = ["grating_pitch", "grating_depth",
                 "box1_width", "box2_width", "box_centre_dist", 
                 "box1_eps", "box2_eps", 
                 "gaussian_width", "substrate_depth", "substrate_eps"]  # Names of all optimisable twobox parameters
-fixed_parameters = ["grating_pitch"]  # Fix parameters during optimisation
-fix_parameter_values = [1.227]  # Values of fixed parameters, in the same order as fixed_parameters
+fixed_parameters = ["grating_pitch", "substrate_depth", "substrate_eps"]  # Fix parameters during optimisation
+fix_parameter_values = [1.227, 1., -1e6]  # Values of fixed parameters, in the same order as fixed_parameters
 def Hyperparameters():
     # Engine parameters
     RCWA_engine = "TORCWA"
@@ -107,13 +107,13 @@ def OptimisationSettings():
     num_cores = 2  # number of cores to run parallel optimisation
     maxtime = 2  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
-    runID = "test_Fasymp20_fixed_pitch"
+    runID = "test_Famp20"
 
     # Local optimisation parameters
     xtol_rel = 1e-4  
     ftol_rel = 1e-8  
 
-    seed = 20250610  # LDS seed
+    seed = 20250714  # LDS seed
     sampling = 'sobol'  # 'sobol' or 'random'
     n_sample_exp = 4
     n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
@@ -148,7 +148,7 @@ def Bounds():
     box_eps_max = 3.5**2  # Maximum allowed grating permittivity set to silicon
 
     gaussian_width_min = 0.1*L 
-    gaussian_width_max = 5*L
+    gaussian_width_max = 100*L
 
     substrate_depth_min = h1_min  # Offset from zero to avoid zero Jacobian determinant 
     substrate_depth_max = 1.5*pitch_max 
@@ -164,42 +164,20 @@ def Bounds():
     #                 (substrate_depth_min, substrate_depth_max),
     #                 (substrate_eps_min, substrate_eps_max)]
     
-    ## Fixed substrate 
-    #param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
-    #                (box_width_min, box_width_max), (box_width_min, box_width_max),
-    #                (box_centre_dist_min, box_centre_dist_max),
-    #                (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-    #                (gaussian_width_min, gaussian_width_max)]
-    
-    # # Fixed Gaussian and substrate
-    # param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
-    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
-    #                 (box_centre_dist_min, box_centre_dist_max),
-    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max)]
-    
-    # Fixed Gaussian
-    # param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
-    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
-    #                 (box_centre_dist_min, box_centre_dist_max),
-    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),                    
-    #                 (substrate_depth_min, substrate_depth_max),
-    #                 (substrate_eps_min, substrate_eps_max)]
-    
-    # # Fixed pitch and Gaussian
+    # # Fixed pitch
     # param_bounds = [(h1_min, h1_max),
     #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
     #                 (box_centre_dist_min, box_centre_dist_max),
     #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
+    #                 (gaussian_width_min, gaussian_width_max),
     #                 (substrate_depth_min, substrate_depth_max),
     #                 (substrate_eps_min, substrate_eps_max)]
-    
-    # Fixed pitch
-    param_bounds = [(h1_min, h1_max),
+
+    # Fixed substrate and pitch
+    param_bounds = [(h1_min, h1_max), 
                     (box_width_min, box_width_max), (box_width_min, box_width_max),
                     (box_centre_dist_min, box_centre_dist_max),
                     (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-                    (gaussian_width_min, gaussian_width_max),
-                    (substrate_depth_min, substrate_depth_max),
-                    (substrate_eps_min, substrate_eps_max)]
-
+                    (gaussian_width_min, gaussian_width_max)]
+    
     return h1_min, h1_max, param_bounds
