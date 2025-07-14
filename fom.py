@@ -25,7 +25,7 @@ def FoM_default(grating, I: float=1e9, grad_method: str="finite") -> float:
     I           :   Laser intensity
     grad_method :   Method to calculate gradient ("finite", "grad")
     """
-    return FoM_asymp(grating, I=I, grad_method=grad_method)
+    return FoM_amp(grating, I=I, grad_method=grad_method)
 
 def FoM_damp(grating, I: float=1e9, grad_method: str="grad") -> float:
     """
@@ -90,13 +90,65 @@ def FoM_asymp(grating, I: float=1e9, grad_method: str="finite") -> float:
     if grating.angle != 0:
         raise ValueError("Asymptotic stability FOM only valid for gratings with zero angle, i.e. the linear regime.")
     eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
-
-    # MdS FoM: Minimise the eigenvalue with the largest real part. Equivalent to maximising the 
-    #          negative eigenvalue with the smallest real part. 
     F_lam = grating.npa.min(-eigReal)  # standard minimum
     # F_lam = grating.npa.sum(-eigReal*grating.npa.softmin(-eigReal,1.))  # softened minimum
     # F_lam = grating.npa.min(-eigReal) + grating.npa.max(-eigReal)
+    return F_lam
+
+def FoM_wasymp(grating, I: float=1e9, grad_method: str="finite") -> float:
+    """
+    Width-multiplied asymptotic stability FOM: Minimise the eigenvalue of the linear stability Jacobian with the 
+    largest real part, multiply by the width.
     
+    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
+    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
+    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
+    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
+    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
+    the unit cell along the x-axis about the unit-cell centre.
+
+    Parameters
+    ----------
+    grating     :   Calculate figure of merit for this grating
+    I           :   Laser intensity
+    grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+    
+    Returns
+    -------
+    F_lam :   Figure of merit
+    """
+    if grating.angle != 0:
+        raise ValueError("Asymptotic stability FOM only valid for gratings with zero angle, i.e. the linear regime.")
+    eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
+    F_lam = grating.gaussian_width*grating.npa.min(-eigReal)  # standard minimum
+    return F_lam
+
+def FoM_amp(grating, I: float=1e9, grad_method: str="finite") -> float:
+    """
+    Asymptotic-minimum-propulsion (amp) FOM: Minimise the eigenvalue of the linear stability Jacobian 
+    with the largest real part divided by Qpr1. 
+    
+    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
+    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
+    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
+    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
+    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
+    the unit cell along the x-axis about the unit-cell centre.
+
+    Parameters
+    ----------
+    grating     :   Calculate figure of merit for this grating
+    I           :   Laser intensity
+    grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+    
+    Returns
+    -------
+    F_lam :   Figure of merit
+    """
+    if grating.angle != 0:
+        raise ValueError("This FOM is only valid for gratings with zero angle, i.e. the linear regime.")
+    eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
+    F_lam = grating.npa.min(-eigReal)/grating.Q()[0]
     return F_lam
 
 def FoM_max_eigval(grating, I: float=1e9, grad_method: str="finite") -> float:
