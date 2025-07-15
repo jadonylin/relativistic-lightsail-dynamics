@@ -179,6 +179,34 @@ def FoM_max_eigval(grating, I: float=1e9, grad_method: str="finite") -> float:
     F_lam = grating.npa.max(-eigReal) 
     return F_lam
 
+def FoM_amp_max_eigval(grating, I: float=1e9, grad_method: str="finite") -> float:
+    """
+    F_amp supplementary FOM: Calculate eigenvalue of the linear stability Jacobian with the 
+    smallest real part. 
+    
+    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
+    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
+    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
+    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
+    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
+    the unit cell along the x-axis about the unit-cell centre.
+
+    Parameters
+    ----------
+    grating     :   Calculate figure of merit for this grating
+    I           :   Laser intensity
+    grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+    
+    Returns
+    -------
+    F_lam :   Figure of merit
+    """
+    if grating.angle != 0:
+        raise ValueError("Asymptotic stability FOM only valid for gratings with zero angle, i.e. the linear regime.")
+    eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
+    F_lam = grating.npa.max(-eigReal)/grating.Q()[0] 
+    return F_lam
+
 def FoM_quality_factor(grating, I: float=1e9, grad_method: str="finite") -> float:
     """
     Quality factor FoM: Maximise the magnitude of the quality factor (Re(xi)/Im(xi)) 
