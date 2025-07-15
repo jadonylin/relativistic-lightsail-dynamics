@@ -71,12 +71,13 @@ def Parameters():
 
 wavelength = 1.  # Laser wavelength
 final_speed = 20.  # percentage of c
+pitch_within_0p1_deg = 1.227 # Pitch of the grating, allowing rotating within 0.1 degrees of before m=1 cutoff
 param_names = ["grating_pitch", "grating_depth", 
                 "box1_width", "box2_width", "box_centre_dist", 
                 "box1_eps", "box2_eps", 
                 "gaussian_width", "substrate_depth", "substrate_eps"]  # Names of all optimisable twobox parameters
 fixed_parameters = ["grating_pitch", "substrate_depth", "substrate_eps"]  # Fix parameters during optimisation
-fix_parameter_values = [1.227, 1., -1e6]  # Values of fixed parameters, in the same order as fixed_parameters
+fix_parameter_values = [pitch_within_0p1_deg, 1., -1e6]  # Values of fixed parameters, in the same order as fixed_parameters
 def Hyperparameters():
     # Engine parameters
     RCWA_engine = "TORCWA"
@@ -135,23 +136,23 @@ def Bounds():
     pitch_min = np.round(1*wavelength_max/(1 - np.sin(max_angle_cutoff1)), 3)  
     pitch_max = np.round(2*wavelength_max/(1 + np.sin(min_angle_cutoff2)), 3)
 
-    h1_min = 0.01  # Offset from zero to avoid zero Jacobian determinant 
-    h1_max = 1.5*pitch_max
+    h1_min = 0.01*pitch_within_0p1_deg  # Offset from zero to avoid zero Jacobian determinant 
+    h1_max = 1.5*pitch_within_0p1_deg
 
-    box_width_min = 0.01*pitch_max  # Offset from zero to avoid zero Jacobian determinant
-    box_width_max = 1.*pitch_max  # single box width must be smaller than pitch
+    box_width_min = 0.01*pitch_within_0p1_deg  # Offset from zero to avoid zero Jacobian determinant
+    box_width_max = 1.*pitch_within_0p1_deg  # single box width must be smaller than pitch
 
-    box_centre_dist_min = 0.03*pitch_max  # Offset from zero to avoid zero Jacobian determinant and symmetric unit cell
-    box_centre_dist_max = 0.5*pitch_max  # redundant space if > 0.5*pitch
+    box_centre_dist_min = 0.03*pitch_within_0p1_deg  # Offset from zero to avoid zero Jacobian determinant and symmetric unit cell
+    box_centre_dist_max = 0.5*pitch_within_0p1_deg  # redundant space if > 0.5*pitch
 
     box_eps_min = 1.1**2  # Minimum allowed grating permittivity set above vacuum to avoid zero Jacobian determinant 
     box_eps_max = 3.5**2  # Maximum allowed grating permittivity set to silicon
 
     gaussian_width_min = 0.1*L 
-    gaussian_width_max = 100*L
+    gaussian_width_max = 10*L
 
     substrate_depth_min = h1_min  # Offset from zero to avoid zero Jacobian determinant 
-    substrate_depth_max = 1.5*pitch_max 
+    substrate_depth_max = 1.5*pitch_within_0p1_deg 
     substrate_eps_min = box_eps_min 
     substrate_eps_max = box_eps_max
 
