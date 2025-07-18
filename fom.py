@@ -10,8 +10,10 @@ TODO: need better separation between opt and fom, otherwise figures of merit are
 import adaptive as adp
 import numpy as np
 import parameters
-from parameters import Parameters, D1_ND
+from parameters import Parameters, D1_ND, FOMSettings
 I0, L, m, c = Parameters()
+choose_FOM, fom_kwargs = FOMSettings()
+
 laser_wavelength = parameters.wavelength
 
 
@@ -25,9 +27,27 @@ def FoM_default(grating, I: float=1e9, grad_method: str="finite") -> float:
     I           :   Laser intensity
     grad_method :   Method to calculate gradient ("finite", "grad")
     """
-    return FoM_amp(grating, I=I, grad_method=grad_method)
+    if choose_FOM == "asymp":
+        return FoM_asymp(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_FOM == "wasymp":
+        return FoM_wasymp(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_FOM == "damp":
+        return FoM_damp(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_FOM == "amp":
+        return FoM_amp(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_FOM == "max_eigval":
+        return FoM_max_eigval(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_FOM == "amp_max_eigval":
+        return FoM_amp_max_eigval(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_FOM == "quality_factor":
+        return FoM_quality_factor(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_FOM == "LvR":
+        return FoM_LvR(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    else:
+        raise ValueError(f"Figure of merit {choose_FOM} not recognised. Please choose from the available options: "
+                         "'asymp', 'wasymp', 'damp', 'amp', 'max_eigval', 'amp_max_eigval', 'quality_factor', 'LvR'.")
 
-def FoM_damp(grating, I: float=1e9, grad_method: str="grad") -> float:
+def FoM_damp(grating, I: float=1e9, grad_method: str="grad", **kwargs) -> float:
     """
     Damping FOM: For translation-only motion. Minimise the ratio of the damping-force coefficient 
                  to the longitudinal-force coefficient.
@@ -65,7 +85,7 @@ def FoM_damp(grating, I: float=1e9, grad_method: str="grad") -> float:
     F_lam = damp/Q1
     return F_lam
 
-def FoM_asymp(grating, I: float=1e9, grad_method: str="finite") -> float:
+def FoM_asymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     Asymptotic stability FOM: Minimise the eigenvalue of the linear stability Jacobian with the 
     largest real part. Equivalent to maximising the negative eigenvalue with the smallest real part. 
@@ -79,9 +99,9 @@ def FoM_asymp(grating, I: float=1e9, grad_method: str="finite") -> float:
 
     Parameters
     ----------
-    grating     :   Calculate figure of merit for this grating
-    I           :   Laser intensity
-    grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+    grating       :   Calculate figure of merit for this grating
+    I             :   Laser intensity
+    grad_method   :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
     
     Returns
     -------
@@ -89,13 +109,17 @@ def FoM_asymp(grating, I: float=1e9, grad_method: str="finite") -> float:
     """
     if grating.angle != 0:
         raise ValueError("Asymptotic stability FOM only valid for gratings with zero angle, i.e. the linear regime.")
-    eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False)
+    if 'use_perturbed' in kwargs:
+        use_perturbed = kwargs['use_perturbed']
+    else:
+        use_perturbed = False
+    eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False, use_perturbed=use_perturbed)
     F_lam = grating.npa.min(-eigReal)  # standard minimum
     # F_lam = grating.npa.sum(-eigReal*grating.npa.softmin(-eigReal,1.))  # softened minimum
     # F_lam = grating.npa.min(-eigReal) + grating.npa.max(-eigReal)
     return F_lam
 
-def FoM_wasymp(grating, I: float=1e9, grad_method: str="finite") -> float:
+def FoM_wasymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     Width-multiplied asymptotic stability FOM: Minimise the eigenvalue of the linear stability Jacobian with the 
     largest real part, multiply by the width.
@@ -123,7 +147,7 @@ def FoM_wasymp(grating, I: float=1e9, grad_method: str="finite") -> float:
     F_lam = grating.gaussian_width*grating.npa.min(-eigReal)  # standard minimum
     return F_lam
 
-def FoM_amp(grating, I: float=1e9, grad_method: str="finite") -> float:
+def FoM_amp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     Asymptotic-minimum-propulsion (amp) FOM: Minimise the eigenvalue of the linear stability Jacobian 
     with the largest real part divided by Qpr1. 
@@ -151,7 +175,7 @@ def FoM_amp(grating, I: float=1e9, grad_method: str="finite") -> float:
     F_lam = grating.npa.min(-eigReal)/grating.Q()[0]
     return F_lam
 
-def FoM_max_eigval(grating, I: float=1e9, grad_method: str="finite") -> float:
+def FoM_max_eigval(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     Asymptotic stability supplementary FOM: Calculate eigenvalue of the linear stability Jacobian with the 
     smallest real part. 
@@ -179,7 +203,7 @@ def FoM_max_eigval(grating, I: float=1e9, grad_method: str="finite") -> float:
     F_lam = grating.npa.max(-eigReal) 
     return F_lam
 
-def FoM_amp_max_eigval(grating, I: float=1e9, grad_method: str="finite") -> float:
+def FoM_amp_max_eigval(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     F_amp supplementary FOM: Calculate eigenvalue of the linear stability Jacobian with the 
     smallest real part. 
@@ -207,7 +231,7 @@ def FoM_amp_max_eigval(grating, I: float=1e9, grad_method: str="finite") -> floa
     F_lam = grating.npa.max(-eigReal)/grating.Q()[0] 
     return F_lam
 
-def FoM_quality_factor(grating, I: float=1e9, grad_method: str="finite") -> float:
+def FoM_quality_factor(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     Quality factor FoM: Maximise the magnitude of the quality factor (Re(xi)/Im(xi)) 
                         for the eigenvalue with the smallest quality factor. Issue:
@@ -226,7 +250,7 @@ def FoM_quality_factor(grating, I: float=1e9, grad_method: str="finite") -> floa
     
     raise NotImplementedError("Must determine how to handle signs and avoid Im(xi) = 0.")
 
-def FoM_LvR(grating, I: float=1e9, grad_method: str="finite") -> float:
+def FoM_LvR(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     Last FoM implemented by Liam - not working with TORCWA
     Calculate the grating single-wavelength figure of merit F_lam using LvR's most updated method.
@@ -553,18 +577,25 @@ def force_coeff(grating, I: float=10e9, m: float=1/1000, c1:float=299792458,
             raise ValueError("Invalid output format. Must be 'tr', 'rd' or 'mat'.")
         
 def Eigs(grating, I: float=10e9, m: float=1/1000, c1:float=299792458, 
-         grad_method: str='finite', return_vec: bool = False, normalise: bool=False):
+         grad_method: str='finite', return_vec: bool = False, normalise: bool=False,
+         use_perturbed: bool=False):
     """
     Calculate eigendecomposition of Jacobian matrix at equilibrium
 
+    TODO: tidy up control flow
+
     Parameters
     ----------
-    grating     :   Calculate eigenvalues for this grating
-    I           :   Laser intensity
-    m           :   Spacecraft mass (sail membrane + payload)
-    c1          :   speed of light  # TODO: why is this a parameter?
-    grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
-    return_vec  :   If true, return eigenvectors as well as eigenvalues
+    grating       :   Calculate eigenvalues for this grating
+    I             :   Laser intensity
+    m             :   Spacecraft mass (sail membrane + payload)
+    c1            :   speed of light  # TODO: why is this a parameter?
+    grad_method   :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+    return_vec    :   If true, return eigenvectors as well as eigenvalues
+    normalise     :   Normalise all Jacobian coefficients by their individual dimensional factors
+    use_perturbed :   Calculate analytic eigenvalues from first-order perturbation theory 
+                      on the Jacobian matrix. May give incorrect results if eigenvalues are 
+                      degenerate (rare cases).
     
     Returns
     -------
@@ -580,6 +611,35 @@ def Eigs(grating, I: float=10e9, m: float=1/1000, c1:float=299792458,
         stiffnesses[0,:] = Ev*stiffnesses[0,:]
         stiffnesses[1,:] = MoIEv*stiffnesses[1,:]
     J = grating.npa.concatenate((grating.npa.array([[0,0,1,0],[0,0,0,1]]), stiffnesses))  # Jacobian matrix
+    
+    if use_perturbed:
+        if normalise:
+            raise ValueError("Perturbed eigenvalues not implemented for normalised Jacobian coefficients.")
+        if return_vec:
+            raise ValueError("Perturbed eigenvectors are not calculated.")
+        
+        kyy, kyp, myy, myp = stiffnesses[0,:]
+        kpy, kpp, mpy, mpp = stiffnesses[1,:]
+        
+        base_root = grating.npa.sqrt(0j + 4*kyp*kpy + (kyy - kpp)**2)
+
+        # Unperturbed eigenvalues (positive only)
+        eigval_unp1 = 1/np.sqrt(2)*grating.npa.sqrt(0j + kyy + kpp - base_root)
+        eigval_unp3 = 1/np.sqrt(2)*grating.npa.sqrt(0j + kyy + kpp + base_root)
+
+        mix = kyp*mpy + kpy*myp
+        diag_diff = (kyy - kpp)*(myy - mpp)
+
+        eigval1 = -eigval_unp1 + 1/4 * (myy + mpp - (2*mix + diag_diff)/base_root)
+        eigval2 = eigval_unp1 + 1/4 * (myy + mpp - (2*mix + diag_diff)/base_root)
+        eigval3 = -eigval_unp3 + 1/4 * (myy + mpp + (2*mix + diag_diff)/base_root)
+        eigval4 = eigval_unp3 + 1/4 * (myy + mpp + (2*mix + diag_diff)/base_root)
+
+        eigvals = grating.npa.stack((eigval1, eigval2, eigval3, eigval4))
+        eigReal = grating.npa.real(eigvals)
+        eigImag = grating.npa.imag(eigvals)
+        return eigReal, eigImag  # No eigenvectors for perturbed case
+    
     if return_vec:
         eigvals, eigvecs = grating.npa.eig(J)
         eigReal = grating.npa.real(eigvals)

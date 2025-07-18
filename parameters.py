@@ -76,8 +76,8 @@ param_names = ["grating_pitch", "grating_depth",
                 "box1_width", "box2_width", "box_centre_dist", 
                 "box1_eps", "box2_eps", 
                 "gaussian_width", "substrate_depth", "substrate_eps"]  # Names of all optimisable twobox parameters
-fixed_parameters = ["grating_pitch", "substrate_depth", "substrate_eps"]  # Fix parameters during optimisation
-fix_parameter_values = [pitch_within_0p1_deg, 1., -1e6]  # Values of fixed parameters, in the same order as fixed_parameters
+fixed_parameters = ["grating_pitch"]  # Fix parameters during optimisation
+fix_parameter_values = [pitch_within_0p1_deg]  # Values of fixed parameters, in the same order as fixed_parameters
 def Hyperparameters():
     # Engine parameters
     RCWA_engine = "TORCWA"
@@ -103,12 +103,20 @@ def Hyperparameters():
     return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters
 
 
+choose_FOM = "asymp"
+def FOMSettings():
+    # See fom.py for FOM options and kwargs  
+    fom_kwargs = {"use_perturbed": True}
+    return choose_FOM, fom_kwargs
+
+
 def OptimisationSettings():
     # Global optimisation parameters
-    num_cores = 2  # number of cores to run parallel optimisation
+    num_cores = 1  # number of cores to run parallel optimisation
     maxtime = 2  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
-    runID = "test_Famp20"
+    runID = f"F{choose_FOM}{int(final_speed)}_gaussian2_50GW"  # preset
+    # runID = "teset_Fasymp20_gaussian2_50GW"  # custom
 
     # Local optimisation parameters
     xtol_rel = 1e-4  
@@ -165,20 +173,20 @@ def Bounds():
     #                 (substrate_depth_min, substrate_depth_max),
     #                 (substrate_eps_min, substrate_eps_max)]
     
-    # # Fixed pitch
-    # param_bounds = [(h1_min, h1_max),
-    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
-    #                 (box_centre_dist_min, box_centre_dist_max),
-    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-    #                 (gaussian_width_min, gaussian_width_max),
-    #                 (substrate_depth_min, substrate_depth_max),
-    #                 (substrate_eps_min, substrate_eps_max)]
-
-    # Fixed substrate and pitch
-    param_bounds = [(h1_min, h1_max), 
+    # Fixed pitch
+    param_bounds = [(h1_min, h1_max),
                     (box_width_min, box_width_max), (box_width_min, box_width_max),
                     (box_centre_dist_min, box_centre_dist_max),
                     (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-                    (gaussian_width_min, gaussian_width_max)]
+                    (gaussian_width_min, gaussian_width_max),
+                    (substrate_depth_min, substrate_depth_max),
+                    (substrate_eps_min, substrate_eps_max)]
+
+    # # Fixed substrate and pitch
+    # param_bounds = [(h1_min, h1_max), 
+    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
+    #                 (box_centre_dist_min, box_centre_dist_max),
+    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
+    #                 (gaussian_width_min, gaussian_width_max)]
     
     return h1_min, h1_max, param_bounds
