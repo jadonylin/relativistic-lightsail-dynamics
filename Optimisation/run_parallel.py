@@ -37,10 +37,11 @@ sys.path.append("../")
 import fom
 import opt 
 import parameters
-from parameters import OptimisationSettings, Hyperparameters, Bounds
+from parameters import FOMSettings, OptimisationSettings, Hyperparameters, Bounds
 
 
 # Extract settings from parameters.py
+choose_FOM, fom_kwargs = FOMSettings()
 num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample = OptimisationSettings()
 wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters = Hyperparameters()
 h1_min, h1_max, param_bounds = Bounds()
@@ -52,7 +53,8 @@ h1_min, h1_max, param_bounds = Bounds()
 
 ## Converting non-h1 parameter dicts to strings ##
 # Fixed parameters
-hyperparams_dict = {'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs,
+print(f"Chosen FOM: {choose_FOM}\n", f"FOM kwargs: {fom_kwargs}\n")
+hyperparams_dict = {'FOM': choose_FOM, 'FOM kwargs': fom_kwargs, 'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs,
                      'RCWA engine': RCWA_engine, 'TORCWA edge sharpness': torcwa_sharpness,
                      'Fixed parameters': fixed_parameters}
 hyperparams_line = str(hyperparams_dict)
