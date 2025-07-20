@@ -655,16 +655,18 @@ def Eigs(grating, I: float=10e9, m: float=1/1000, c1:float=299792458,
         return eigReal, eigImag
 
 
-def lsa_info(grating, I: float=0.5e9, normalise: bool=False):
+def lsa_info(grating, I: float=0.5e9, normalise: bool=False, use_perturbed: bool=False) -> tuple:
     """
     Calculate quantities relevant to linear stability analysis (LSA) of the twobox dynamics. Also calculates
     the radiation pressure cross sections and their derivatives.
 
     Parameters
     ----------
-    grating   :   Calculate linear-stability info for this grating
-    I         :   Incident light intensity
-    normalise :   Normalise all Jacobian coefficients by their individual dimensional factors
+    grating       :   Calculate linear-stability info for this grating
+    I             :   Incident light intensity
+    normalise     :   Normalise all Jacobian coefficients by their individual dimensional factors
+    use_perturbed :   Also return analytic eigenvalues from first-order perturbation theory. 
+                      Eigenvectors not supported.
     
     Returns
     -------
@@ -678,5 +680,10 @@ def lsa_info(grating, I: float=0.5e9, normalise: bool=False):
     stiffnesses = force_coeff(grating,I,m,c,grad_method="grad",out="rd",normalise=normalise)
     rest_coeffs = tuple([*stiffnesses[:4]])
     damp_coeffs = tuple([*stiffnesses[4:]])
-    eigReal, eigImag, eigvecs = Eigs(grating,I,m,c,grad_method="grad",return_vec=True, normalise=normalise)
-    return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs
+    if use_perturbed:
+        peigReal, peigImag = Eigs(grating,I,m,c,grad_method="grad",return_vec=False,normalise=normalise,use_perturbed=True)
+        eigReal, eigImag, eigvecs = Eigs(grating,I,m,c,grad_method="grad",return_vec=True,normalise=normalise,use_perturbed=False)
+        return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs, peigReal, peigImag
+    else:
+        eigReal, eigImag, eigvecs = Eigs(grating,I,m,c,grad_method="grad",return_vec=True,normalise=normalise,use_perturbed=False)
+        return efficiencies, rest_coeffs, damp_coeffs, eigReal, eigImag, eigvecs
