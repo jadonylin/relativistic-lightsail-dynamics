@@ -316,6 +316,7 @@ def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5
     use_perturbed :   Flag to use the analytic eigenvalues from first order perturbation theory.
     """
 
+    input_wavelength = grating.wavelength
     wavelength_range = np.linspace(1/D1_ND(speed_range[0]/100), 1/D1_ND(speed_range[1]/100), num_points)
     
     restoring_coeffs = np.zeros((num_points,4))
@@ -327,7 +328,6 @@ def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5
     pimag_eigvals = np.zeros((num_points,4))
     for i in range(num_points):
         wavelength = wavelength_range[i]
-        input_wavelength = grating.wavelength
         grating.wavelength = wavelength 
         lsa = grating.to_numpy(fom.lsa_info(grating, I, normalise, use_perturbed))
         if use_perturbed:
