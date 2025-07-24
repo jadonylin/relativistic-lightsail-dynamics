@@ -77,7 +77,7 @@ param_names = ["grating_pitch", "grating_depth",
                 "box1_eps", "box2_eps", 
                 "gaussian_width", "substrate_depth", "substrate_eps"]  # Names of all optimisable twobox parameters
 fixed_parameters = ["grating_pitch", "gaussian_width"]  # Fix parameters during optimisation
-fix_parameter_values = [pitch_within_0p1_deg, 2.]  # Values of fixed parameters, in the same order as fixed_parameters
+fix_parameter_values = [pitch_within_0p1_deg, 0.5*L]  # Values of fixed parameters, in the same order as fixed_parameters
 def Hyperparameters():
     # Engine parameters
     RCWA_engine = "TORCWA"
@@ -106,7 +106,7 @@ def Hyperparameters():
 choose_FOM = "asymp"
 def FOMSettings():
     # See fom.py for FOM options and kwargs  
-    fom_kwargs = {"use_perturbed": True}
+    fom_kwargs = {"use_perturbed": False}
     return choose_FOM, fom_kwargs
 
 
@@ -115,7 +115,7 @@ def OptimisationSettings():
     num_cores = 2  # number of cores to run parallel optimisation
     maxtime = 2  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
-    runID = f"F{choose_FOM}{int(final_speed)}_fixgaussian2_50GW"  # preset
+    runID = f"F{choose_FOM}{int(final_speed)}_fixgaussian5_50GW"  # preset
     # runID = "teset_Fasymp20_gaussian2_50GW"  # custom
 
     # Local optimisation parameters
