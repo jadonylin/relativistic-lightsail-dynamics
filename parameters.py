@@ -71,7 +71,7 @@ def Parameters():
 
 wavelength = 1.  # Laser wavelength
 final_speed = 1.  # percentage of c
-pitch_within_0p1_deg = 1.227 # Pitch of the grating, allowing rotating within 0.1 degrees of before m=1 cutoff
+fixed_pitch = 1.227 # If the pitch is fixed, other parameters like box widths are naturally constrained by this value
 param_names = ["grating_pitch", "grating_depth", 
                 "box1_width", "box2_width", "box_centre_dist", 
                 "box1_eps", "box2_eps", 
@@ -149,14 +149,14 @@ def Bounds():
     # pitch_min = np.round(1*wavelength_max/(1 - np.sin(0.01*np.pi/180)), 3)  
     # pitch_max = np.round(1*wavelength_max/(1 - np.sin(1*np.pi/180)), 3)  
 
-    h1_min = 0.01*pitch_within_0p1_deg  # Offset from zero to avoid zero Jacobian determinant 
-    h1_max = 1.5*pitch_within_0p1_deg
+    h1_min = 0.01*fixed_pitch  # Offset from zero to avoid zero Jacobian determinant 
+    h1_max = 1.5*fixed_pitch
 
-    box_width_min = 0.01*pitch_within_0p1_deg  # Offset from zero to avoid zero Jacobian determinant
-    box_width_max = 1.*pitch_within_0p1_deg  # single box width must be smaller than pitch
+    box_width_min = 0.01*fixed_pitch  # Offset from zero to avoid zero Jacobian determinant
+    box_width_max = 1.*fixed_pitch  # single box width must be smaller than pitch
 
-    box_centre_dist_min = 0.03*pitch_within_0p1_deg  # Offset from zero to avoid zero Jacobian determinant and symmetric unit cell
-    box_centre_dist_max = 0.5*pitch_within_0p1_deg  # redundant space if > 0.5*pitch
+    box_centre_dist_min = 0.03*fixed_pitch  # Offset from zero to avoid zero Jacobian determinant and symmetric unit cell
+    box_centre_dist_max = 0.5*fixed_pitch  # redundant space if > 0.5*pitch
 
     box_eps_min = 1.1**2  # Minimum allowed grating permittivity set above vacuum to avoid zero Jacobian determinant 
     box_eps_max = 3.5**2  # Maximum allowed grating permittivity set to silicon
@@ -165,7 +165,7 @@ def Bounds():
     gaussian_width_max = 10*L
 
     substrate_depth_min = h1_min  # Offset from zero to avoid zero Jacobian determinant 
-    substrate_depth_max = 1.5*pitch_within_0p1_deg 
+    substrate_depth_max = 1.5*fixed_pitch 
     substrate_eps_min = box_eps_min 
     substrate_eps_max = box_eps_max
 
