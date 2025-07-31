@@ -6,6 +6,13 @@ with linear stability analysis (LSA) of the twobox.
 "multifom" - multi-wavelength figures of merit, which may be monochrome if desired.
 
 User figure of merit functions should be defined here.
+
+Most monofoms rely on calculating radiation-pressure efficiency factors for a single grating and then 
+using symmetry to calculate the efficiency factors for the mirror-reflected grating. In our
+implementation, the optimised grating recorded via the twobox instance is the right-half grating,
+i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
+efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
+the unit cell along the x-axis about the unit-cell centre.
 """
 
 import adaptive as adp
@@ -55,13 +62,6 @@ def monofom_damp(grating, I: float=1e9, grad_method: str="grad", **kwargs) -> fl
                  to the longitudinal-force coefficient.
 
     Only valid when the grating has up to ±1 diffraction orders.
-    
-    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
-    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
-    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
-    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
-    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
-    the unit cell along the x-axis about the unit-cell centre.
 
     Parameters
     ----------
@@ -91,13 +91,6 @@ def monofom_asymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) ->
     """
     Asymptotic stability FOM: Minimise the eigenvalue of the linear stability Jacobian with the 
     largest real part. Equivalent to maximising the negative eigenvalue with the smallest real part. 
-    
-    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
-    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
-    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
-    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
-    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
-    the unit cell along the x-axis about the unit-cell centre.
 
     Parameters
     ----------
@@ -117,21 +110,12 @@ def monofom_asymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) ->
         use_perturbed = False
     eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False, use_perturbed=use_perturbed)
     F_lam = grating.npa.min(-eigReal)  # standard minimum
-    # F_lam = grating.npa.sum(-eigReal*grating.npa.softmin(-eigReal,1.))  # softened minimum
-    # F_lam = grating.npa.min(-eigReal) + grating.npa.max(-eigReal)
     return F_lam
 
 def monofom_wasymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     Width-multiplied asymptotic stability FOM: Minimise the eigenvalue of the linear stability Jacobian with the 
     largest real part, multiply by the width.
-    
-    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
-    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
-    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
-    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
-    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
-    the unit cell along the x-axis about the unit-cell centre.
 
     Parameters
     ----------
@@ -153,13 +137,6 @@ def monofom_amp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> f
     """
     Asymptotic-minimum-propulsion (amp) FOM: Minimise the eigenvalue of the linear stability Jacobian 
     with the largest real part divided by Qpr1. 
-    
-    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
-    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
-    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
-    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
-    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
-    the unit cell along the x-axis about the unit-cell centre.
 
     Parameters
     ----------
@@ -181,13 +158,6 @@ def monofom_max_eigval(grating, I: float=1e9, grad_method: str="finite", **kwarg
     """
     Asymptotic stability supplementary FOM: Calculate eigenvalue of the linear stability Jacobian with the 
     smallest real part. 
-    
-    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
-    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
-    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
-    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
-    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
-    the unit cell along the x-axis about the unit-cell centre.
 
     Parameters
     ----------
@@ -209,13 +179,6 @@ def monofom_amp_max_eigval(grating, I: float=1e9, grad_method: str="finite", **k
     """
     F_amp supplementary FOM: Calculate eigenvalue of the linear stability Jacobian with the 
     smallest real part. 
-    
-    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
-    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
-    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
-    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
-    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
-    the unit cell along the x-axis about the unit-cell centre.
 
     Parameters
     ----------
@@ -469,8 +432,6 @@ def multifom_monochrome(grating, return_grad: bool=True) -> float:
     goal        :   Placeholder argument
     return_grad :   Return [FOM, FOM gradient] instead of just FOM
     """
-
-    # Starting wavelength is copied into laser_wavelength just in case grating.wavelength is unexpectedly modified
     if grating.wavelength != 1.:
         raise ValueError("Multifom monochrome only valid for gratings with wavelength = 1.0.")
     FOM = _F_lam(grating, monofom=monofom)
