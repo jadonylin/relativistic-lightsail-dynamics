@@ -1706,7 +1706,7 @@
        26    0.000    0.000    0.009    0.000 _jit_internal.py:993(_check_overload_body)
         1    0.000    0.000    0.000    0.000 distributed_c10d.py:234(Backend)
         1    0.000    0.000    0.006    0.006 take.py:1(<module>)
-        1    0.000    0.000   16.627   16.627 opt.py:56(FOM_uniform)
+        1    0.000    0.000   16.627   16.627 opt.py:56(multifom_uniform)
         3    0.000    0.000    0.001    0.000 missing.py:1(<module>)
       408    0.000    0.000    0.000    0.000 contextlib.py:440(__init__)
       248    0.000    0.000    0.000    0.000 patches.py:2353(<genexpr>)

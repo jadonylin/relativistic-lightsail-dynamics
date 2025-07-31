@@ -671,7 +671,7 @@ class PlotBox:
 
         return fig, (ax1, ax2)
 
-    def show_FOM_spectrum(self, fom: callable=fom_module.FoM_default, angle: float=0., wavelength_range: list=[1., 1.5], 
+    def show_FOM_spectrum(self, monofom: callable=fom_module.monofom, angle: float=0., wavelength_range: list=[1., 1.5], 
                           num_plot_points: int=200, I: float=10e9, grad_method: str="grad"):
         """
         Show spectrum of various efficiency quantities for the twobox.
@@ -700,7 +700,7 @@ class PlotBox:
         efficiencies = np.zeros(num_plot_points, dtype=float)
         for idx, lam in enumerate(wavelengths):
             self.wavelength = lam
-            efficiencies[idx] = fom_module.FoM(self, fom=fom, I=I, grad_method=grad_method)
+            efficiencies[idx] = monofom(self, I=I, grad_method=grad_method)
         self.wavelength = init_wavelength
 
         fig, ax = plt.subplots(1)         

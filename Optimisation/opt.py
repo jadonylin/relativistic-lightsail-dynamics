@@ -23,7 +23,6 @@ import dill as pickle
 import sys
 sys.path.append("../")
 
-import fom
 import parameters
 I0, L, m, c = parameters.Parameters()
 from twobox import TwoBox
@@ -106,7 +105,7 @@ def global_optimise(objective_fom, opt_hyperparams,
 
     Parameters
     ----------
-    objective_fom    :   Figure of merit function to be optimised, passed to FOM_uniform
+    objective_fom    :   Figure of merit function to be optimised, passed to multifom_uniform
     opt_hyperparams  :   Hyperparameters for the optimisation 
     sampling_method  :   "sobol" or "random" initial point sampling
     seed             :   Seed for initial random parameter space sample and grating_depth samples
@@ -141,7 +140,7 @@ def global_optimise(objective_fom, opt_hyperparams,
 
     def objective(grating, opt_params):
         grating.params = opt_params
-        return fom.FOM_uniform(grating, objective_fom, final_speed, goal, return_grad)
+        return objective_fom(grating, final_speed, goal, return_grad)
 
     def fun_nlopt(params,gradn):
         """
