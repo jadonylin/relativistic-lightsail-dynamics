@@ -117,7 +117,10 @@ def OptimisationSettings():
     num_cores = 2  # number of cores to run parallel optimisation
     maxtime = 2  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
-    runID = f"F{choose_monofom}{int(final_speed)}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
+    if choose_multifom != "monochrome":
+        runID = f"F{choose_monofom}{int(final_speed)}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
+    else:
+        runID = f"F{choose_monofom}{choose_multifom}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
 
     # Local optimisation parameters
     xtol_rel = 1e-4  
