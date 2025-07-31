@@ -414,7 +414,6 @@ def multifom_uniform(grating, final_speed: float=20., goal: float=0.1, return_gr
         weighted_F_lam_grads = F_lam_grad_data[:,1:]
         
         FOM_grad = np.trapezoid(weighted_F_lam_grads,l_vals, axis=0)
-
         grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
         return [FOM,FOM_grad] 
     else:
@@ -434,12 +433,12 @@ def multifom_monochrome(grating, return_grad: bool=True) -> float:
     """
     if grating.wavelength != 1.:
         raise ValueError("Multifom monochrome only valid for gratings with wavelength = 1.0.")
-    FOM = _F_lam(grating, monofom=monofom)
+    FOM = float(grating.to_numpy(_F_lam(grating, monofom=monofom)))
     if return_grad:
         F_lam_grad = grating.npa.grad(F_lam, argnum=1)
         params = grating.params
-        FOM_grad = F_lam_grad(grating, params)
-        return [FOM,FOM_grad] 
+        FOM_grad = grating.to_numpy(F_lam_grad(grating, params))
+        return [FOM,FOM_grad]
     else:
         return FOM
 
