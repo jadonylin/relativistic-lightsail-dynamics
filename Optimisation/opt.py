@@ -99,10 +99,6 @@ def global_optimise(objective_fom, opt_hyperparams,
     """
     Global optimise the twobox on a single CPU core using MLSL global optimiser with internal MMA local optimiser.
 
-    TODO: Generalise the code to allow for any number of parameters to be omitted. Currently assumes
-          that the first n parameters are to be optimised, and the rest are fixed. Would need to somehow
-          know which parameters are fixed in the constraint functions, which are currently hardcoded.
-
     Parameters
     ----------
     objective_fom    :   Figure of merit function to be optimised, passed to multifom_uniform
@@ -207,7 +203,6 @@ def global_optimise(objective_fom, opt_hyperparams,
     ub = [bounds[1] for bounds in param_bounds]
     global_opt.set_lower_bounds(lb)
     global_opt.set_upper_bounds(ub)
-
 
     opt_params = global_opt.optimize(init_params)
     optimum = objective(grating,opt_params)[0]
