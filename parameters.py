@@ -123,7 +123,7 @@ def OptimisationSettings():
 
     seed = 20250714  # LDS seed
     sampling = 'sobol'  # 'sobol' or 'random'
-    n_sample_exp = 6
+    n_sample_exp = 4
     n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
 
     return num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample
