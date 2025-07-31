@@ -70,7 +70,7 @@ def Parameters():
 
 
 wavelength = 1.  # Laser wavelength
-final_speed = 20.  # percentage of c
+final_speed = 1.  # percentage of c
 pitch_within_0p1_deg = 1.227 # Pitch of the grating, allowing rotating within 0.1 degrees of before m=1 cutoff
 param_names = ["grating_pitch", "grating_depth", 
                 "box1_width", "box2_width", "box_centre_dist", 
@@ -115,7 +115,7 @@ def OptimisationSettings():
     num_cores = 2  # number of cores to run parallel optimisation
     maxtime = 2  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
-    runID = f"F{choose_FOM}{int(final_speed)}_cutoffrange_50GW"  # ID for saving results to distinguish different runs
+    runID = f"F{choose_FOM}{int(final_speed)}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
 
     # Local optimisation parameters
     xtol_rel = 1e-4  
@@ -123,7 +123,7 @@ def OptimisationSettings():
 
     seed = 20250714  # LDS seed
     sampling = 'sobol'  # 'sobol' or 'random'
-    n_sample_exp = 4
+    n_sample_exp = 6
     n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
 
     return num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample
@@ -140,11 +140,11 @@ def Bounds():
     wavelength_max = wavelength/D1_ND(final_speed/100)
     max_angle_cutoff1 = 0.1*np.pi/180  # maximum angle before order +1 is evanescent
     min_angle_cutoff2 = 15*np.pi/180  # minimum angle before order -2 is non-evanescent
-    # pitch_min = np.round(1*wavelength_max/(1 - np.sin(max_angle_cutoff1)), 3)  
-    # pitch_max = np.round(2*wavelength_max/(1 + np.sin(min_angle_cutoff2)), 3)
+    pitch_min = np.round(1*wavelength_max/(1 - np.sin(max_angle_cutoff1)), 3)  
+    pitch_max = np.round(2*wavelength_max/(1 + np.sin(min_angle_cutoff2)), 3)
 
-    pitch_min = np.round(1*wavelength_max/(1 - np.sin(0.01*np.pi/180)), 3)  
-    pitch_max = np.round(1*wavelength_max/(1 - np.sin(1*np.pi/180)), 3)  
+    # pitch_min = np.round(1*wavelength_max/(1 - np.sin(0.01*np.pi/180)), 3)  
+    # pitch_max = np.round(1*wavelength_max/(1 - np.sin(1*np.pi/180)), 3)  
 
     h1_min = 0.01*pitch_within_0p1_deg  # Offset from zero to avoid zero Jacobian determinant 
     h1_max = 1.5*pitch_within_0p1_deg
