@@ -13,8 +13,9 @@ import numpy as np
 import parameters
 from parameters import Parameters, D1_ND, FOMSettings
 I0, L, m, c = Parameters()
-choose_FOM, fom_kwargs = FOMSettings()
+choose_monofom, choose_multifom, fom_kwargs = FOMSettings()
 
+# TODO: rename this (clashes with grating.wavelength instantiation in several methods) or ensure grating.wavelength == 1.
 laser_wavelength = parameters.wavelength
 
 
@@ -28,24 +29,24 @@ def monofom(grating, I: float=1e9, grad_method: str="finite") -> float:
     I           :   Laser intensity
     grad_method :   Method to calculate gradient ("finite", "grad")
     """
-    if choose_FOM == "asymp":
+    if choose_monofom == "asymp":
         return monofom_asymp(grating, I=I, grad_method=grad_method, **fom_kwargs)
-    elif choose_FOM == "wasymp":
+    elif choose_monofom == "wasymp":
         return monofom_wasymp(grating, I=I, grad_method=grad_method, **fom_kwargs)
-    elif choose_FOM == "damp":
+    elif choose_monofom == "damp":
         return monofom_damp(grating, I=I, grad_method=grad_method, **fom_kwargs)
-    elif choose_FOM == "amp":
+    elif choose_monofom == "amp":
         return monofom_amp(grating, I=I, grad_method=grad_method, **fom_kwargs)
-    elif choose_FOM == "max_eigval":
+    elif choose_monofom == "max_eigval":
         return monofom_max_eigval(grating, I=I, grad_method=grad_method, **fom_kwargs)
-    elif choose_FOM == "amp_max_eigval":
+    elif choose_monofom == "amp_max_eigval":
         return monofom_amp_max_eigval(grating, I=I, grad_method=grad_method, **fom_kwargs)
-    elif choose_FOM == "quality_factor":
+    elif choose_monofom == "quality_factor":
         return monofom_quality_factor(grating, I=I, grad_method=grad_method, **fom_kwargs)
-    elif choose_FOM == "LvR":
+    elif choose_monofom == "LvR":
         return monofom_LvR(grating, I=I, grad_method=grad_method, **fom_kwargs)
     else:
-        raise ValueError(f"Figure of merit {choose_FOM} not recognised. Please choose from the available options: "
+        raise ValueError(f"Figure of merit {choose_monofom} not recognised. Please choose from the available options: "
                          "'asymp', 'wasymp', 'damp', 'amp', 'max_eigval', 'amp_max_eigval', 'quality_factor', 'LvR'.")
 
 def monofom_damp(grating, I: float=1e9, grad_method: str="grad", **kwargs) -> float:
@@ -337,6 +338,9 @@ def monofom_LvR(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> f
     F_lam = func_real_neg * func_imag - penalty - penalty2
     return F_lam
 
+
+
+# Calculate single-wavelength figure of merit using Parameter-selected monofom
 def _F_lam(grating, monofom: callable=monofom) -> float:
     if grating.RCWA_engine=="TORCWA":
         return monofom(grating, I=I0, grad_method="grad")
@@ -358,8 +362,29 @@ def F_lam(grating, params, monofom: callable=monofom):
     return _F_lam(grating,monofom)
 
 
-def multifom_uniform(grating, monofom: callable=monofom, final_speed: float=20., 
-                goal: float=0.1, return_grad: bool=True) -> float:
+
+def multifom(grating, final_speed: float=20., goal: float=0.1, return_grad: bool=True) -> float:
+    """
+    Optimisation figure of merit function that calls multifom_uniform or multifom_monochrome based on the 
+    parameters set in the Parameters module.
+
+    Parameters
+    ----------
+    grating     :   TwoBox instance containing the grating parameters
+    final_speed :   Final sail speed as percentage of light speed
+    goal        :   Stopping goal for wavelength integration passed to adaptive runner. If int, use npoints_goal; if float, use loss_goal.
+    return_grad :   Return [FOM, FOM gradient] instead of just FOM
+    """
+    
+    if choose_multifom == "uniform":
+        return multifom_uniform(grating, final_speed=final_speed, goal=goal, return_grad=return_grad)
+    elif choose_multifom == "monochrome":
+        return multifom_monochrome(grating, return_grad=return_grad)
+    else:
+        raise ValueError(f"Multifom {choose_monofom} not recognised. Please choose from the available options: "
+                         "'uniform', 'monochrome'.")
+    
+def multifom_uniform(grating, final_speed: float=20., goal: float=0.1, return_grad: bool=True) -> float:
     """
     Calculate the figure of merit (FOM) for the given grating over a fixed wavelength range determined by the final speed.
     
@@ -433,102 +458,30 @@ def multifom_uniform(grating, monofom: callable=monofom, final_speed: float=20.,
         grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
         return FOM
 
-
-def multifom_monochrome(grating, monofom: callable=monofom, final_speed: float=20., 
-                goal: float=0.1, return_grad: bool=True) -> float:
+def multifom_monochrome(grating, return_grad: bool=True) -> float:
     """
-    Calculate the figure of merit (FOM) for the given grating at a single wavelength.
+    Calculate the figure of merit for the given grating at a single wavelength.
 
     Parameters
     ----------
     grating     :   TwoBox instance containing the grating parameters
-    final_speed :   Final sail speed as percentage of light speed
+    final_speed :   Placeholder argument
+    goal        :   Placeholder argument
     return_grad :   Return [FOM, FOM gradient] instead of just FOM
     """
 
     # Starting wavelength is copied into laser_wavelength just in case grating.wavelength is unexpectedly modified
-    laser_wavelength = grating.wavelength 
-    Doppler = D1_ND([final_speed/100,0])
-    l_min = 1  # l = grating frame wavelength normalised to laser frame wavelength
-    l_max = l_min/Doppler    
-    l_range = (l_min, l_max)
-
-    PDF_unif = 1/(l_max-l_min)  # Perturbation probability density function (PDF)
-    
-    # Define a single-argument function, needed when passing to learner
-    def weighted_F_lam(l):
-        grating.wavelength = l*laser_wavelength 
-        return PDF_unif*grating.to_numpy(_F_lam(grating,fom)) # losing autograd here by calling to_numpy, but torch tensors are not compatible with adaptive
-    
-    F_lam_learner = adp.Learner1D(weighted_F_lam, bounds=l_range)
-    if isinstance(goal, int):
-        F_lam_runner = adp.runner.simple(F_lam_learner, npoints_goal=goal)
-    elif isinstance(goal, float):
-        F_lam_runner = adp.runner.simple(F_lam_learner, loss_goal=goal)
-    else: 
-        raise ValueError("Sampling goal type not recognised. Must be int for npoints_goal or float for loss_goal.")
-    
-    F_lam_data = F_lam_learner.to_numpy()
-    l_vals = F_lam_data[:,0]
-    weighted_F_lams = F_lam_data[:,1]
-    FOM = np.trapezoid(weighted_F_lams,l_vals)
-
+    if grating.wavelength != 1.:
+        raise ValueError("Multifom monochrome only valid for gratings with wavelength = 1.0.")
+    FOM = _F_lam(grating, monofom=monofom)
     if return_grad:
-        """
-        Calculate FOM gradient by calculating the gradient of F_lam for the given grating at all wavelengths then averaging 
-        the gradient over wavelength
-        """
         F_lam_grad = grating.npa.grad(F_lam, argnum=1)
         params = grating.params
-        # Define a single-argument function, needed when passing to learner
-        def weighted_F_lam_grad(l):
-            grating.wavelength = l*laser_wavelength            
-            return PDF_unif*grating.to_numpy(F_lam_grad(grating, params))
-
-        # Adaptive sample F_lam_grad
-        F_lam_grad_learner = adp.Learner1D(weighted_F_lam_grad, bounds=l_range)
-
-        if isinstance(goal, int):
-            F_lam_grad_runner = adp.runner.simple(F_lam_grad_learner, npoints_goal=goal)
-        elif isinstance(goal, float):
-            F_lam_grad_runner = adp.runner.simple(F_lam_grad_learner, loss_goal=goal)
-        
-        F_lam_grad_data = F_lam_grad_learner.to_numpy()
-        l_vals = F_lam_grad_data[:,0]
-        weighted_F_lam_grads = F_lam_grad_data[:,1:]
-        
-        FOM_grad = np.trapezoid(weighted_F_lam_grads,l_vals, axis=0)
-
-        grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
+        FOM_grad = F_lam_grad(grating, params)
         return [FOM,FOM_grad] 
     else:
-        grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
         return FOM
 
-
-def multifom(grating, I: float=1e9, grad_method: str="finite", 
-                final_speed: float=20., goal: float=0.1, return_grad: bool=True) -> float:
-    """
-    Optimisation figure of merit function that calls multifom_uniform or multifom_monochrome based on the 
-    parameters set in the Parameters module.
-
-    Parameters
-    ----------
-    grating     :   TwoBox instance containing the grating parameters
-    I           :   Laser intensity
-    grad_method :   Method to calculate gradient ("finite", "grad")
-    final_speed :   Final sail speed as percentage of light speed
-    goal        :   Stopping goal for wavelength integration passed to adaptive runner. If int, use npoints_goal; if float, use loss_goal.
-    return_grad :   Return [FOM, FOM gradient] instead of just FOM
-    """
-    
-    if choose_FOM == "uniform":
-        return multifom_uniform(grating, fom=fom_kwargs['fom'], final_speed=final_speed, goal=goal, return_grad=return_grad)
-    elif choose_FOM == "monochrome":
-        return multifom_monochrome(grating, fom=fom_kwargs['fom'], final_speed=final_speed, return_grad=return_grad)
-    else:
-        raise ValueError(f"Figure of merit {choose_FOM} not recognised. Please choose from the available options: "
-                         "'uniform', 'monochrome'.")
 
 
 def calculate_force_coeff(exp_funcs: list[callable], wavelength: float, Qprs: list, 

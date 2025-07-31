@@ -36,7 +36,7 @@ from parameters import Hyperparameters, Bounds
 
 
 # Global optimisation parameters
-choose_fom = fom.monofom_asymp
+choose_monofom = fom.monofom_asymp
 num_cores = 5  # number of cores to run parallel optimisation
 maxfev = 200  # global 1000
 h1_min, h1_max, param_bounds = Bounds()
@@ -58,7 +58,7 @@ wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, to
 # Objective function
 def objective(grating,params):
     grating.params = params
-    return fom.multifom_uniform(grating, choose_fom, final_speed, goal, return_grad)
+    return fom.multifom_uniform(grating, choose_monofom, final_speed, goal, return_grad)
 
 
 
@@ -113,7 +113,7 @@ with open(txt_fname, "a") as result_file:
 
 ### RUN GLOBAL OPTIMISATION ###########################################################################
 def optimise_nsample(nsample):
-    return opt.global_optimise(choose_fom, Hyperparameters(), objective, sampling, seed, nsample, maxfev, xtol_rel, ftol_rel, param_bounds, True)
+    return opt.global_optimise(choose_monofom, Hyperparameters(), objective, sampling, seed, nsample, maxfev, xtol_rel, ftol_rel, param_bounds, True)
 
 # Run parallel optimisation
 if __name__ == '__main__':

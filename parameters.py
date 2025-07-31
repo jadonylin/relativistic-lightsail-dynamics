@@ -103,11 +103,12 @@ def Hyperparameters():
     return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters
 
 
-choose_FOM = "asymp"
+choose_monofom = "asymp"
+choose_multifom = "uniform"
 def FOMSettings():
     # See fom.py for FOM options and kwargs  
     fom_kwargs = {"use_perturbed": False}
-    return choose_FOM, fom_kwargs
+    return choose_monofom, choose_multifom, fom_kwargs
 
 
 def OptimisationSettings():
@@ -115,7 +116,7 @@ def OptimisationSettings():
     num_cores = 2  # number of cores to run parallel optimisation
     maxtime = 2  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
-    runID = f"F{choose_FOM}{int(final_speed)}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
+    runID = f"F{choose_monofom}{int(final_speed)}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
 
     # Local optimisation parameters
     xtol_rel = 1e-4  
