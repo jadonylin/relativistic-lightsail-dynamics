@@ -1,10 +1,18 @@
 """
-A module to store figure of merit (FoM) functions and helper functions that deal
+A module to store figure of merit (fom) functions and helper functions that deal
 with linear stability analysis (LSA) of the twobox. 
+
+"monofom" - single-wavelength (monochrome) figures of merit.
+"multifom" - multi-wavelength figures of merit, which may be monochrome if desired.
 
 User figure of merit functions should be defined here.
 
-TODO: need better separation between opt and fom, otherwise figures of merit are mixed between them
+Most monofoms rely on calculating radiation-pressure efficiency factors for a single grating and then 
+using symmetry to calculate the efficiency factors for the mirror-reflected grating. In our
+implementation, the optimised grating recorded via the twobox instance is the right-half grating,
+i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
+efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
+the unit cell along the x-axis about the unit-cell centre.
 """
 
 import adaptive as adp
@@ -12,12 +20,13 @@ import numpy as np
 import parameters
 from parameters import Parameters, D1_ND, FOMSettings
 I0, L, m, c = Parameters()
-choose_FOM, fom_kwargs = FOMSettings()
+choose_monofom, choose_multifom, fom_kwargs = FOMSettings()
 
+# TODO: rename this (clashes with grating.wavelength instantiation in several methods) or ensure grating.wavelength == 1.
 laser_wavelength = parameters.wavelength
 
 
-def FoM_default(grating, I: float=1e9, grad_method: str="finite") -> float:
+def monofom(grating, I: float=1e9, grad_method: str="finite") -> float:
     """
     Choose default FOM across scripts.
 
@@ -27,39 +36,32 @@ def FoM_default(grating, I: float=1e9, grad_method: str="finite") -> float:
     I           :   Laser intensity
     grad_method :   Method to calculate gradient ("finite", "grad")
     """
-    if choose_FOM == "asymp":
-        return FoM_asymp(grating, I=I, grad_method=grad_method, **fom_kwargs)
-    elif choose_FOM == "wasymp":
-        return FoM_wasymp(grating, I=I, grad_method=grad_method, **fom_kwargs)
-    elif choose_FOM == "damp":
-        return FoM_damp(grating, I=I, grad_method=grad_method, **fom_kwargs)
-    elif choose_FOM == "amp":
-        return FoM_amp(grating, I=I, grad_method=grad_method, **fom_kwargs)
-    elif choose_FOM == "max_eigval":
-        return FoM_max_eigval(grating, I=I, grad_method=grad_method, **fom_kwargs)
-    elif choose_FOM == "amp_max_eigval":
-        return FoM_amp_max_eigval(grating, I=I, grad_method=grad_method, **fom_kwargs)
-    elif choose_FOM == "quality_factor":
-        return FoM_quality_factor(grating, I=I, grad_method=grad_method, **fom_kwargs)
-    elif choose_FOM == "LvR":
-        return FoM_LvR(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    if choose_monofom == "asymp":
+        return monofom_asymp(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_monofom == "wasymp":
+        return monofom_wasymp(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_monofom == "damp":
+        return monofom_damp(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_monofom == "amp":
+        return monofom_amp(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_monofom == "max_eigval":
+        return monofom_max_eigval(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_monofom == "amp_max_eigval":
+        return monofom_amp_max_eigval(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_monofom == "quality_factor":
+        return monofom_quality_factor(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_monofom == "LvR":
+        return monofom_LvR(grating, I=I, grad_method=grad_method, **fom_kwargs)
     else:
-        raise ValueError(f"Figure of merit {choose_FOM} not recognised. Please choose from the available options: "
+        raise ValueError(f"Figure of merit {choose_monofom} not recognised. Please choose from the available options: "
                          "'asymp', 'wasymp', 'damp', 'amp', 'max_eigval', 'amp_max_eigval', 'quality_factor', 'LvR'.")
 
-def FoM_damp(grating, I: float=1e9, grad_method: str="grad", **kwargs) -> float:
+def monofom_damp(grating, I: float=1e9, grad_method: str="grad", **kwargs) -> float:
     """
     Damping FOM: For translation-only motion. Minimise the ratio of the damping-force coefficient 
                  to the longitudinal-force coefficient.
 
     Only valid when the grating has up to ±1 diffraction orders.
-    
-    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
-    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
-    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
-    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
-    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
-    the unit cell along the x-axis about the unit-cell centre.
 
     Parameters
     ----------
@@ -77,7 +79,7 @@ def FoM_damp(grating, I: float=1e9, grad_method: str="grad", **kwargs) -> float:
         raise ValueError("Damping FOM currently only valid for gratings with reflective substrate.")
     l = grating.wavelength/grating.grating_pitch # must be normalised to pitch!
     Q1,Q2 = grating.Q()
-    # TODO: FOM_uniform is NaN when angle is non-zero, even though damp is not NaN. 
+    # TODO: multifom_uniform is NaN when angle is non-zero, even though damp is not NaN. 
     #       We are only interested in the case where angle is zero, but it would be good to know 
     #       why it is NaN.
     damp = 2*l*grating.PDrNeg1()
@@ -85,17 +87,10 @@ def FoM_damp(grating, I: float=1e9, grad_method: str="grad", **kwargs) -> float:
     F_lam = damp/Q1
     return F_lam
 
-def FoM_asymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
+def monofom_asymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     Asymptotic stability FOM: Minimise the eigenvalue of the linear stability Jacobian with the 
     largest real part. Equivalent to maximising the negative eigenvalue with the smallest real part. 
-    
-    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
-    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
-    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
-    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
-    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
-    the unit cell along the x-axis about the unit-cell centre.
 
     Parameters
     ----------
@@ -115,21 +110,12 @@ def FoM_asymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> flo
         use_perturbed = False
     eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False, use_perturbed=use_perturbed)
     F_lam = grating.npa.min(-eigReal)  # standard minimum
-    # F_lam = grating.npa.sum(-eigReal*grating.npa.softmin(-eigReal,1.))  # softened minimum
-    # F_lam = grating.npa.min(-eigReal) + grating.npa.max(-eigReal)
     return F_lam
 
-def FoM_wasymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
+def monofom_wasymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     Width-multiplied asymptotic stability FOM: Minimise the eigenvalue of the linear stability Jacobian with the 
     largest real part, multiply by the width.
-    
-    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
-    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
-    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
-    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
-    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
-    the unit cell along the x-axis about the unit-cell centre.
 
     Parameters
     ----------
@@ -147,17 +133,10 @@ def FoM_wasymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> fl
     F_lam = grating.gaussian_width*grating.npa.min(-eigReal)  # standard minimum
     return F_lam
 
-def FoM_amp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
+def monofom_amp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     Asymptotic-minimum-propulsion (amp) FOM: Minimise the eigenvalue of the linear stability Jacobian 
     with the largest real part divided by Qpr1. 
-    
-    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
-    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
-    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
-    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
-    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
-    the unit cell along the x-axis about the unit-cell centre.
 
     Parameters
     ----------
@@ -175,17 +154,10 @@ def FoM_amp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float
     F_lam = grating.npa.min(-eigReal)/grating.Q()[0]
     return F_lam
 
-def FoM_max_eigval(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
+def monofom_max_eigval(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     Asymptotic stability supplementary FOM: Calculate eigenvalue of the linear stability Jacobian with the 
     smallest real part. 
-    
-    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
-    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
-    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
-    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
-    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
-    the unit cell along the x-axis about the unit-cell centre.
 
     Parameters
     ----------
@@ -203,17 +175,10 @@ def FoM_max_eigval(grating, I: float=1e9, grad_method: str="finite", **kwargs) -
     F_lam = grating.npa.max(-eigReal) 
     return F_lam
 
-def FoM_amp_max_eigval(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
+def monofom_amp_max_eigval(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     F_amp supplementary FOM: Calculate eigenvalue of the linear stability Jacobian with the 
     smallest real part. 
-    
-    This FOM relies on calculating radiation-pressure efficiency factors for a single grating and then 
-    using symmetry to calculate the efficiency factors for the mirror-reflected grating. In this
-    implementation, the optimised grating recorded via the twobox instance is the right-half grating,
-    i.e. the grating lying on the positive x-axis at equilibrium. Hence, the twobox instance's parameters,
-    efficiencies, etc. are all for the right-half grating, with the left-half grating obtained by inverting
-    the unit cell along the x-axis about the unit-cell centre.
 
     Parameters
     ----------
@@ -231,7 +196,7 @@ def FoM_amp_max_eigval(grating, I: float=1e9, grad_method: str="finite", **kwarg
     F_lam = grating.npa.max(-eigReal)/grating.Q()[0] 
     return F_lam
 
-def FoM_quality_factor(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
+def monofom_quality_factor(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     Quality factor FoM: Maximise the magnitude of the quality factor (Re(xi)/Im(xi)) 
                         for the eigenvalue with the smallest quality factor. Issue:
@@ -250,7 +215,7 @@ def FoM_quality_factor(grating, I: float=1e9, grad_method: str="finite", **kwarg
     
     raise NotImplementedError("Must determine how to handle signs and avoid Im(xi) = 0.")
 
-def FoM_LvR(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
+def monofom_LvR(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     Last FoM implemented by Liam - not working with TORCWA
     Calculate the grating single-wavelength figure of merit F_lam using LvR's most updated method.
@@ -337,31 +302,15 @@ def FoM_LvR(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float
     return F_lam
 
 
-def FoM(grating, fom: callable=FoM_default, I: float=1e9, grad_method: str="finite") -> float:
-    """
-    Choose the grating single-wavelength figure of merit F_lam.
 
-    Parameters
-    ----------
-    grating     :   Calculate figure of merit for this grating
-    I           :   Laser intensity
-    grad_method :   Method to calculate gradient ("finite", "grad")
-    fom         :   Figure of merit function to use. Default is FoM_asymp, but can be any 
-                    callable that takes grating, I, and grad_method as arguments.
-    
-    Returns
-    -------
-    F_lam :   Figure of merit
-    """
-    return fom(grating, I, grad_method)
-
-def _F_lam(grating, fom: callable=FoM_default) -> float:
+# Calculate single-wavelength figure of merit using Parameter-selected monofom
+def _F_lam(grating, monofom: callable=monofom) -> float:
     if grating.RCWA_engine=="TORCWA":
-        return FoM(grating, fom=fom, I=I0, grad_method="grad")
+        return monofom(grating, I=I0, grad_method="grad")
     else:
-        return FoM(grating, fom=fom, I=I0, grad_method="finite")
+        return monofom(grating, I=I0, grad_method="finite")
 
-def F_lam(grating, params, fom: callable=FoM_default):
+def F_lam(grating, params, monofom: callable=monofom):
     """
     Calculate the grating single-wavelength figure of merit.
     lam is short for lambda (wavelength)
@@ -373,11 +322,32 @@ def F_lam(grating, params, fom: callable=FoM_default):
                 The return value is calculated for a grating with these parameters.
     """
     grating.params = params
-    return _F_lam(grating,fom)
+    return _F_lam(grating,monofom)
 
 
-def FOM_uniform(grating, fom: callable=FoM_default, final_speed: float=20., 
-                goal: float=0.1, return_grad: bool=True) -> float:
+
+def multifom(grating, final_speed: float=20., goal: float=0.1, return_grad: bool=True) -> float:
+    """
+    Optimisation figure of merit function that calls multifom_uniform or multifom_monochrome based on the 
+    parameters set in the Parameters module.
+
+    Parameters
+    ----------
+    grating     :   TwoBox instance containing the grating parameters
+    final_speed :   Final sail speed as percentage of light speed
+    goal        :   Stopping goal for wavelength integration passed to adaptive runner. If int, use npoints_goal; if float, use loss_goal.
+    return_grad :   Return [FOM, FOM gradient] instead of just FOM
+    """
+    
+    if choose_multifom == "uniform":
+        return multifom_uniform(grating, final_speed=final_speed, goal=goal, return_grad=return_grad)
+    elif choose_multifom == "monochrome":
+        return multifom_monochrome(grating, return_grad=return_grad)
+    else:
+        raise ValueError(f"Multifom {choose_monofom} not recognised. Please choose from the available options: "
+                         "'uniform', 'monochrome'.")
+    
+def multifom_uniform(grating, final_speed: float=20., goal: float=0.1, return_grad: bool=True) -> float:
     """
     Calculate the figure of merit (FOM) for the given grating over a fixed wavelength range determined by the final speed.
     
@@ -404,7 +374,7 @@ def FOM_uniform(grating, fom: callable=FoM_default, final_speed: float=20.,
     # Define a single-argument function, needed when passing to learner
     def weighted_F_lam(l):
         grating.wavelength = l*laser_wavelength 
-        return PDF_unif*grating.to_numpy(_F_lam(grating,fom)) # losing autograd here by calling to_numpy, but torch tensors are not compatible with adaptive
+        return PDF_unif*grating.to_numpy(_F_lam(grating,monofom)) # losing autograd here by calling to_numpy, but torch tensors are not compatible with adaptive
     
     F_lam_learner = adp.Learner1D(weighted_F_lam, bounds=l_range)
     if isinstance(goal, int):
@@ -444,12 +414,35 @@ def FOM_uniform(grating, fom: callable=FoM_default, final_speed: float=20.,
         weighted_F_lam_grads = F_lam_grad_data[:,1:]
         
         FOM_grad = np.trapezoid(weighted_F_lam_grads,l_vals, axis=0)
-
         grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
         return [FOM,FOM_grad] 
     else:
         grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
         return FOM
+
+def multifom_monochrome(grating, return_grad: bool=True) -> float:
+    """
+    Calculate the figure of merit for the given grating at a single wavelength.
+
+    Parameters
+    ----------
+    grating     :   TwoBox instance containing the grating parameters
+    final_speed :   Placeholder argument
+    goal        :   Placeholder argument
+    return_grad :   Return [FOM, FOM gradient] instead of just FOM
+    """
+    if grating.wavelength != 1.:
+        raise ValueError("Multifom monochrome only valid for gratings with wavelength = 1.0.")
+    FOM = float(grating.to_numpy(_F_lam(grating, monofom=monofom)))
+    if return_grad:
+        F_lam_grad = grating.npa.grad(F_lam, argnum=1)
+        params = grating.params
+        FOM_grad = grating.to_numpy(F_lam_grad(grating, params))
+        return [FOM,FOM_grad]
+    else:
+        return FOM
+
+
 
 def calculate_force_coeff(exp_funcs: list[callable], wavelength: float, Qprs: list, 
                           gaussian_width: float, I: float=10e9, m: float=1/1000, c1:float=299792458, 

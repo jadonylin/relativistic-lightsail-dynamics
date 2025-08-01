@@ -1346,7 +1346,7 @@
         2    0.000    0.000    0.006    0.003 transforms.py:1(<module>)
         1    0.000    0.000    0.002    0.002 _resampling.py:1(<module>)
         1    0.000    0.000    0.000    0.000 arrayprint.py:1(<module>)
-        1    0.000    0.000    8.497    8.497 opt.py:143(FOM_uniform)
+        1    0.000    0.000    8.497    8.497 opt.py:143(multifom_uniform)
       105    0.000    0.000    0.000    0.000 _docstring.py:132(do_copy)
       195    0.000    0.000    0.000    0.000 core.py:101(translate_vjp)
        15    0.000    0.000    0.000    0.000 typing.py:1430(__getitem__)

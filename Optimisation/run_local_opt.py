@@ -58,7 +58,7 @@ init_grating = TwoBox(*op, wavelength=1., angle=0., Nx=100, nG=12, Qabs=np.inf,
 
 goal = 0.1  # Stopping criteria for adaptive sampling in the FOM (set float for loss_goal, set int for npoints_goal)
 final_speed = 1.  # percentage of c
-choose_fom = fom.FoM_asymp
+choose_monofom = fom.monofom_asymp
 
 xtol_rel = 1e-7
 ftol_rel = 1e-14
@@ -78,7 +78,7 @@ match init_grating.RCWA_engine:
 
 def objective(params):
     init_grating.params = params
-    return fom.FOM_uniform(init_grating, choose_fom, final_speed, goal, return_grad=True)
+    return fom.multifom_uniform(init_grating, choose_monofom, final_speed, goal, return_grad=True)
 
 init_objective = objective(init)[0]
 

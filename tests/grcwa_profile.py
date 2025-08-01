@@ -19,7 +19,7 @@ from twobox import TwoBox
 # gratingGRCWA.show_spectrum(efficiency_quantity='PDt',num_plot_points=100,wavelength_range=wavelength_range)
 # print('GRCWA time = ',time.time()-start_time)
 
-choose_fom = fom.FoM_asymp
+choose_monofom = fom.monofom_asymp
 Nx = 100
 numG = 25
 gratingGRCWA = TwoBox(1.3, grating_depth, box1_width, box2_width, box_centre_dist, box1_eps, box2_eps, 
@@ -30,11 +30,11 @@ gratingGRCWA = TwoBox(1.3, grating_depth, box1_width, box2_width, box_centre_dis
 # ps = np.linspace(1.4, 1.6, 10)
 # for p in ps:
 #     gratingGRCWA.grating_pitch = p
-#     val = fom.FOM_uniform(gratingGRCWA, choose_fom, final_speed=20., goal=0.1, return_grad=True)
+#     val = fom.multifom_uniform(gratingGRCWA, choose_monofom, final_speed=20., goal=0.1, return_grad=True)
 # total = time.time()-start
 
 # print(f'GRCWA time (average over {len(ps)} runs) = {total/len(ps)}')
 
 # Profile this function to see which parts are slowest
-val = fom.FOM_uniform(gratingGRCWA, choose_fom, final_speed=20., goal=20, return_grad=True)
+val = fom.multifom_uniform(gratingGRCWA, choose_monofom, final_speed=20., goal=20, return_grad=True)
 print(val)

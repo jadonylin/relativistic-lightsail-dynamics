@@ -41,7 +41,7 @@ from parameters import FOMSettings, OptimisationSettings, Hyperparameters, Bound
 
 
 # Extract settings from parameters.py
-choose_FOM, fom_kwargs = FOMSettings()
+choose_monofom, choose_multifom, fom_kwargs = FOMSettings()
 num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample = OptimisationSettings()
 wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters = Hyperparameters()
 h1_min, h1_max, param_bounds = Bounds()
@@ -53,10 +53,11 @@ h1_min, h1_max, param_bounds = Bounds()
 
 ## Converting non-h1 parameter dicts to strings ##
 # Fixed parameters
-print(f"Chosen FOM: {choose_FOM}\n", f"FOM kwargs: {fom_kwargs}\n")
-hyperparams_dict = {'FOM': choose_FOM, 'FOM kwargs': fom_kwargs, 'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs,
-                     'RCWA engine': RCWA_engine, 'TORCWA edge sharpness': torcwa_sharpness,
-                     'Fixed parameters': fixed_parameters}
+print(f"Multi-wavelength FOM: {choose_multifom}\nMono-wavelength FOM: {choose_monofom}\n", f"FOM kwargs: {fom_kwargs}\n")
+hyperparams_dict = {'multifom': choose_multifom, 'monofom': choose_monofom, 'FOM kwargs': fom_kwargs, 
+                    'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs,
+                    'RCWA engine': RCWA_engine, 'TORCWA edge sharpness': torcwa_sharpness,
+                    'Fixed parameters': fixed_parameters}
 hyperparams_line = str(hyperparams_dict)
 FOM_params_dict = {'final_speed': final_speed, 'goal': goal}
 FOM_params_line = str(FOM_params_dict)
@@ -107,7 +108,7 @@ with open(txt_dir, "a") as result_file:
 def optimise_partitioned_depth(h1_bounds):
     _param_bounds = param_bounds[:]
     _param_bounds[0 if "grating_pitch" in parameters.fixed_parameters else 1] = tuple([*h1_bounds])  # Must unpack a single argument for pool.imap to be applied correctly
-    return opt.global_optimise(fom.FoM_default, Hyperparameters(), sampling, seed, n_sample, maxstop, xtol_rel, ftol_rel, _param_bounds)
+    return opt.global_optimise(fom.multifom, Hyperparameters(), sampling, seed, n_sample, maxstop, xtol_rel, ftol_rel, _param_bounds)
 
 h1_bounds = []
 h1s = np.linspace(h1_min,h1_max,num_cores+1)

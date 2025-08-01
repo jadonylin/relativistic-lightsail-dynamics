@@ -70,8 +70,8 @@ def Parameters():
 
 
 wavelength = 1.  # Laser wavelength
-final_speed = 20.  # percentage of c
-pitch_within_0p1_deg = 1.227 # Pitch of the grating, allowing rotating within 0.1 degrees of before m=1 cutoff
+final_speed = 1.  # percentage of c
+fixed_pitch = 1.227 # If the pitch is fixed, other parameters like box widths are naturally constrained by this value
 param_names = ["grating_pitch", "grating_depth", 
                 "box1_width", "box2_width", "box_centre_dist", 
                 "box1_eps", "box2_eps", 
@@ -103,11 +103,13 @@ def Hyperparameters():
     return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters
 
 
-choose_FOM = "asymp"
+choose_monofom = "asymp"
+choose_multifom = "uniform"
+# choose_multifom = "monochrome"
 def FOMSettings():
     # See fom.py for FOM options and kwargs  
     fom_kwargs = {"use_perturbed": False}
-    return choose_FOM, fom_kwargs
+    return choose_monofom, choose_multifom, fom_kwargs
 
 
 def OptimisationSettings():
@@ -115,7 +117,10 @@ def OptimisationSettings():
     num_cores = 2  # number of cores to run parallel optimisation
     maxtime = 2  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
-    runID = f"F{choose_FOM}{int(final_speed)}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
+    if choose_multifom != "monochrome":
+        runID = f"F{choose_monofom}{int(final_speed)}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
+    else:
+        runID = f"F{choose_monofom}{choose_multifom}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
 
     # Local optimisation parameters
     xtol_rel = 1e-4  
@@ -137,7 +142,8 @@ def Bounds():
     # The minimum pitch must be set because any smaller pitches would result in the +1 order being cutoff for small rotation angles. 
     # The maximum pitch must be set because any larger pitches would result in the -2 order appearing for small rotation angles. 
     # The +1 and -2 orders are selected because they appear/disappear before the -1/+2 orders (at positive rotation angle)
-    wavelength_max = wavelength/D1_ND(final_speed/100)
+    # wavelength_max = wavelength/D1_ND(final_speed/100)
+    wavelength_max = 1.
     max_angle_cutoff1 = 0.1*np.pi/180  # maximum angle before order +1 is evanescent
     min_angle_cutoff2 = 15*np.pi/180  # minimum angle before order -2 is non-evanescent
     # pitch_min = np.round(1*wavelength_max/(1 - np.sin(max_angle_cutoff1)), 3)  
@@ -146,14 +152,14 @@ def Bounds():
     pitch_min = np.round(1*wavelength_max/(1 - np.sin(0.01*np.pi/180)), 3)  
     pitch_max = np.round(1*wavelength_max/(1 - np.sin(0.1*np.pi/180)), 3)  
 
-    h1_min = 0.01*pitch_within_0p1_deg  # Offset from zero to avoid zero Jacobian determinant 
-    h1_max = 1.5*pitch_within_0p1_deg
+    h1_min = 0.01*fixed_pitch  # Offset from zero to avoid zero Jacobian determinant 
+    h1_max = 1.5*fixed_pitch
 
-    box_width_min = 0.01*pitch_within_0p1_deg  # Offset from zero to avoid zero Jacobian determinant
-    box_width_max = 1.*pitch_within_0p1_deg  # single box width must be smaller than pitch
+    box_width_min = 0.01*fixed_pitch  # Offset from zero to avoid zero Jacobian determinant
+    box_width_max = 1.*fixed_pitch  # single box width must be smaller than pitch
 
-    box_centre_dist_min = 0.03*pitch_within_0p1_deg  # Offset from zero to avoid zero Jacobian determinant and symmetric unit cell
-    box_centre_dist_max = 0.5*pitch_within_0p1_deg  # redundant space if > 0.5*pitch
+    box_centre_dist_min = 0.03*fixed_pitch  # Offset from zero to avoid zero Jacobian determinant and symmetric unit cell
+    box_centre_dist_max = 0.5*fixed_pitch  # redundant space if > 0.5*pitch
 
     box_eps_min = 1.1**2  # Minimum allowed grating permittivity set above vacuum to avoid zero Jacobian determinant 
     box_eps_max = 3.5**2  # Maximum allowed grating permittivity set to silicon
@@ -162,7 +168,7 @@ def Bounds():
     gaussian_width_max = 10*L
 
     substrate_depth_min = h1_min  # Offset from zero to avoid zero Jacobian determinant 
-    substrate_depth_max = 1.5*pitch_within_0p1_deg 
+    substrate_depth_max = 1.5*fixed_pitch 
     substrate_eps_min = box_eps_min 
     substrate_eps_max = box_eps_max
 

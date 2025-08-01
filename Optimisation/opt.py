@@ -23,7 +23,6 @@ import dill as pickle
 import sys
 sys.path.append("../")
 
-import fom
 import parameters
 I0, L, m, c = parameters.Parameters()
 from twobox import TwoBox
@@ -34,16 +33,21 @@ from twobox import TwoBox
 # Constraints have the form h(x) <= 0, i.e. the constraint function should return a positive 
 # value if the constraint is violated. Additionally, MMA takes the gradients of the constraints,
 # so the constraint functions should be differentiable with respect to the optimisation parameters. 
-# However, I think the gradients of constrain functions are obtained by MMA internally (likely using
+# However, I think the gradients of constraint functions are obtained by MMA internally (likely using
 # finite differences), so autogradability is not needed.
 # Some of these constraints partially overlap with the bound constraints set for the global optimizer,
 # but here, we can pass the exact parameters to the constraints rather than predetermining the bounds.
+# In the case where the pitch is fixed, we assume that the user has set the bounds accordingly, 
+# so we do not add the box1_too_wide, box2_too_wide or bcd_redundant constraints to the local optimiser.
+# TODO: How do we know which parameter has which index, since params length is variable?
+#       Current fix is to disable certain constraint functions if pitch is fixed during
+#       optimisation (see global_optimise()).
 def box1_too_wide(params,gradn): 
     """
     Constraint function to prevent box1 from being wider than the unit cell.
     """
     Lam = params[0]  
-    w1 = params[2]  # TODO: How do we know which parameter has which index, since params length is variable?
+    w1 = params[2]  
     condition = w1 - Lam 
     return condition
 
@@ -86,10 +90,18 @@ def boxes_clip_unit_cell(params,gradn):
     Boxes clipping the unit cell edges can lead to unexpected objective values (user input box widths may not correspond to the 
     box width that RCWA receives). Additionally, gradients become expensive to compute in this case.
     """
-    Lam = params[0]
-    w1 = params[2]
-    w2 = params[3]
-    bcd = params[4]
+    if "grating_pitch" in parameters.fixed_parameters:
+        """This constraint must always be active, so we must handle the fixed pitch case."""
+        pitch_idx = parameters.fixed_parameters.index("grating_pitch")
+        Lam = parameters.fix_parameter_values[pitch_idx]
+        w1 = params[1]
+        w2 = params[2]
+        bcd = params[3]
+    else:
+        Lam = params[0]
+        w1 = params[2]
+        w2 = params[3]
+        bcd = params[4]
     condition = (w1+w2)/2 + bcd - 0.98*Lam
     return condition
 
@@ -100,13 +112,9 @@ def global_optimise(objective_fom, opt_hyperparams,
     """
     Global optimise the twobox on a single CPU core using MLSL global optimiser with internal MMA local optimiser.
 
-    TODO: Generalise the code to allow for any number of parameters to be omitted. Currently assumes
-          that the first n parameters are to be optimised, and the rest are fixed. Would need to somehow
-          know which parameters are fixed in the constraint functions, which are currently hardcoded.
-
     Parameters
     ----------
-    objective_fom    :   Figure of merit function to be optimised, passed to FOM_uniform
+    objective_fom    :   Figure of merit function to be optimised, passed to multifom_uniform
     opt_hyperparams  :   Hyperparameters for the optimisation 
     sampling_method  :   "sobol" or "random" initial point sampling
     seed             :   Seed for initial random parameter space sample and grating_depth samples
@@ -141,7 +149,7 @@ def global_optimise(objective_fom, opt_hyperparams,
 
     def objective(grating, opt_params):
         grating.params = opt_params
-        return fom.FOM_uniform(grating, objective_fom, final_speed, goal, return_grad)
+        return objective_fom(grating, final_speed, goal, return_grad)
 
     def fun_nlopt(params,gradn):
         """
@@ -180,11 +188,18 @@ def global_optimise(objective_fom, opt_hyperparams,
     n_sample = int(n_sample)
     global_opt.set_population(n_sample)  # set initial sampling points
 
-    local_opt.add_inequality_constraint(bcd_redundant)
-    local_opt.add_inequality_constraint(box1_too_wide)
-    local_opt.add_inequality_constraint(box2_too_wide)
     local_opt.add_inequality_constraint(boxes_clip_unit_cell)
     local_opt.add_inequality_constraint(boxes_overlap)
+    if "grating_pitch" not in parameters.fixed_parameters:
+        """
+        If pitch is fixed, we assume that parameter bounds have 
+        been set according to the fixed pitch value. E.g. 
+        box widths should be less than the grating pitch.
+        If pitch is not fixed, we need the following box constraints.
+        """
+        local_opt.add_inequality_constraint(box1_too_wide)
+        local_opt.add_inequality_constraint(box2_too_wide)
+        local_opt.add_inequality_constraint(bcd_redundant)
 
     local_opt.set_xtol_rel(xtol_rel)
     local_opt.set_ftol_rel(ftol_rel)
@@ -208,7 +223,6 @@ def global_optimise(objective_fom, opt_hyperparams,
     ub = [bounds[1] for bounds in param_bounds]
     global_opt.set_lower_bounds(lb)
     global_opt.set_upper_bounds(ub)
-
 
     opt_params = global_opt.optimize(init_params)
     optimum = objective(grating,opt_params)[0]
