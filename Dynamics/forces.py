@@ -180,7 +180,7 @@ def aM(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, interpolati
     # Transformed Gaussian intensity distribution from Frame L to Frame Mn
     # TODO: move repetitive intensity integrals into a function
     A_int = yM     * (1 + g**2/(g+1)*vy**2/c**2) + xM     * g**2/(g+1)*vx*vy/c**2 + g*vy*t
-    B_int = cosphi * (1 + g**2/(g+1)*vy**2/c**2) + sinphi * g**2/(g+1)*vx*vy/c**2
+    B_int = cosphi * (1 + g**2/(g+1)*vy**2/c**2) - sinphi * g**2/(g+1)*vx*vy/c**2
 
     XR = A_int + B_int*L/2
     XL = A_int - B_int*L/2
@@ -306,7 +306,7 @@ def aM_linear(t: float, yvec: np.ndarray, vL: np.ndarray, i: int, w: float, inte
     
     # Transformed Gaussian intensity distribution from Frame L to Frame Mn
     A_int = yM     * (1 + g**2/(g+1)*vy**2/c**2) + xM     * g**2/(g+1)*vx*vy/c**2 + g*vy*t
-    B_int = cosphi * (1 + g**2/(g+1)*vy**2/c**2) + sinphi * g**2/(g+1)*vx*vy/c**2
+    B_int = cosphi * (1 + g**2/(g+1)*vy**2/c**2) - sinphi * g**2/(g+1)*vx*vy/c**2
 
     XR = A_int + B_int*L/2
     XL = A_int - B_int*L/2
