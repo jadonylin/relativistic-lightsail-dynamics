@@ -1,16 +1,17 @@
 """
 Main script for running twobox optimisation on multiple computer cores.
 
-TODO: update doc
-
 How to run:
-    Set the parameters for optimisation in the parameters.py module 
+    Set the figure of merit for optimisation in the parameters.py module
     
-    Set the hyperparameters for the global and local optimisation in this module
+    Set the parameters and hyperparameters for the global and local optimisation 
+    in the parameters.py module
     
     Set the number of computer cores to use in parallel during optimisation
+    in the parameters.py module
 
-    Set the maximum number of function evaluations (for optimisation) per core
+    Set the maximum number of function evaluations per core and/or the
+    maximum runtime (in minutes) per core in the parameters.py module
 """
 
 # IMPORTS ################################################################################################################################################
