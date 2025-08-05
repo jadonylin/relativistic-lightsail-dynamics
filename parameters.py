@@ -70,7 +70,7 @@ def Parameters():
 
 
 wavelength = 1.  # Laser wavelength
-final_speed = 1.  # percentage of c
+final_speed = 20.  # percentage of c
 fixed_pitch = 1.227 # If the pitch is fixed, other parameters like box widths are naturally constrained by this value
 param_names = ["grating_pitch", "grating_depth", 
                 "box1_width", "box2_width", "box_centre_dist", 
@@ -104,8 +104,8 @@ def Hyperparameters():
 
 
 choose_monofom = "asymp"
-choose_multifom = "uniform"
-# choose_multifom = "monochrome"
+# choose_multifom = "uniform"
+choose_multifom = "monochrome"
 def FOMSettings():
     # See fom.py for FOM options and kwargs  
     fom_kwargs = {"use_perturbed": False}
