@@ -114,7 +114,7 @@ def global_optimise(objective_fom, opt_hyperparams,
 
     Parameters
     ----------
-    objective_fom    :   Figure of merit function to be optimised, passed to multifom_uniform
+    objective_fom    :   Figure of merit function to be optimised. Must take a grating object and return a tuple (FOM, gradient).
     opt_hyperparams  :   Hyperparameters for the optimisation 
     sampling_method  :   "sobol" or "random" initial point sampling
     seed             :   Seed for initial random parameter space sample and grating_depth samples
@@ -148,6 +148,12 @@ def global_optimise(objective_fom, opt_hyperparams,
     grating = TwoBox(*init_all_params, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness, fixed_parameters)
 
     def objective(grating, opt_params):
+        """
+        Objective function to be optimised. Is likely fom.multifom. 
+        However, the monofom kwarg is not passed here since, 
+        for optimisation only, the monofom is pre-selected 
+        in parameters.py.
+        """
         grating.params = opt_params
         return objective_fom(grating, final_speed, goal, return_grad)
 
