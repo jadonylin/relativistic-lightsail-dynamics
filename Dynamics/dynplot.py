@@ -302,22 +302,26 @@ def load_coordinate_array_envelopes(filename: str, n_sets: int=7, n_chunks_per_s
 
 
 def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5e8, num_points: int=200, 
-                          normalise: bool=False, use_perturbed: bool=False):
+                          normalise: bool=False, use_perturbed: bool=False, wavelength_range: np.ndarray=None):
     """
     Generate linear stability analysis information across a given spectrum of wavelengths.
 
     Parameters
     ----------
-    grating       :   Grating whose spectrum is generated
-    speed_range   :   Maximum and minimum speeds, between which the corresponding wavelengths form the spectrum 
-    I             :   Laser intensity
-    num_points    :   Number of points in the spectrum
-    normalise     :   Flag to normalise the eigenvalues, eigenvectors and Jacobian coefficients
-    use_perturbed :   Flag to use the analytic eigenvalues from first order perturbation theory.
+    grating          :   Grating whose spectrum is generated
+    speed_range      :   Maximum and minimum speeds, between which the corresponding wavelengths form the spectrum 
+    I                :   Laser intensity
+    num_points       :   Number of points in the spectrum
+    normalise        :   Flag to normalise the eigenvalues, eigenvectors and Jacobian coefficients
+    use_perturbed    :   Flag to use the analytic eigenvalues from first order perturbation theory.
+    wavelength_range :   Optional array of wavelengths to use instead of calculating them from the speed range.
     """
 
     input_wavelength = grating.wavelength
-    wavelength_range = np.linspace(1/D1_ND(speed_range[0]/100), 1/D1_ND(speed_range[1]/100), num_points)
+    if wavelength_range is None:
+        wavelength_range = np.linspace(1/D1_ND(speed_range[0]/100), 1/D1_ND(speed_range[1]/100), num_points)
+    else:
+        wavelengths = np.linspace(*wavelength_range, num_points)
     
     restoring_coeffs = np.zeros((num_points,4))
     damping_coeffs = np.zeros((num_points,4))
@@ -327,7 +331,7 @@ def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5
     preal_eigvals = np.zeros((num_points,4))
     pimag_eigvals = np.zeros((num_points,4))
     for i in range(num_points):
-        wavelength = wavelength_range[i]
+        wavelength = wavelengths[i]
         grating.wavelength = wavelength 
         lsa = grating.to_numpy(fom.lsa_info(grating, I, normalise, use_perturbed))
         if use_perturbed:
