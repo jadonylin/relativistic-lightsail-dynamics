@@ -319,7 +319,7 @@ def generate_lsa_spectrum(grating: TwoBox, speed_range: list=(0.,5.), I: float=5
 
     input_wavelength = grating.wavelength
     if wavelength_range is None:
-        wavelength_range = np.linspace(1/D1_ND(speed_range[0]/100), 1/D1_ND(speed_range[1]/100), num_points)
+        wavelengths = np.linspace(1/D1_ND(speed_range[0]/100), 1/D1_ND(speed_range[1]/100), num_points)
     else:
         wavelengths = np.linspace(*wavelength_range, num_points)
     
