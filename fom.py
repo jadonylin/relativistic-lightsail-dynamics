@@ -17,6 +17,7 @@ the unit cell along the x-axis about the unit-cell centre.
 
 import adaptive as adp
 import numpy as np
+import flex
 import parameters
 from parameters import Parameters, D1_ND, FOMSettings
 I0, L, m, c = Parameters()
@@ -38,6 +39,8 @@ def monofom(grating, I: float=1e9, grad_method: str="finite") -> float:
     """
     if choose_monofom == "asymp":
         return monofom_asymp(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_monofom == "elongation":
+        return monofom_elongation(grating, I=I, grad_method=grad_method, **fom_kwargs)
     elif choose_monofom == "wasymp":
         return monofom_wasymp(grating, I=I, grad_method=grad_method, **fom_kwargs)
     elif choose_monofom == "damp":
@@ -110,6 +113,25 @@ def monofom_asymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) ->
         use_perturbed = False
     eigReal, eigImag = Eigs(grating, I=I, m=m, c1=c, grad_method=grad_method, return_vec=False, use_perturbed=use_perturbed)
     F_lam = grating.npa.min(-eigReal)  # standard minimum
+    return F_lam
+
+def monofom_elongation(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
+    """
+    Elongation FOM: Minimise the radiation pressure spring constant kpr
+
+    Parameters
+    ----------
+    grating     :   Calculate figure of merit for this grating
+    I           :   Laser intensity
+    grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+
+    Returns
+    -------
+    F_lam :   Figure of merit
+    """
+    scale = 1.
+    kpr = flex.Qpr2_elongated(grating, scale=scale) + flex.dQpr2_dscale(grating, scale=scale, grad_method=grad_method)
+    F_lam = -grating.npa.abs(kpr)
     return F_lam
 
 def monofom_wasymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
@@ -352,7 +374,7 @@ def multifom_uniform(grating, monofom: callable=monofom, final_speed: float=20.,
     """
     Calculate the figure of merit (FOM) for the given grating over a fixed wavelength range determined by the final speed.
     
-    The figure of merit we defined is the expectation value of F_lam over wavelength. Assumes a uniform probability 
+    The "uniform" figure of merit is the expectation value of F_lam over wavelength assuming a uniform probability 
     density over wavelength for weighting F_lam.
 
     Parameters
@@ -443,6 +465,99 @@ def multifom_monochrome(grating, monofom: callable=monofom, return_grad: bool=Tr
     else:
         return FOM
 
+def multifom_minimum_adp(grating, monofom: callable=monofom, final_speed: float=20., goal: float=0.1, return_grad: bool=True) -> float:
+    """
+    Calculate the figure of merit (FOM) for the given grating over a fixed wavelength range determined by the final speed.
+    
+    The "minimum" figure of merit is the minimum value of F_lam over wavelength.
+
+    Parameters
+    ----------
+    grating     :   TwoBox instance containing the grating parameters
+    monofom     :   Monofom function to use for calculating F_lam. Defaults to the default monofom function.
+    final_speed :   Final sail speed as percentage of light speed
+    goal        :   Stopping goal for wavelength integration passed to adaptive runner. If int, use npoints_goal; if float, use loss_goal.
+    return_grad :   Return [FOM, FOM gradient] instead of just FOM
+    """
+
+    # Starting wavelength is copied into laser_wavelength just in case grating.wavelength is unexpectedly modified
+    laser_wavelength = grating.wavelength 
+    Doppler = D1_ND([final_speed/100,0])
+    l_min = 1  # l = grating frame wavelength normalised to laser frame wavelength
+    l_max = l_min/Doppler    
+    l_range = (l_min, l_max)
+    
+    # Define a single-argument function, needed when passing to learner
+    def weighted_F_lam(l):
+        grating.wavelength = l*laser_wavelength 
+        return grating.to_numpy(_F_lam(grating,monofom)) # losing autograd here by calling to_numpy, but torch tensors are not compatible with adaptive
+    
+    F_lam_learner = adp.Learner1D(weighted_F_lam, bounds=l_range)
+    if isinstance(goal, int):
+        F_lam_runner = adp.runner.simple(F_lam_learner, npoints_goal=goal)
+    elif isinstance(goal, float):
+        F_lam_runner = adp.runner.simple(F_lam_learner, loss_goal=goal)
+    else: 
+        raise ValueError("Sampling goal type not recognised. Must be int for npoints_goal or float for loss_goal.")
+    
+    F_lam_data = F_lam_learner.to_numpy()
+    weighted_F_lams = F_lam_data[:,1]
+    FOM = np.min(weighted_F_lams)
+
+    grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
+    return FOM
+
+def multifom_minimum(grating, monofom: callable=monofom, final_speed: float=20., goal: int=100, return_grad: bool=True) -> float:
+    """
+    Calculate the figure of merit (FOM) for the given grating over a fixed wavelength range determined by the final speed.
+    
+    The "minimum" figure of merit is the minimum value of F_lam over wavelength.
+
+    Parameters
+    ----------
+    grating     :   TwoBox instance containing the grating parameters
+    monofom     :   Monofom function to use for calculating F_lam. Defaults to the default monofom function.
+    final_speed :   Final sail speed as percentage of light speed
+    goal        :   Number of points for wavelength sampling
+    return_grad :   Return [FOM, FOM gradient] instead of just FOM
+    """
+
+    # Starting wavelength is copied into laser_wavelength just in case grating.wavelength is unexpectedly modified
+    params = grating.params
+    laser_wavelength = grating.wavelength 
+    Doppler = D1_ND([final_speed/100,0])
+    l_min = 1  # l = grating frame wavelength normalised to laser frame wavelength
+    l_max = l_min/Doppler    
+    
+    n_samples = goal
+    ls = np.linspace(l_min, l_max, n_samples)
+    F_wavelengths = grating.npa.zeros(n_samples)
+
+    # Define figure of merit function
+    def F_min(params):
+        grating.params = params
+        F_wavelengths = _F_lam(grating,monofom)
+        for l_idx, l in enumerate(ls):
+            # grating.wavelength = l*laser_wavelength 
+            # F_wavelengths[l_idx] = _F_lam(grating,monofom)
+
+            grating.wavelength = l*laser_wavelength 
+            F_wavelengths_new = _F_lam(grating,monofom)
+            if F_wavelengths_new < F_wavelengths:
+                F_wavelengths = F_wavelengths_new
+        # return grating.npa.min(F_wavelengths)
+        return F_wavelengths
+    
+    FOM = F_min(params)
+    FOM_return = FOM
+    if return_grad:
+        F_min_grad = grating.npa.grad(F_min)
+        FOM_grad = F_min_grad(params)
+        FOM_return = [FOM,FOM_grad] 
+    
+    grating.params = params
+    grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
+    return FOM_return
 
 
 def calculate_force_coeff(exp_funcs: list[callable], wavelength: float, Qprs: list, 
