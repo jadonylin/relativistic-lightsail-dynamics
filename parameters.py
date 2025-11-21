@@ -103,12 +103,13 @@ def Hyperparameters():
     return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters
 
 
-choose_monofom = "asymp"
-# choose_multifom = "uniform"
-choose_multifom = "monochrome"
+choose_monofom = "elongation"
+choose_multifom = "uniform"
+# choose_multifom = "monochrome"
 def FOMSettings():
     # See fom.py for FOM options and kwargs  
-    fom_kwargs = {"use_perturbed": False}
+    # fom_kwargs = {"use_perturbed": False}
+    fom_kwargs = {}
     return choose_monofom, choose_multifom, fom_kwargs
 
 
