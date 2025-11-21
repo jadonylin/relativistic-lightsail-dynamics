@@ -671,13 +671,14 @@ class PlotBox:
 
         return fig, (ax1, ax2)
 
-    def show_FOM_spectrum(self, monofom: callable=fom_module.monofom, angle: float=0., wavelength_range: list=[1., 1.5], 
+    def show_FOM_spectrum(self, monofom, angle: float=0., wavelength_range: list=[1., 1.5], 
                           num_plot_points: int=200, I: float=10e9, grad_method: str="grad"):
         """
         Show spectrum of various efficiency quantities for the twobox.
 
         Parameters
         ----------
+        monofom             :   Function from fom_module to calculate figure of merit
         angle               :   Angle of incident plane wave excitation (radians)
         efficiency_quantity :   The efficiency quantity you want spectrum for
                                 "r" - reflection, "PDr" - reflection angular derivative, 
