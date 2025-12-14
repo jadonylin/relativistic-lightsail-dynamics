@@ -487,25 +487,38 @@ def multifom_minimum_adp(grating, monofom: callable=monofom, final_speed: float=
     l_max = l_min/Doppler    
     l_range = (l_min, l_max)
     
-    # Define a single-argument function, needed when passing to learner
-    def weighted_F_lam(l):
-        grating.wavelength = l*laser_wavelength 
-        return grating.to_numpy(_F_lam(grating,monofom)) # losing autograd here by calling to_numpy, but torch tensors are not compatible with adaptive
+    def min_F(params):
+        def F_lam_gradable(l):
+            grating.wavelength = l*laser_wavelength 
+            return F_lam(grating, params, monofom)
+        
+        # Define numpy compatible function needed for learner
+        def F_lam_numpy(l):
+            grating.wavelength = l*laser_wavelength 
+            return grating.to_numpy(F_lam(grating, params, monofom))
+        
+        F_lam_learner = adp.Learner1D(F_lam_numpy, bounds=l_range)
+        if isinstance(goal, int):
+            F_lam_runner = adp.runner.simple(F_lam_learner, npoints_goal=goal)
+        elif isinstance(goal, float):
+            F_lam_runner = adp.runner.simple(F_lam_learner, loss_goal=goal)
+        else: 
+            raise ValueError("Sampling goal type not recognised. Must be int for npoints_goal or float for loss_goal.")
+        
+        F_lam_data = F_lam_learner.to_numpy()
+        weighted_F_lams = F_lam_gradable(F_lam_data[:,0])
+        return grating.npa.min(weighted_F_lams)
     
-    F_lam_learner = adp.Learner1D(weighted_F_lam, bounds=l_range)
-    if isinstance(goal, int):
-        F_lam_runner = adp.runner.simple(F_lam_learner, npoints_goal=goal)
-    elif isinstance(goal, float):
-        F_lam_runner = adp.runner.simple(F_lam_learner, loss_goal=goal)
-    else: 
-        raise ValueError("Sampling goal type not recognised. Must be int for npoints_goal or float for loss_goal.")
+    params = grating.params
+    min_F_grad = grating.npa.grad(min_F)
+    FOM = min_F(params)
+    FOM_grad = min_F_grad(params)
     
-    F_lam_data = F_lam_learner.to_numpy()
-    weighted_F_lams = F_lam_data[:,1]
-    FOM = np.min(weighted_F_lams)
-
     grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
-    return FOM
+    if return_grad:
+        return [FOM,FOM_grad] 
+    else:
+        return FOM
 
 def multifom_minimum(grating, monofom: callable=monofom, final_speed: float=20., goal: int=100, return_grad: bool=True) -> float:
     """
