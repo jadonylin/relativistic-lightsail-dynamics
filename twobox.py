@@ -612,8 +612,11 @@ class TwoBox(PlotBox, QprBox):
             else:
                 return result
         else:        
-            if(isinstance(x, torch.Tensor)):
-                return x.detach().cpu().numpy()
+            if isinstance(x, torch.Tensor):
+                if x.numel()==1:
+                    return x.item()
+                else:
+                    return x.detach().cpu().numpy()
             else:
                 return np.array(x)
 
