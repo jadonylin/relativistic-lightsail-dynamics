@@ -29,11 +29,10 @@ def Qpr2_elongated(grating: TwoBox, scale: float=1.0) -> float:
     w2 = grating.box2_width 
     bcd = grating.box_centre_dist 
 
-    scale = grating.npa.array(scale)
-    grating.grating_pitch = grating.grating_pitch * scale
-    grating.box1_width = grating.box1_width * scale
-    grating.box2_width = grating.box2_width * scale
-    grating.box_centre_dist = grating.box_centre_dist * scale
+    grating.grating_pitch = p * scale
+    grating.box1_width = w1 * scale
+    grating.box2_width = w2 * scale
+    grating.box_centre_dist = bcd * scale
     Qpr2 = grating.Q()[1]
 
     # TODO: Is there a better way to use the grating object without modifying the original?
@@ -59,13 +58,13 @@ def dQpr2_dscale(grating: TwoBox, scale: float=1.0, grad_method: str="finite") -
     -------
     dQpr2_dscale : float
     """
-    scale = grating.npa.array(scale)
     if grad_method == "finite":
         h = 1e-6
         Qpr2_plus = Qpr2_elongated(grating, scale + h)
         Qpr2_minus = Qpr2_elongated(grating, scale - h)
         return (Qpr2_plus - Qpr2_minus)/(2*h)
     elif grad_method == "grad":
+        scale = grating.npa.array(scale)
         grad_func = grating.npa.grad(Qpr2_elongated, argnum=1)
         return grad_func(grating, scale)
     else:
