@@ -481,6 +481,7 @@ def multifom_minimum_adp(grating, monofom: callable=monofom, final_speed: float=
     """
 
     # Starting wavelength is copied into laser_wavelength just in case grating.wavelength is unexpectedly modified
+    params = grating.params
     laser_wavelength = grating.wavelength 
     Doppler = D1_ND([final_speed/100,0])
     l_min = 1  # l = grating frame wavelength normalised to laser frame wavelength
@@ -506,16 +507,17 @@ def multifom_minimum_adp(grating, monofom: callable=monofom, final_speed: float=
             raise ValueError("Sampling goal type not recognised. Must be int for npoints_goal or float for loss_goal.")
         
         F_lam_data = F_lam_learner.to_numpy()
-        weighted_F_lams = F_lam_gradable(F_lam_data[:,0])
+        ls = F_lam_data[:,0]
+        weighted_F_lams = grating.npa.zeros(len(ls))
+        for idx, l in enumerate(ls):
+            weighted_F_lams[idx] = F_lam_gradable(l)
         return grating.npa.min(weighted_F_lams)
     
-    params = grating.params
-    min_F_grad = grating.npa.grad(min_F)
-    FOM = min_F(params)
-    FOM_grad = min_F_grad(params)
-    
+    FOM = grating.to_numpy(min_F(params))
     grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
     if return_grad:
+        min_F_grad = grating.npa.grad(min_F)
+        FOM_grad = grating.to_numpy(min_F_grad(params))
         return [FOM,FOM_grad] 
     else:
         return FOM
@@ -544,33 +546,23 @@ def multifom_minimum(grating, monofom: callable=monofom, final_speed: float=20.,
     
     n_samples = goal
     ls = np.linspace(l_min, l_max, n_samples)
-    F_wavelengths = grating.npa.zeros(n_samples)
 
     # Define figure of merit function
-    def F_min(params):
-        grating.params = params
-        F_wavelengths = _F_lam(grating,monofom)
+    def min_F(params):
+        F_wavelengths = grating.npa.zeros(n_samples)
         for l_idx, l in enumerate(ls):
-            # grating.wavelength = l*laser_wavelength 
-            # F_wavelengths[l_idx] = _F_lam(grating,monofom)
-
-            grating.wavelength = l*laser_wavelength 
-            F_wavelengths_new = _F_lam(grating,monofom)
-            if F_wavelengths_new < F_wavelengths:
-                F_wavelengths = F_wavelengths_new
-        # return grating.npa.min(F_wavelengths)
-        return F_wavelengths
+            grating.wavelength = l*laser_wavelength
+            F_wavelengths[l_idx] = F_lam(grating,params,monofom)
+        return grating.npa.min(F_wavelengths)
     
-    FOM = F_min(params)
-    FOM_return = FOM
-    if return_grad:
-        F_min_grad = grating.npa.grad(F_min)
-        FOM_grad = F_min_grad(params)
-        FOM_return = [FOM,FOM_grad] 
-    
-    grating.params = params
+    FOM = grating.to_numpy(min_F(params))
     grating.wavelength = laser_wavelength  # Restore user-initialised wavelength
-    return FOM_return
+    if return_grad:
+        min_F_grad = grating.npa.grad(min_F)
+        FOM_grad = grating.to_numpy(min_F_grad(params))
+        return [FOM,FOM_grad] 
+    else:
+        return FOM
 
 
 def calculate_force_coeff(exp_funcs: list[callable], wavelength: float, Qprs: list, 
