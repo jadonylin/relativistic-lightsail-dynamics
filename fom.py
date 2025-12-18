@@ -41,6 +41,8 @@ def monofom(grating, I: float=1e9, grad_method: str="finite") -> float:
         return monofom_asymp(grating, I=I, grad_method=grad_method, **fom_kwargs)
     elif choose_monofom == "elongation":
         return monofom_elongation(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_monofom == "kpr_unstable":
+        return monofom_kpr_unstable(grating, I=I, grad_method=grad_method, **fom_kwargs)
     elif choose_monofom == "wasymp":
         return monofom_wasymp(grating, I=I, grad_method=grad_method, **fom_kwargs)
     elif choose_monofom == "damp":
@@ -132,6 +134,25 @@ def monofom_elongation(grating, I: float=1e9, grad_method: str="finite", **kwarg
     scale = 1.
     kpr = flex.Qpr2_elongated(grating, scale=scale) + flex.dQpr2_dscale(grating, scale=scale, grad_method=grad_method)
     F_lam = -grating.npa.abs(kpr)
+    return F_lam
+
+def monofom_kpr_unstable(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
+    """
+    kpr unstable FOM: Maximise the radiation pressure spring constant kpr
+
+    Parameters
+    ----------
+    grating     :   Calculate figure of merit for this grating
+    I           :   Laser intensity
+    grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+
+    Returns
+    -------
+    F_lam :   Figure of merit
+    """
+    scale = 1.
+    kpr = flex.Qpr2_elongated(grating, scale=scale) + flex.dQpr2_dscale(grating, scale=scale, grad_method=grad_method)
+    F_lam = grating.npa.abs(kpr)
     return F_lam
 
 def monofom_wasymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
@@ -459,8 +480,7 @@ def multifom_monochrome(grating, monofom: callable=monofom, return_grad: bool=Tr
     FOM = float(grating.to_numpy(_F_lam(grating, monofom)))
     if return_grad:
         F_lam_grad = grating.npa.grad(F_lam, argnum=1)
-        params = grating.params
-        FOM_grad = grating.to_numpy(F_lam_grad(grating, params, monofom))
+        FOM_grad = grating.to_numpy(F_lam_grad(grating, grating.params, monofom))
         return [FOM,FOM_grad]
     else:
         return FOM
