@@ -71,7 +71,7 @@ def Parameters():
 
 wavelength = 1.  # Laser wavelength
 final_speed = 20.  # percentage of c
-fixed_pitch = 1.227 # If the pitch is fixed, other parameters like box widths are naturally constrained by this value
+fixed_pitch = 2. # If the pitch is fixed, other parameters like box widths are naturally constrained by this value
 param_names = ["grating_pitch", "grating_depth", 
                 "box1_width", "box2_width", "box_centre_dist", 
                 "box1_eps", "box2_eps", 
@@ -84,11 +84,12 @@ def Hyperparameters():
     torcwa_sharpness = 45
 
     angle = 0.
-    Nx = 100  # Number of grid points for RCWA simulation
+    Nx = 1000  # Number of grid points for RCWA simulation
 
     # Number of Fourier components for RCWA simulation
     if RCWA_engine == "TORCWA":
-        nG = 12
+        # nG = 12
+        nG = 30
     elif RCWA_engine == "GRCWA":
         nG = 25
     else:
@@ -103,9 +104,9 @@ def Hyperparameters():
     return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters
 
 
-choose_monofom = "elongation"
-choose_multifom = "uniform"
-# choose_multifom = "monochrome"
+choose_monofom = "kpr_unstable"
+# choose_multifom = "uniform"
+choose_multifom = "monochrome"
 def FOMSettings():
     # See fom.py for FOM options and kwargs  
     # fom_kwargs = {"use_perturbed": False}
@@ -135,8 +136,6 @@ def OptimisationSettings():
     return num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample
 
 
-mirror_substrate_depth = 1.  # Depth of the substrate if mirror_substrate is true (wavelength units)
-mirror_substrate_eps = -1e6  # Permittivity of the substrate if mirror_substrate is true
 def Bounds():
     ## Parameter bounds
     # Pitch bounds have been set to avoid ±1 or ±2 grating cutoffs, because the grating is rotating.
@@ -150,8 +149,11 @@ def Bounds():
     # pitch_min = np.round(1*wavelength_max/(1 - np.sin(max_angle_cutoff1)), 3)  
     # pitch_max = np.round(2*wavelength_max/(1 + np.sin(min_angle_cutoff2)), 3)
 
-    pitch_min = np.round(1*wavelength_max/(1 - np.sin(0.01*np.pi/180)), 3)  
-    pitch_max = np.round(1*wavelength_max/(1 - np.sin(0.1*np.pi/180)), 3)  
+    # pitch_min = np.round(1*wavelength_max/(1 - np.sin(0.01*np.pi/180)), 3)  
+    # pitch_max = np.round(1*wavelength_max/(1 - np.sin(0.1*np.pi/180)), 3)
+
+    pitch_min = 1.01  
+    pitch_max = 1.99
 
     h1_min = 0.01*fixed_pitch  # Offset from zero to avoid zero Jacobian determinant 
     h1_max = 1.5*fixed_pitch
