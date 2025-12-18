@@ -706,7 +706,7 @@ class PlotBox:
 
         fig, ax = plt.subplots(1)         
         p = self.to_numpy(self.grating_pitch)
-        ax.set_xlim(wavelength_range/p)  # normalise wavelength to grating pitch
+        ax.set_xlim(np.array(wavelength_range)/p)  # normalise wavelength to grating pitch
         ax.plot(wavelengths/p, efficiencies, color=(0.7, 0, 0), linestyle='-', lw=LINE_WIDTH)
         ax.set(title=rf"{self.title} $h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$", xlabel=r"$\lambda'/\Lambda'$", ylabel="FoM")
         ax.axhline(y=0, color='black', linestyle='-', lw = '1')
