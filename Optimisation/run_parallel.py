@@ -12,6 +12,8 @@ How to run:
 
     Set the maximum number of function evaluations per core and/or the
     maximum runtime (in minutes) per core in the parameters.py module
+
+    Run python run_parallel.py.
 """
 
 # IMPORTS ################################################################################################################################################

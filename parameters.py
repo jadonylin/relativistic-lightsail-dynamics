@@ -1,5 +1,5 @@
 """
-A module to store parameters of a bigrating + laser configuration, and optimisation parameters.
+A module to store parameters of a bigrating + laser configuration and optimisation parameters.
 Some functions are included to calculate velocity-dependent terms from special relativity, including 
 the Lorentz gamma factor and Doppler factor.
 
@@ -16,7 +16,7 @@ def gamma_ND(v):
 
     Parameters
     ----------
-    v :   Speed (float), two/three-velocity (list or np array), or list of two/three-velocities
+    v :   Speed (in units of c), two/three-velocity (list or np array), or list of two/three-velocities
 
     Returns
     -------
@@ -40,7 +40,7 @@ def D1_ND(v):
 
     Parameters
     ----------
-    v :   Speed (float), two/three-velocity (list or np array), or list of two/three-velocities
+    v :   Speed (in units of c), two/three-velocity (list or np array), or list of two/three-velocities
 
     Returns
     -------
@@ -60,7 +60,7 @@ def D1_ND(v):
 
 
 
-L = 10  # grating width (metres in 2D model)
+L = 10  # grating diameter (metres)
 def Parameters():
     P = 50e9  # laser power (watts)
     I0 = P/L  # laser power per unit grating length
@@ -68,28 +68,26 @@ def Parameters():
     c = scipy.constants.c
     return I0, L, m, c
 
-
 wavelength = 1.  # Laser wavelength
 final_speed = 20.  # percentage of c
-fixed_pitch = 2. # If the pitch is fixed, other parameters like box widths are naturally constrained by this value
+fixed_pitch = 2. # If you put grating_pitch in fixed_parameters, other parameters like box widths are constrained by this value
 param_names = ["grating_pitch", "grating_depth", 
                 "box1_width", "box2_width", "box_centre_dist", 
                 "box1_eps", "box2_eps", 
                 "gaussian_width", "substrate_depth", "substrate_eps"]  # Names of all optimisable twobox parameters
-fixed_parameters = ["gaussian_width"]  # Fix parameters during optimisation
+fixed_parameters = ["gaussian_width"]  # Fix these parameters during optimisation
 fix_parameter_values = [2*L]  # Values of fixed parameters, in the same order as fixed_parameters
 def Hyperparameters():
     # Engine parameters
     RCWA_engine = "TORCWA"
     torcwa_sharpness = 45
 
-    angle = 0.
-    Nx = 1000  # Number of grid points for RCWA simulation
+    angle = 0.  # Incident light angle
+    Nx = 100  # Number of grid points for RCWA simulation
 
     # Number of Fourier components for RCWA simulation
     if RCWA_engine == "TORCWA":
-        # nG = 12
-        nG = 30
+        nG = 12
     elif RCWA_engine == "GRCWA":
         nG = 25
     else:
@@ -104,12 +102,10 @@ def Hyperparameters():
     return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters
 
 
-choose_monofom = "kpr_unstable"
-# choose_multifom = "uniform"
-choose_multifom = "monochrome"
+choose_monofom = "asymp"  # figure of merit evaluated at single wavelength
+choose_multifom = "uniform"  # Evaluate choose_monofom at multiple wavelengths with a chosen weighting.
 def FOMSettings():
     # See fom.py for FOM options and kwargs  
-    # fom_kwargs = {"use_perturbed": False}
     fom_kwargs = {}
     return choose_monofom, choose_multifom, fom_kwargs
 
@@ -118,11 +114,8 @@ def OptimisationSettings():
     # Global optimisation parameters
     num_cores = 2  # number of cores to run parallel optimisation
     maxtime = 2  # Stop after maxtime minutes
-    maxstop = {'maxtime': maxtime}  # global 1000
-    if choose_multifom != "monochrome":
-        runID = f"F{choose_monofom}{int(final_speed)}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
-    else:
-        runID = f"F{choose_monofom}{choose_multifom}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
+    maxstop = {'maxtime': maxtime} 
+    runID = f"optimum"  # ID for saving results
 
     # Local optimisation parameters
     xtol_rel = 1e-4  
@@ -138,22 +131,15 @@ def OptimisationSettings():
 
 def Bounds():
     ## Parameter bounds
-    # Pitch bounds have been set to avoid ±1 or ±2 grating cutoffs, because the grating is rotating.
+    # Pitch bounds have been set to avoid ±1 or ±2 grating cutoffs because the grating is rotating.
     # The minimum pitch must be set because any smaller pitches would result in the +1 order being cutoff for small rotation angles. 
     # The maximum pitch must be set because any larger pitches would result in the -2 order appearing for small rotation angles. 
     # The +1 and -2 orders are selected because they appear/disappear before the -1/+2 orders (at positive rotation angle)
-    # wavelength_max = wavelength/D1_ND(final_speed/100)
-    wavelength_max = 1.
+    wavelength_max = wavelength/D1_ND(final_speed/100)
     max_angle_cutoff1 = 0.1*np.pi/180  # maximum angle before order +1 is evanescent
     min_angle_cutoff2 = 15*np.pi/180  # minimum angle before order -2 is non-evanescent
-    # pitch_min = np.round(1*wavelength_max/(1 - np.sin(max_angle_cutoff1)), 3)  
-    # pitch_max = np.round(2*wavelength_max/(1 + np.sin(min_angle_cutoff2)), 3)
-
-    # pitch_min = np.round(1*wavelength_max/(1 - np.sin(0.01*np.pi/180)), 3)  
-    # pitch_max = np.round(1*wavelength_max/(1 - np.sin(0.1*np.pi/180)), 3)
-
-    pitch_min = 1.01  
-    pitch_max = 1.99
+    pitch_min = np.round(1*wavelength_max/(1 - np.sin(max_angle_cutoff1)), 3)  
+    pitch_max = np.round(2*wavelength_max/(1 + np.sin(min_angle_cutoff2)), 3)
 
     h1_min = 0.01*fixed_pitch  # Offset from zero to avoid zero Jacobian determinant 
     h1_max = 1.5*fixed_pitch
@@ -167,39 +153,10 @@ def Bounds():
     box_eps_min = 1.1**2  # Minimum allowed grating permittivity set above vacuum to avoid zero Jacobian determinant 
     box_eps_max = 3.5**2  # Maximum allowed grating permittivity set to silicon
 
-    gaussian_width_min = 0.1*L 
-    gaussian_width_max = 10*L
-
     substrate_depth_min = h1_min  # Offset from zero to avoid zero Jacobian determinant 
     substrate_depth_max = 1.5*fixed_pitch 
     substrate_eps_min = box_eps_min 
     substrate_eps_max = box_eps_max
-
-    # # All params
-    # param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max), 
-    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
-    #                 (box_centre_dist_min, box_centre_dist_max),
-    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-    #                 (gaussian_width_min, gaussian_width_max),                    
-    #                 (substrate_depth_min, substrate_depth_max),
-    #                 (substrate_eps_min, substrate_eps_max)]
-    
-    # # Fixed pitch
-    # param_bounds = [(h1_min, h1_max),
-    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
-    #                 (box_centre_dist_min, box_centre_dist_max),
-    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-    #                 (gaussian_width_min, gaussian_width_max),
-    #                 (substrate_depth_min, substrate_depth_max),
-    #                 (substrate_eps_min, substrate_eps_max)]
-
-    # # Fixed pitch and gaussian
-    # param_bounds = [(h1_min, h1_max),
-    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
-    #                 (box_centre_dist_min, box_centre_dist_max),
-    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-    #                 (substrate_depth_min, substrate_depth_max),
-    #                 (substrate_eps_min, substrate_eps_max)]
     
     # Fixed gaussian
     param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max),
@@ -208,12 +165,5 @@ def Bounds():
                     (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
                     (substrate_depth_min, substrate_depth_max),
                     (substrate_eps_min, substrate_eps_max)]
-
-    # # Fixed substrate and pitch
-    # param_bounds = [(h1_min, h1_max), 
-    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
-    #                 (box_centre_dist_min, box_centre_dist_max),
-    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-    #                 (gaussian_width_min, gaussian_width_max)]
     
     return h1_min, h1_max, param_bounds

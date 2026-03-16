@@ -23,9 +23,6 @@ sim_dtype = torch.complex128
 geo_dtype = torch.float64
 if torch.cuda.is_available():
     device = torch.device('cuda')
-# elif torch.backends.mps.is_available():  # For Apple silicon devices
-#     TODO: Requires 32 bit floats. Also leads to RuntimeError: linalg_inv: not supported for complex types yet! in torcwa
-#     device = torch.device('mps')
 else:
     device = torch.device('cpu')
 

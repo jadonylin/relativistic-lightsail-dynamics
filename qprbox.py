@@ -1,6 +1,6 @@
 """
-A module to store helper functions that calculate Qpr and 
-adjacent reflection quantities. Stored here to avoid cluttering twobox class.
+A module to store helper functions that calculate radiation-pressure effiency factor 
+(Qpr) and adjacent reflection quantities. Stored here to avoid cluttering twobox class.
 """
 
 import numpy as np
@@ -70,7 +70,7 @@ class QprBox:
         at a given excitation-plane-wave angle
         
         NOTE: For some reason, you have to set and restore self.angle and self.wavelength in order for 
-              consecutive PDrNeg1 calls and optimisation gradient, respectively, to function. 
+              consecutive PDrNeg1 calls and optimisation gradient, respectively, to function correctly. 
         """
         input_angle = self.angle  
         input_wavelength = self.wavelength
@@ -235,13 +235,11 @@ class QprBox:
         """
         sin_delta_m = self.npa.sin(self.npa.array(self.angle)) + m*self.wavelength/self.grating_pitch
         delta_m = self.npa.arcsin(sin_delta_m)
-
         return delta_m
     
     def Q(self):
         """
         Calculates efficiency factors Q_{pr,j}'(delta', lambda')
-        todo: check the torch version works...
         """
         r,t = self.eff()
         
@@ -249,17 +247,12 @@ class QprBox:
         Q2 = self.npa.array(0.0)
         M = [-1,0,1]
         
-        # M = self.grating_orders()  # this works in pytorch, but not in autograd
-        # begin debugging torch pytorch jacobian returning 0:
-        # M = [0]
-        # end debug
         if self.RCWA_engine == 'TORCWA':
             M = self.grating_orders() # this works in pytorch, but not in autograd, which throws an error that int isn't differentiable
-            # however, doing it this way doesn't help with NaN being by  returned for derivatives when only m=0 orders are propagative in torcwa
+            # however, doing it this way doesn't help with NaN being by returned for derivatives when only m=0 orders are propagative in torcwa
         for ord in M:
             m = 1+ord # convert grating order to index of array, assumes -1,0,1
             delta_m = self.diffraction_angle(ord)
-            # # if isinstance(delta_m,str):
             if self.npa.isnan(delta_m):
                 """
                 If no diffraction order, Q_{pr,j}' is unchanged
@@ -274,15 +267,13 @@ class QprBox:
         Q2 = -self.npa.cos(self.angle)*Q2
         if self.RCWA_engine == 'TORCWA':
             return torch.stack((Q1,Q2))
-            # return self.npa.array( [Q1, Q2] )  
         else:
             return self.npa.array( [Q1, Q2] )
 
 
     def return_Qs(self, h_angle, h_wavelength):
         """
-        Calculate efficiency factors and their derivatives
-        NOTE: unchanged from pre-torcwa as it doesn't use autograd or grcwa
+        Calculate efficiency factors and their derivatives using finite differences
         """
         
         # Save user-initialised twobox variables

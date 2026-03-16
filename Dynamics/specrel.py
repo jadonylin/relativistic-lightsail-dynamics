@@ -3,11 +3,8 @@ A module containing functions for special relativity calculations. Several stand
 functions are included, such as the Lorentz transformation, Doppler shift and relativistic velocity addition. 
 The module also includes lesser-known relativistic aberration and Wigner rotation functions.
 
-
 This module also implements functions for convenience factors that appear in the equations of motion
 of symmetric lightsails, labelled A, B, C, S and E.
-
-TODO: update documentation
 """
 
 import numpy as np

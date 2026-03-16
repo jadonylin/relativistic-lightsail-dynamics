@@ -1,11 +1,6 @@
 """
-A module for storing the user-defined figure of merit function and global optimisation function. 
-
-You should import your figure-of-merit functions from opt.py into your main optimisation script. 
+A module for storing the main global optimisation function. 
 """
-
-# IMPORTS ########################################################################################################################
-
 
 import numpy as np
 import nlopt
@@ -33,7 +28,7 @@ from twobox import TwoBox
 # Constraints have the form h(x) <= 0, i.e. the constraint function should return a positive 
 # value if the constraint is violated. Additionally, MMA takes the gradients of the constraints,
 # so the constraint functions should be differentiable with respect to the optimisation parameters. 
-# However, I think the gradients of constraint functions are obtained by MMA internally (likely using
+# However, the gradients of constraint functions are obtained by MMA internally (likely using
 # finite differences), so autogradability is not needed.
 # Some of these constraints partially overlap with the bound constraints set for the global optimizer,
 # but here, we can pass the exact parameters to the constraints rather than predetermining the bounds.
@@ -110,7 +105,7 @@ def global_optimise(objective_fom, opt_hyperparams,
                     sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxstop: dict={'maxfev': 1000, 'maxtime': 600},
                     xtol_rel: float=1e-4, ftol_rel: float=1e-8, param_bounds: list=[], return_settings: bool=False):
     """
-    Global optimise the twobox on a single CPU core using MLSL global optimiser with internal MMA local optimiser.
+    Globally optimise the twobox on a single CPU core using MLSL global optimiser with internal MMA local optimiser.
 
     Parameters
     ----------
@@ -168,18 +163,6 @@ def global_optimise(objective_fom, opt_hyperparams,
         y, dy = objective(grating,params)
         if gradn.size > 0:  # Even for gradient methods, in some calls gradn will be empty []
             gradn[:] = dy
-        
-        # # Debugging: Print constraint values to ensure optimiser moves to negative regions
-        # bcd_red = bcd_redundant(params,gradn)
-        # boxes_overl = boxes_overlap(params,gradn)
-        # boxes_clip = boxes_clip_unit_cell(params,gradn)
-        # print(f"Param: {params}")
-        # print(f"Gradn: {gradn}")
-        # print(bcd_red)
-        # print(boxes_overl)
-        # print(boxes_clip)
-        # print("\n")
-        
         return y
 
     if sampling_method == 'sobol':
@@ -296,38 +279,5 @@ def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: i
         chosen_best_grating = opt_gratings_sorted[output_opt_idx][1]
     except IndexError:  # TODO: search for the file name directly rather than handling here
         raise FileNotFoundError(f"Warning: Optimisation results were not loaded correctly. Check base filename: {data_basefile_name}")
-
-    return maxima_and_maximisers_sorted, opt_gratings_sorted, chosen_best_grating
-
-def extract_opt_single(data_filename: str, output_opt_idx: int=0):
-    """
-    Extract the optimum gratings stored in a single data file. Optima are ordered by FOM (largest to smallest).
-
-    Parameters
-    ----------
-    data_filename  :   pkl file name relative to working directory
-    output_opt_idx :   Index for the optimal twobox instance (from the ordered list) to return directly
-
-    Returns
-    -------
-    maxima_and_maximisers_sorted :   List of tuples, each tuple being (FOM, optimisation parameters) 
-    opt_gratings_sorted          :   List of tuples, each tuple being (FOM, twobox instance)
-    chosen_best_grating          :   Twobox instance for the output grating chosen by output_opt_idx
-    """
-
-    with open(data_filename, 'rb') as data_file:
-        data = pickle.load(data_file)
-
-    opt_FOMs = data["FOM"]
-    opt_gratings = data["Optimised grating"]
-    opt_params = data["Optimised parameters"] #[0]
-
-    maxima_and_maximisers = zip(opt_FOMs, opt_params)
-    maxima_and_gratings = zip(opt_FOMs, opt_gratings)
-
-    # Sort the optima based on the FOM value
-    maxima_and_maximisers_sorted = sorted(maxima_and_maximisers, key=itemgetter(0), reverse=True)
-    opt_gratings_sorted = sorted(maxima_and_gratings, key=itemgetter(0), reverse=True)
-    chosen_best_grating = opt_gratings_sorted[output_opt_idx][1]
 
     return maxima_and_maximisers_sorted, opt_gratings_sorted, chosen_best_grating

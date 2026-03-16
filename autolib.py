@@ -7,7 +7,6 @@ from autograd.numpy import linalg as npaLA
 
 import torch
 from torch.autograd import grad as grad_torch
-# from torch.autograd.functional import jacobian as jacobian_torch_raw
 from torch import erf as torch_erf
 from torch import linalg as torchLA
 
@@ -23,30 +22,10 @@ except ImportError:
 def jacobian_torch(f,argnum=0):
     return torch.func.jacrev(f,argnums=argnum)
 
-# this only really works for a function of a single variable...
-# def grad_torch(f,argnum=0):
-#     return lambda x: grad_torch_value(f,x,argnum)
-    # return torch.func.grad(f,argnums=argnum)
-# def grad_torch_value(f,x,argnum=0):
-#     ya=f(x)
-#     if ya.dim()>0:
-#         y=ya[argnum]
-#     else:
-#         y=ya
-#     y.retain_grad()
-#     y.backward()
-#     return x.grad
-
-# def grad_torch_value(f,x,argnum=0):
-#      a=f(x)     
-#      return torch.autograd.grad(a,x,create_graph=True, materialize_grads=True) # materialize_grads=True to avoid returning None when functino does not depend on x  - added during debugging of PDtNeg1 but may not be needed? 
-
-# attempt with torch.func :
 def grad_torch(f,argnum=0):
     return torch.func.jacrev(f,argnums=argnum)
 
 def autograd_jacobian(f,argnum=0):
-    # return lambda x: jacobian(f,argnum=argnum)(x).squeeze()
     return jacobian(f,argnum=argnum)
 
 class AutoLib:
@@ -219,12 +198,7 @@ class AutoLib:
         # If anything else is provided, convert it to a torch tensor. Note autograd may be lost !
         else:
             # if isinstance(args[0], (np.ndarray,list,tuple)):            
-            return torch.tensor(*args, **kwargs) 
-        
-      
-        
-        
-        
+            return torch.tensor(*args, **kwargs)     
     
     def contains_complex(self,x):
         """ written by chatgpt
@@ -258,38 +232,3 @@ class AutoLib:
         
         else:
             raise TypeError("Unsupported type for complex check")
-    def numpy_to_torch_dtype(numpy_dtype):
-        """ (this funciton written by chatgpt - not currently used
-        Convert a NumPy dtype to the corresponding PyTorch dtype.
-
-        Parameters:
-            numpy_dtype (numpy.dtype or type): A NumPy data type (e.g., np.float32, np.int64, np.complex64).
-
-        Returns:
-            A PyTorch dtype corresponding to the provided NumPy dtype.
-
-        Raises:
-            ValueError: If the provided numpy_dtype is not supported.
-        """
-        # Define a mapping from NumPy dtypes to PyTorch dtypes, including complex types.
-        mapping = {
-            np.dtype('bool'): torch.bool,
-            np.dtype('int8'): torch.int8,
-            np.dtype('int16'): torch.int16,
-            np.dtype('int32'): torch.int32,
-            np.dtype('int64'): torch.int64,
-            np.dtype('uint8'): torch.uint8,
-            np.dtype('float16'): torch.float16,
-            np.dtype('float32'): torch.float32,
-            np.dtype('float64'): torch.float64,
-            np.dtype('complex64'): torch.complex64,
-            np.dtype('complex128'): torch.complex128,
-        }
-        
-        # Normalize the input to a numpy.dtype
-        np_dtype = np.dtype(numpy_dtype)
-        
-        if np_dtype in mapping:
-            return mapping[np_dtype]
-        else:
-            raise ValueError(f"Unsupported NumPy dtype: {numpy_dtype}")
