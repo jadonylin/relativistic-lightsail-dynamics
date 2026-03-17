@@ -4,7 +4,7 @@ the efficiencies for a range of wavelengths and angles, and saves the data as a 
 calculation is parallelised using the multiprocess module, so set the number of processes before
 running.
 
-IMPORTNT: set the maximum angle for the efficiency data close to the ±1 order grating cutoffs 
+IMPORTANT: set the maximum angle for the efficiency data close to the ±1 order grating cutoffs 
 at the maximum Doppler-shifted wavelength. This ensures the dynamics results are physical and 
 that the dynamics simulation terminates if the cutoff angle is exceeded.
 """
@@ -28,11 +28,12 @@ import Optimisation.opt as opt
 t_start = time.time()
 
 ## Initialise grating
-runID = "Fasymp20_gaussian100_50GW"
+runID = "Fasymp20_fixgaussian20_50GW"
 num_cores = 200
 maxtime = 1440
+output_opt_idx = 0
 opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxtime{maxtime}"
-_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=41)
+_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=output_opt_idx)
 op = _opt_grating.all_params[:]
 
 # Set custom parameters, if needed. If not needed, can just set "grating" to the extracted grating above.
@@ -42,7 +43,6 @@ Nx               = 100
 numG             = 12
 Qabs             = np.inf
 
-print(op)
 grating = TwoBox(*op, wavelength=wavelength, angle=angle, Nx=Nx, nG=numG, Qabs=Qabs, 
                  RCWA_engine="TORCWA", torcwa_edge_sharpness=45)
 
@@ -57,7 +57,7 @@ delta_max = 0.105*np.pi/180  # IMPORTANT: must be set according to the grating c
 delta_min = -delta_max
 delta_array = np.linspace(delta_min, delta_max, kdelta)
 
-num_processes = 4
+num_processes = 2
 
 def eff_auto(*args):
     grating.wavelength = args[0][0]

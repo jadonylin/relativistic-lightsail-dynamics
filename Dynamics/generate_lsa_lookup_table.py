@@ -1,12 +1,16 @@
+"""
+A script to generate a lookup table of the efficiency factors and their derivatives with respect to lambda and delta
+for a given grating, across a range of lambda values. Used to precompute efficiencies in dynamics simulation.
+
+The coefficients are calculated in the linear stability regime, where the incident angle delta is fixed to zero.
+"""
+
+
 import sys
 sys.path.append('../')
 
 import numpy as np
 import dill as pickle
-
-from pathlib import PosixPath
-user_home_path = PosixPath('~/')
-user_home_path_full = user_home_path.expanduser()
 
 import time
 
@@ -17,22 +21,14 @@ from twobox import TwoBox
 t_start = time.time()
 
 ## Initialise grating
-runID = "Fasymp20_0.01deg_50GW"
+runID = "Fasymp20_fixgaussian20_50GW"
 final_speed = 20.
 num_cores = 200
 maxtime = 1440
-output_opt_idx = 9
-
-common_path = user_home_path_full / "Library/CloudStorage/OneDrive-TheUniversityofSydney(Students)/Doppler Damping - Jadon Lin/Documentation/Data/relativistic-lightsail-dynamics/Optimisation/Jadon's results"
-custom_folder_path = f"Fasymp/final_speed{int(final_speed)}/maxtime{int(maxtime)}/{runID}"
-fname_preamble = common_path / custom_folder_path
-
-opt_grating_basefname = fname_preamble / f"{runID}_FOM_optimisation_maxtime{maxtime}"
+output_opt_idx = 0
+opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxtime{maxtime}"
 _, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=output_opt_idx)
-try:
-    op = _opt_grating.all_params[:]
-except AttributeError:
-    op = _opt_grating.params
+op = _opt_grating.all_params[:]
 
 # Set custom parameters, if needed. If not needed, can just set "grating" to the extracted grating above.
 wavelength       = 1.
@@ -41,7 +37,6 @@ Nx               = 100
 numG             = 12
 Qabs             = np.inf
 
-print(op)
 grating = TwoBox(*op, wavelength=wavelength, angle=angle, Nx=Nx, nG=numG, Qabs=Qabs, 
                  RCWA_engine="TORCWA", torcwa_edge_sharpness=45)
 

@@ -23,8 +23,8 @@ wavelength = 1
 # The efficiency factors are too expensive to calculate in real time, so pre-calculated tables are used.
 klambda = 1000
 kdelta = 1000
-runID_load = "Famp20_mirror"
-nonlinear_run = False  # Flag to load the nonlinear data and acceleration function
+runID_load = "Fasymp20_fixgaussian20_50GW"
+nonlinear_run = True  # Flag to load the nonlinear data and acceleration function
 damping_scaler = 1.  # Only applies if nonlinear_run is False. Set to 0 to disable damping.
 
 # Extract optimised grating (in particular, Gaussian width)
@@ -46,29 +46,17 @@ t0 = 0.
 x0 = 0
 vx0 = 0
 
-# # Reduced perturbation
-# y0      = 0.01*w  # metres
-# phi0    = 0.1*np.pi/180  # degrees converted to radians
-# vy0     = -0.1  # metres per second
-# omega0  = -0.05*2*np.pi  # revolutions per second converted to radians per second
-
-# # Minimal perturbation
-# y0      = 0.001*w  # metres
-# phi0    = 0.01*np.pi/180  # degrees converted to radians
-# vy0     = -0.001  # metres per second
-# omega0  = -0.005*2*np.pi  # revolutions per second converted to radians per second
-
 # Moderate velocity
 y0      = 0.001*w  # metres
 phi0    = 0.01*np.pi/180  # degrees converted to radians
 vy0     = -0.1  # metres per second
 omega0  = -0.005*2*np.pi  # revolutions per second converted to radians per second
 
-time_MAX = 72.*60*60  # Maximum runtime (seconds)
-# time_MAX = 10  # Maximum runtime (seconds)
+# time_MAX = 72.*60*60  # Maximum runtime (seconds)
+time_MAX = 10  # testing
 velocity_MAX = 0.2*c
 h = 1e-3   # Step size  
-runID = "Fasymp20_gaussian100_50GW"  # For saving dynamics data
+runID = runID_load  # For saving dynamics data
 
 
 if nonlinear_run:

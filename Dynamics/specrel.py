@@ -17,7 +17,6 @@ def norm_squared(v):
     """
     ## Inputs
     v: [vx, vy] 2D array
-    ## Output
     """
     return v[0]**2 + v[1]**2
 

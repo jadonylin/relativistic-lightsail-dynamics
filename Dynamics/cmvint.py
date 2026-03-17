@@ -3,18 +3,11 @@ cmvint - comoving integrator
 
 A module containing the comoving integrator function. Similar syntax to scipy's 
 odeint.
-
-TODO: I'm still not sure if finite difference is valid for wigner rotation derivative calculations.
-      Also, using finite differences requires saving previous 2 elements of the wigner array, which
-      further requires hard-coding the wigner index into saving methods.
 """
 
 import numpy as np
-
 import dill as pickle
-
 import time
-
 from specrel import vadd, SinCosEpsilon, Lorentz, SinCosTheta
 
 class InterpolateError(ValueError):

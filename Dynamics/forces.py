@@ -4,7 +4,7 @@ A module containing the force functions to be integrated by odecmvint.
 Add your own custom force functions in here and call them in Dynamics_integrator.py or your own 
 dynamics-solving script.
 """
-# test
+
 import numpy as np
 
 import dill as pickle
@@ -30,7 +30,7 @@ def load_essential_data(opt_gratings_data_fname: str, num_processes: int, output
     """
     Load optimised grating and Qpr lookup table data.
 
-    The Qpr vs efficiency and wavelength lookup data should be called in your main dynamics script and passed to create_interpolation_funcs.
+    The Qpr vs angle and wavelength lookup data should be called in your main dynamics script and passed to create_interpolation_funcs.
 
     Parameters
     ----------
