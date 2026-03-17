@@ -231,7 +231,9 @@ def global_optimise(objective_fom, opt_hyperparams,
 def extract_opt(data_basefile_name: str, num_processes: int=8, output_opt_idx: int=0):
     """
     Extract the optimum gratings stored in multiple data files, each file corresponding to the output of an optimisation core. 
-    Optima are ordered by FOM (largest to smallest).
+    The optimisation returns num_cores .pkl files, each one corresponding to an optimum grating. This function
+    extracts the optima from those files, and returns them ordered by FOM value (largest to smallest). 
+    The user can specify which optimum grating to return after sorting by setting output_opt_idx.
 
     Parameters
     ----------
