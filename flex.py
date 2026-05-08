@@ -5,12 +5,11 @@ In particular, the PlotBox class contains methods for plotting the permittivity 
 angular efficiency, spectrum, and field distributions of a TwoBox grating.
 """
 
-import torch
 from twobox import TwoBox
 
-def Qpr2_elongated(grating: TwoBox, scale: float=1.0) -> float:
+def Qpr_elongated(grating: TwoBox, scale: float=1.0) -> float:
     """
-    Calculate the radiation pressure efficiency Qpr2 as a function of elongation
+    Calculate the radiation pressure efficiency Qprj as a function of elongation
     parallel to the grating.
 
     Parameters
@@ -20,9 +19,9 @@ def Qpr2_elongated(grating: TwoBox, scale: float=1.0) -> float:
 
     Returns
     -------
-    Qpr2 : float
+    [Qpr1, Qpr2] : Radiation pressure efficiency factors
     """
-    
+
     # Store original parameters
     p = grating.grating_pitch
     w1 = grating.box1_width 
@@ -33,7 +32,7 @@ def Qpr2_elongated(grating: TwoBox, scale: float=1.0) -> float:
     grating.box1_width = w1 * scale
     grating.box2_width = w2 * scale
     grating.box_centre_dist = bcd * scale
-    Qpr2 = grating.Q()[1]
+    Qprs = grating.Q()
 
     # TODO: Is there a better way to use the grating object without modifying the original?
     # Restore original parameters
@@ -41,31 +40,71 @@ def Qpr2_elongated(grating: TwoBox, scale: float=1.0) -> float:
     grating.box1_width = w1
     grating.box2_width = w2
     grating.box_centre_dist = bcd
-    return Qpr2
+    return Qprs
 
-def dQpr2_dscale(grating: TwoBox, scale: float=1.0, grad_method: str="finite") -> float:
+def dQpr_dscale(grating: TwoBox, scale: float=1.0) -> float:
     """
-    Calculate the derivative of the radiation pressure efficiency Qpr2 
+    Calculate the derivative of the radiation pressure efficiency Qprj 
     with respect to elongation parallel to the grating.
 
     Parameters
     ----------
     grating     :   The TwoBox grating object.
     scale       :   Scale factor for elongation, by default 1.0.
+
+    Returns
+    -------
+    [dQpr1_dscale, dQpr2_dscale] : Scale derivatives of radiation pressure efficiency factors
+    """
+    scale = grating.npa.array(scale)
+    grad_func = grating.npa.grad(Qpr_elongated, argnum=1)
+    return grad_func(grating, scale)
+
+
+def Qprj_elongated(grating: TwoBox, j: int=2, scale: float=1.0) -> float:
+    """
+    Calculate the radiation pressure efficiency Qprj as a function of elongation
+    parallel to the grating.
+
+    Parameters
+    ----------
+    grating :   The TwoBox grating object.
+    j       :   Index of the radiation pressure efficiency to calculate (1 for Qpr1, 2 for Qpr2).
+    scale   :   Scale factor for elongation, by default 1.0.
+
+    Returns
+    -------
+    Qprj : float
+    """
+
+    if j not in [1, 2]:
+        raise ValueError(f"Invalid value for j: {j}. Must be 1 or 2.")
+    return Qpr_elongated(grating, scale)[j-1]
+
+def dQprj_dscale(grating: TwoBox, j: int=2, scale: float=1.0, grad_method: str="finite") -> float:
+    """
+    Calculate the derivative of the radiation pressure efficiency Qprj 
+    with respect to elongation parallel to the grating.
+
+    Parameters
+    ----------
+    grating     :   The TwoBox grating object.
+    j           :   Index of the radiation pressure efficiency to calculate (1 for Qpr1, 2 for Qpr2).
+    scale       :   Scale factor for elongation, by default 1.0.
     grad_method :   Method for gradient calculation.
 
     Returns
     -------
-    dQpr2_dscale : float
+    dQprj_dscale : float
     """
+    if j not in [1, 2]:
+        raise ValueError(f"Invalid value for j: {j}. Must be 1 or 2.")
     if grad_method == "finite":
         h = 1e-6
-        Qpr2_plus = Qpr2_elongated(grating, scale + h)
-        Qpr2_minus = Qpr2_elongated(grating, scale - h)
-        return (Qpr2_plus - Qpr2_minus)/(2*h)
+        Qprj_plus = Qprj_elongated(grating, j, scale + h)
+        Qprj_minus = Qprj_elongated(grating, j, scale - h)
+        return (Qprj_plus - Qprj_minus)/(2*h)
     elif grad_method == "grad":
-        scale = grating.npa.array(scale)
-        grad_func = grating.npa.grad(Qpr2_elongated, argnum=1)
-        return grad_func(grating, scale)
+        return dQpr_dscale(grating, scale)[j-1]
     else:
         raise ValueError(f"Unknown grad_method: {grad_method}")
