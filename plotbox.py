@@ -14,10 +14,11 @@ from matplotlib.ticker import Locator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 plt.rcParams['figure.figsize'] = [15, 7.5] # change inline figure size
 # plt.rcParams["font.family"] = "Helvetica"
-LINE_WIDTH = 2.2
-SMALL_SIZE = 16
-MEDIUM_SIZE = 18
-BIGGER_SIZE = 20
+ax_width = 1.
+LINE_WIDTH = 1.2*ax_width
+SMALL_SIZE = 12
+MEDIUM_SIZE = 14
+BIGGER_SIZE = 16
 plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
 plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
 plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
@@ -367,7 +368,7 @@ class PlotBox:
 
         fig, ax = plt.subplots(1)         
         p = self.to_numpy(self.grating_pitch)
-        ax.set_xlim(wavelength_range/p)  # normalise wavelength to grating pitch
+        ax.set_xlim(np.array(wavelength_range)/p)  # normalise wavelength to grating pitch
         legend_needed = ("r", "t", "rt", "PDr", "PDt", "PDrt", "PDrlam", "PDtlam", "PDrtlam")
         symlog_needed = ("PDr", "PDt", "PDrt", "PDrlam", "PDtlam", "PDrtlam")
 
