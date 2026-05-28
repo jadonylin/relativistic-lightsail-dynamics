@@ -12,8 +12,6 @@ correspond to the optimum grating chosen by the user and extracted from the glob
 Therefore, the optimisation parameters of this first-step grating are known and can be extracted using
 opt_grating.params. However, for unknown reasons, the optimisation parameters for this first step that 
 are saved in the text file are incorrect, giving weird values. Just ignore!
-
-TODO: Update to account for variable fixed parameters.
 """
 
 # IMPORTS ####################################################################################################################################################################################
@@ -31,30 +29,38 @@ import parameters
 import opt
 from twobox import TwoBox
 
+from pathlib import PosixPath
+user_home_path = PosixPath('~/')
+user_home_path_full = user_home_path.expanduser()
+
 
 # EXTRACT OPTIMISATION RESULT ####################################################################################################################################################################################
 # Initial twobox grating for local optimisation drawn from candidate optima in global optimisation
-runID = "MdSnpmin1_torcwa"
-num_cores = 90
-# maxfev = 1
-maxtime = 2820
+final_speed = 20.
+num_cores = 200
+maxtime = 1440
+runID = "Fasympmonochrome_fixgaussian20_50GW_nG30"
+# runID = "Fasymp20_fixgaussian20_50GW"
 
-pkl_fname = f'./Data/{runID}_FOM_optimisation_maxtime{maxtime}'
-txt_fname = f'./Data/{runID}_FOM_optimisation_maxtime{maxtime}_curated.txt'
-_, _, opt_grating = opt.extract_opt(pkl_fname, num_processes=num_cores, output_opt_idx=2)
+common_path = user_home_path_full / "Library/CloudStorage/OneDrive-TheUniversityofSydney(Students)/Doppler Damping - Jadon Lin/Documentation/Data/relativistic-lightsail-dynamics/Optimisation/Jadon's results"
+# custom_folder_path = f"Fasymp/final_speed{int(final_speed)}/maxtime{int(maxtime)}/{runID}"
+custom_folder_path = f"Fasymp/mono/maxtime{int(maxtime)}/{runID}"
+fname_preamble = common_path / custom_folder_path
+
+pkl_fname = fname_preamble / f'{runID}_FOM_optimisation_maxtime{maxtime}'
+_, _, opt_grating = opt.extract_opt(pkl_fname, num_processes=num_cores, output_opt_idx=21)
 
 
 # PARAMETERS ####################################################################################################################################################################################
 # In the LO honing, can set Qabs to infinity since we are in the vicinity of a true optimum, 
 # so it shouldn't get caught on unphysical optima (this was a problem for non-rotation optimisation,
 # but I haven't seen it since then)
-try:
-    op = opt_grating.all_params
-except AttributeError:
-    op = opt_grating.params
-init_grating = TwoBox(*op, wavelength=1., angle=0., Nx=100, nG=12, Qabs=np.inf, 
+op = opt_grating.all_params
+
+# Set parameters from parameters.py
+init_grating = TwoBox(*op, wavelength=1., angle=0., Nx=opt_grating.Nx, nG=opt_grating.nG, Qabs=np.inf, 
                       RCWA_engine=opt_grating.RCWA_engine, torcwa_edge_sharpness=opt_grating.torcwa_edge_sharpness,
-                      fixed_parameters=)
+                      fixed_parameters=parameters.fixed_parameters)
 
 goal = 0.1  # Stopping criteria for adaptive sampling in the FOM (set float for loss_goal, set int for npoints_goal)
 final_speed = 1.  # percentage of c
@@ -63,22 +69,22 @@ choose_monofom = fom.monofom_asymp
 xtol_rel = 1e-7
 ftol_rel = 1e-14
 maxfev = 200
-txt_fname = f'./Data/{runID}_LO_maxfev{maxfev}.txt'  # save results to text file
+txt_fname = fname_preamble / f'{runID}_LO_maxfev{maxfev}.txt'  # save results to text file
 
 
 # LOCAL OPTIMISATION ####################################################################################################################################################################################
-ndof = 10
-param_bounds = parameters.Bounds()[2]
-# Must convert arrays to np when passing to nlopt optimiser
-match init_grating.RCWA_engine:
-    case "GRCWA":  # Acquire ArrayBox values
-        init = [p._value for p in init_grating.params]  # UNTESTED
-    case "TORCWA":  # Acquire tensor values
-        init = [p.detach().numpy() for p in init_grating.params]
+init = [p.detach().numpy() for p in init_grating.params]
+
+# param_bounds = parameters.Bounds()[2]
+
+# Restrict parameter bounds near initial guess
+r = 1e-4  # relative change around initial guess to restrict bounds
+param_bounds = [(opt*(1-r), opt*(1+r)) for opt in init]
+ndof = len(param_bounds)  # number of optimisation parameters
 
 def objective(params):
     init_grating.params = params
-    return fom.multifom_uniform(init_grating, choose_monofom, final_speed, goal, return_grad=True)
+    return fom.multifom(init_grating, choose_monofom, final_speed, goal, return_grad=True)
 
 init_objective = objective(init)[0]
 
@@ -115,8 +121,8 @@ local_opt = nlopt.opt(nlopt.LD_MMA, ndof)
 local_opt.set_lower_bounds(lb)
 local_opt.set_upper_bounds(ub)
 
-local_opt.set_xtol_rel(xtol_rel)
-local_opt.set_ftol_rel(ftol_rel)
+# local_opt.set_xtol_rel(xtol_rel)
+# local_opt.set_ftol_rel(ftol_rel)
 local_opt.set_maxeval(maxfev)
 
 local_opt.add_inequality_constraint(opt.box1_too_wide)
