@@ -104,7 +104,8 @@ def Hyperparameters():
     return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters
 
 
-choose_monofom = "kpr_unstable"
+# choose_monofom = "kpr_unstable"
+choose_monofom = "asymp"
 # choose_multifom = "uniform"
 choose_multifom = "monochrome"
 def FOMSettings():
