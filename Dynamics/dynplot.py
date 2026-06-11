@@ -84,6 +84,8 @@ def extract_dynamics(filename: str, start: int=0, end: int=-1, idx_to_print_stat
     with open(filename, 'rb') as data_file:
         data = pickle.load(data_file)
 
+    runtime = data['Runtime (sec)']
+    
     x0_dyn = data['Initial']
     h = data['step']
     I_dyn = data['Intensity']
@@ -111,6 +113,7 @@ def extract_dynamics(filename: str, start: int=0, end: int=-1, idx_to_print_stat
         accel_and_theta_recorded = False
         print("Acceleration and aberration data weren't recorded in the dynamics associated with your chosen pkl file.")
     
+    print(f"Runtime = {runtime/60:.2f} minutes")
     print(f"t0 = {timeL[idx_to_print_state]}")
     print(f"x0 = {x[idx_to_print_state]}")
     print(f"y0 = {y[idx_to_print_state]}")
