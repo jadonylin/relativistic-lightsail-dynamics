@@ -15,7 +15,7 @@ from mpl_toolkits.axes_grid1 import make_axes_locatable
 plt.rcParams['figure.figsize'] = [15, 7.5] # change inline figure size
 # plt.rcParams["font.family"] = "Helvetica"
 ax_width = 1.
-LINE_WIDTH = 1.2*ax_width
+LINE_WIDTH = 1.5*ax_width
 SMALL_SIZE = 12
 MEDIUM_SIZE = 14
 BIGGER_SIZE = 16
