@@ -70,14 +70,14 @@ def Parameters():
 
 
 wavelength = 1.  # Laser wavelength
-final_speed = 5.  # percentage of c
-fixed_pitch = 2. # If the pitch is fixed, other parameters like box widths are naturally constrained by this value
+final_speed = 20.  # percentage of c
+fixed_pitch = 1.227 # If the pitch is fixed, other parameters like box widths are naturally constrained by this value
 param_names = ["grating_pitch", "grating_depth", 
                 "box1_width", "box2_width", "box_centre_dist", 
                 "box1_eps", "box2_eps", 
                 "gaussian_width", "substrate_depth", "substrate_eps"]  # Names of all optimisable twobox parameters
-fixed_parameters = ["gaussian_width"]  # Fix parameters during optimisation
-fix_parameter_values = [2*L]  # Values of fixed parameters, in the same order as fixed_parameters
+fixed_parameters = ["grating_pitch", "gaussian_width"]  # Fix parameters during optimisation
+fix_parameter_values = [fixed_pitch, 2*L]  # Values of fixed parameters, in the same order as fixed_parameters
 def Hyperparameters():
     # Engine parameters
     RCWA_engine = "TORCWA"
@@ -85,6 +85,7 @@ def Hyperparameters():
 
     angle = 0.
     Nx = 100  # Number of grid points for RCWA simulation
+    pol = "TE"  # Polarisation for RCWA simulation, "TE" or "TM"
 
     # Number of Fourier components for RCWA simulation
     if RCWA_engine == "TORCWA":
@@ -101,7 +102,7 @@ def Hyperparameters():
     goal = 0.1  # Stopping criteria for adaptive sampling in the FOM (set float for loss_goal, set int for npoints_goal)
     return_grad = True  # Return FOM and gradient of FOM
 
-    return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters
+    return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters, pol
 
 
 # choose_monofom = "kpr_unstable"
@@ -117,11 +118,12 @@ def FOMSettings():
 
 def OptimisationSettings():
     # Global optimisation parameters
-    num_cores = 2  # number of cores to run parallel optimisation
-    maxtime = 2  # Stop after maxtime minutes
+    num_cores = 200  # number of cores to run parallel optimisation
+    maxtime = 1440  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
     if choose_multifom != "monochrome":
-        runID = f"F{choose_monofom}{int(final_speed)}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
+        # runID = f"F{choose_monofom}{int(final_speed)}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
+        runID = f"F{choose_monofom}{int(final_speed)}_fixgaussian20_50GW_TM"  # ID for saving results to distinguish different runs
     else:
         runID = f"F{choose_monofom}{choose_multifom}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
 
@@ -194,21 +196,21 @@ def Bounds():
     #                 (substrate_depth_min, substrate_depth_max),
     #                 (substrate_eps_min, substrate_eps_max)]
 
-    # # Fixed pitch and gaussian
-    # param_bounds = [(h1_min, h1_max),
-    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
-    #                 (box_centre_dist_min, box_centre_dist_max),
-    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
-    #                 (substrate_depth_min, substrate_depth_max),
-    #                 (substrate_eps_min, substrate_eps_max)]
-    
-    # Fixed gaussian
-    param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max),
+    # Fixed pitch and gaussian
+    param_bounds = [(h1_min, h1_max),
                     (box_width_min, box_width_max), (box_width_min, box_width_max),
                     (box_centre_dist_min, box_centre_dist_max),
                     (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
                     (substrate_depth_min, substrate_depth_max),
                     (substrate_eps_min, substrate_eps_max)]
+    
+    # # Fixed gaussian
+    # param_bounds = [(pitch_min, pitch_max), (h1_min, h1_max),
+    #                 (box_width_min, box_width_max), (box_width_min, box_width_max),
+    #                 (box_centre_dist_min, box_centre_dist_max),
+    #                 (box_eps_min, box_eps_max), (box_eps_min, box_eps_max),
+    #                 (substrate_depth_min, substrate_depth_max),
+    #                 (substrate_eps_min, substrate_eps_max)]
 
     # # Fixed substrate and pitch
     # param_bounds = [(h1_min, h1_max), 

@@ -144,8 +144,8 @@ def global_optimise(objective_fom, opt_hyperparams,
             fixed_param_idx += 1
 
     # Set up the grating object to be updated during optimisation and returned
-    wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters = opt_hyperparams
-    grating = TwoBox(*init_all_params, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness, fixed_parameters)
+    wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters, pol = opt_hyperparams
+    grating = TwoBox(*init_all_params, wavelength, angle, Nx, nG, Qabs, RCWA_engine, torcwa_sharpness, fixed_parameters, polarisation=pol)
 
     def objective(grating, opt_params):
         """

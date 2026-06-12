@@ -66,9 +66,10 @@ class TwoBox(PlotBox, QprBox):
     Qabs                  :   A float for the relaxation parameter, determining the strength of the imaginary frequency and thus smoothness of resonances
     RCWA_engine           :   A string for the RCWA engine to use - 'GRCWA' or 'TORCWA'
     torcwa_edge_sharpness :   An integer for the sharpness of the edge of the unit cell in TORCWA
-    title                 :   A string for the title of plots
     fixed_parameters      :   A list for specifying which parameters cannot be changed by setting
                               self.params after initialisation, such as grating_pitch, grating_depth, etc.
+    title                 :   A string for the title of plots
+    polarisation          :   A string for the polarization of the incident plane wave, either "TE" (E-field perp. to grating periodicity) or "TM"
     """
 
     def __init__(self, grating_pitch: float, grating_depth: float, box1_width: float, box2_width: float, box_centre_dist: float, box1_eps: complex, box2_eps: complex, 
@@ -76,7 +77,7 @@ class TwoBox(PlotBox, QprBox):
                  wavelength: float=1., angle: float=0.,
                  Nx: float=1000, nG: int=25, Qabs: float=np.inf,
                  RCWA_engine: float='GRCWA', torcwa_edge_sharpness: int=45, fixed_parameters: list=[], 
-                 title: str=None,) -> None:
+                 title: str=None, polarisation: str="TE") -> None:
 
         self.RCWA_engine = RCWA_engine
         
@@ -115,6 +116,7 @@ class TwoBox(PlotBox, QprBox):
         self.nG = nG
         self.Qabs = Qabs
         self.torcwa_edge_sharpness = torcwa_edge_sharpness
+        self.polarisation = polarisation
 
 
         self.invert_unit_cell = False
@@ -475,8 +477,16 @@ class TwoBox(PlotBox, QprBox):
             Ts = self.npa.zeros(len([-1,0,1]))
             orders = [[j,0] for j in RT_orders]
             
-            lRs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders, direction='forward', port='reflection', polarization='yy', ref_order=[0,0], power_norm=True),2))
-            lTs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders, direction='forward', port='transmission', polarization='yy', ref_order=[0,0], power_norm=True),2))
+            match self.polarisation:
+                case "TE":
+                    pol = "yy"
+                case "TM":
+                    pol = "xx"
+                case _:
+                    raise ValueError("Invalid polarisation for TwoBox. Choose 'TE' or 'TM'.")
+                
+            lRs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders, direction='forward', port='reflection', polarization=pol, ref_order=[0,0], power_norm=True),2))
+            lTs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders, direction='forward', port='transmission', polarization=pol, ref_order=[0,0], power_norm=True),2))
             for i,j in enumerate(RT_orders):
                 Rs[1+j] = lRs[i]
                 Ts[1+j] = lTs[i]
