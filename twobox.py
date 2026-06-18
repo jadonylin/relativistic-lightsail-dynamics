@@ -477,14 +477,17 @@ class TwoBox(PlotBox, QprBox):
             Ts = self.npa.zeros(len([-1,0,1]))
             orders = [[j,0] for j in RT_orders]
             
-            match self.polarisation:
-                case "TE":
-                    pol = "yy"
-                case "TM":
-                    pol = "xx"
-                case _:
-                    raise ValueError("Invalid polarisation for TwoBox. Choose 'TE' or 'TM'.")
-                
+            try:
+                match self.polarisation:
+                    case "TE":
+                        pol = "yy"
+                    case "TM":
+                        pol = "xx"
+                    case _:
+                        raise ValueError("Invalid polarisation for TwoBox. Choose 'TE' or 'TM'.")
+            except AttributeError:
+                pol = "yy"
+
             lRs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders, direction='forward', port='reflection', polarization=pol, ref_order=[0,0], power_norm=True),2))
             lTs = self.npa.abs(self.npa.power(self.RCWA.S_parameters(orders=orders, direction='forward', port='transmission', polarization=pol, ref_order=[0,0], power_norm=True),2))
             for i,j in enumerate(RT_orders):
