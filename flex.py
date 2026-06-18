@@ -5,9 +5,7 @@ In particular, the PlotBox class contains methods for plotting the permittivity 
 angular efficiency, spectrum, and field distributions of a TwoBox grating.
 """
 
-from twobox import TwoBox
-
-def Qpr_elongated(grating: TwoBox, scale: float=1.0) -> float:
+def Qpr_elongated(grating, scale: float=1.0) -> float:
     """
     Calculate the radiation pressure efficiency Qprj as a function of elongation
     parallel to the grating.
@@ -42,7 +40,7 @@ def Qpr_elongated(grating: TwoBox, scale: float=1.0) -> float:
     grating.box_centre_dist = bcd
     return Qprs
 
-def dQpr_dscale(grating: TwoBox, scale: float=1.0) -> float:
+def dQpr_dscale(grating, scale: float=1.0) -> float:
     """
     Calculate the derivative of the radiation pressure efficiency Qprj 
     with respect to elongation parallel to the grating.
@@ -61,7 +59,7 @@ def dQpr_dscale(grating: TwoBox, scale: float=1.0) -> float:
     return grad_func(grating, scale)
 
 
-def Qprj_elongated(grating: TwoBox, j: int=2, scale: float=1.0) -> float:
+def Qprj_elongated(grating, j: int=2, scale: float=1.0) -> float:
     """
     Calculate the radiation pressure efficiency Qprj as a function of elongation
     parallel to the grating.
@@ -81,7 +79,7 @@ def Qprj_elongated(grating: TwoBox, j: int=2, scale: float=1.0) -> float:
         raise ValueError(f"Invalid value for j: {j}. Must be 1 or 2.")
     return Qpr_elongated(grating, scale)[j-1]
 
-def dQprj_dscale(grating: TwoBox, j: int=2, scale: float=1.0, grad_method: str="finite") -> float:
+def dQprj_dscale(grating, j: int=2, scale: float=1.0, grad_method: str="finite") -> float:
     """
     Calculate the derivative of the radiation pressure efficiency Qprj 
     with respect to elongation parallel to the grating.
