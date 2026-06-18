@@ -590,7 +590,7 @@ class PlotBox:
         return fig, axs
     
     def show_Eigs(self, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plot_points: int=200, 
-                eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, marker: str='o'):
+                eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, marker: str='o', return_eigvals: bool=False):
         """
         Show eigenvalue spectrum for the twobox.
 
@@ -602,6 +602,7 @@ class PlotBox:
         eig_real_log_axis   :   If true, logarithmic scale for real part of eigenvalues
         eig_imag_log_axis   :   If true, logarithmic scale for imaginary part of eigenvalues
         marker              :   Marker style passed to plt.plot()
+        return_eigvals      :   If true, return eigvals array in addition to figure and axes
 
         Returns
         -------
@@ -628,16 +629,16 @@ class PlotBox:
         fig, (ax1, dummy, ax2) = plt.subplots(nrows=1, ncols=3, width_ratios=(1,0.1,1))
         dummy.axis('off')
         p = self.to_numpy(self.grating_pitch)
-        ax1.set_xlim(np.array(wavelength_range)/p) # normalise to grating pitch
-        ax2.set_xlim(np.array(wavelength_range)/p) # normalise to grating pitch
+        ax1.set_xlim(np.array(wavelength_range)) # normalise to grating pitch
+        ax2.set_xlim(np.array(wavelength_range)) # normalise to grating pitch
         ax2.yaxis.tick_right()
         ax2.yaxis.set_label_position("right")
 
         colorReal = (0.7, 0, 0)
         colorImag = 'blue'
         for i in range(4):            
-            ax1.plot(wavelengths/p,np.real(self.to_numpy(eigvals[i,:])), marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
-            ax2.plot(wavelengths/p,np.imag(self.to_numpy(eigvals[i,:])), marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
+            ax1.plot(wavelengths,np.real(self.to_numpy(eigvals[i,:])), marker, markersize=0.5, markerfacecolor=colorReal, fillstyle='full',  color=colorReal)
+            ax2.plot(wavelengths,np.imag(self.to_numpy(eigvals[i,:])), marker, markersize=0.5, markerfacecolor=colorImag, fillstyle='full',  color=colorImag)
             
 
         if eig_real_log_axis:
@@ -654,13 +655,13 @@ class PlotBox:
         ax1.tick_params(axis='both', which='both', direction='in')  # ticks inside box
         # ax1.tick_params(axis='y', color=colorReal, labelcolor=colorReal)  # colored ticks
         ax1.set_ylabel(ylabel=rf"$\Re(\lambda)$")  #color=colorReal  # colored y label
-        ax1.set(xlabel=r"$\lambda'/\Lambda'$")
+        ax1.set(xlabel=r"$\lambda'$ [$\lambda_0$]")
 
         ax2.axhline(y=0, color='black', linestyle='-', lw = '1')
         ax2.tick_params(axis='both', which='both', direction='in')  # ticks inside box
         # ax2.tick_params(axis='y', color = colorImag, labelcolor=colorImag)  # colored ticks
         ax2.set_ylabel(ylabel=rf"$\Im(\lambda)$")  #color=colorImag  # colored y label
-        ax2.set(xlabel=r"$\lambda'/\Lambda'$")
+        ax2.set(xlabel=r"$\lambda'$ [$\lambda_0$]")
 
         # fig.suptitle(t=rf"$h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$")
 
@@ -670,7 +671,10 @@ class PlotBox:
         fig_height = 17.6*cm_to_inch
         fig.set_size_inches(fig_width/1.2, fig_height/1.2)
 
-        return fig, (ax1, ax2)
+        if return_eigvals:
+            return wavelengths, eigvals, fig, (ax1, ax2)
+        else:
+            return fig, (ax1, ax2)
 
     def show_FOM_spectrum(self, monofom, angle: float=0., wavelength_range: list=[1., 1.5], 
                           num_plot_points: int=200, I: float=10e9, grad_method: str="grad"):
