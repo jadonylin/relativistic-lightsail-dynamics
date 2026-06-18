@@ -28,11 +28,11 @@ import Optimisation.opt as opt
 t_start = time.time()
 
 ## Initialise grating
-runID = "Fasymp20_gaussian100_50GW"
+runID = "Fasymp20_fixgaussian20_50GW"
 num_cores = 200
 maxtime = 1440
 opt_grating_basefname = f"../Optimisation/Data/{runID}_FOM_optimisation_maxtime{maxtime}"
-_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=41)
+_, _, _opt_grating = opt.extract_opt(opt_grating_basefname, num_processes=num_cores, output_opt_idx=0)
 op = _opt_grating.all_params[:]
 
 # Set custom parameters, if needed. If not needed, can just set "grating" to the extracted grating above.
@@ -52,8 +52,8 @@ v_final = 20/100
 lambda_final = 1/D1_ND(v_final)
 lambda_array = np.linspace(wavelength, lambda_final, klambda)
 
-kdelta = 1000  # Number of delta' points
-delta_max = 0.105*np.pi/180  # IMPORTANT: must be set according to the grating cutoffs
+kdelta = klambda  # Number of delta' points
+delta_max = 10.6*np.pi/180  # IMPORTANT: must be set according to the grating cutoffs
 delta_min = -delta_max
 delta_array = np.linspace(delta_min, delta_max, kdelta)
 
@@ -83,7 +83,7 @@ t_end_hours = round(t_end/60**2)
 print(rf"Finished in {t_end_sec} seconds, or {t_end_min} minutes, or {t_end_hours} hours!")
 print(rf"#lambda: {klambda}, #delta: {kdelta}")
 
-pkl_fname = rf"./Data/{runID}_Lookup_table_lambda_{klambda}_by_delta_{kdelta}.pkl"
+pkl_fname = rf"./Data/{runID}_Lookup_table_lambda_{klambda}_by_delta_{kdelta}_allangles.pkl"
 data = {'Q1': Q1_array, 'Q2': Q2_array, 'PD_Q1_delta': PD_Q1_delta_array, 'PD_Q2_delta': PD_Q2_delta_array, 
         'PD_Q1_lambda': PD_Q1_lambda_array, 'PD_Q2_lambda': PD_Q2_lambda_array, 
         'lambda array': lambda_array, 'delta array': delta_array}
