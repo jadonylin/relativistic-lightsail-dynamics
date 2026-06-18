@@ -8,18 +8,20 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib import rcParams
 rcParams.update({'figure.autolayout': True,
-                 "text.usetex": True,
-                 "font.family": "Computer Modern Roman"})
-matplotlib.rc('text.latex', preamble=r'\usepackage{amsmath, physics}')
-SMALL_SIZE = 18
-MEDIUM_SIZE = 20
-BIGGER_SIZE = 22
+                 "text.usetex": False,
+                 "font.family": "Helvetica"})
+
+MINI_SIZE = 12
+SMALL_SIZE = 12
+MEDIUM_SIZE = 14
+BIGGER_SIZE = 16
+
 plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
 plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
-plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+plt.rc('axes', labelsize=SMALL_SIZE)    # fontsize of the x and y labels
 plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
 plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+plt.rc('legend', fontsize=MINI_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 import numpy as np
@@ -85,6 +87,7 @@ def extract_dynamics(filename: str, start: int=0, end: int=-1, idx_to_print_stat
         data = pickle.load(data_file)
 
     runtime = data['Runtime (sec)']
+    step_size = data['step']
     
     x0_dyn = data['Initial']
     h = data['step']
@@ -114,6 +117,7 @@ def extract_dynamics(filename: str, start: int=0, end: int=-1, idx_to_print_stat
         print("Acceleration and aberration data weren't recorded in the dynamics associated with your chosen pkl file.")
     
     print(f"Runtime = {runtime/60:.2f} minutes")
+    print(f"Step size = {step_size:.2e} seconds")
     print(f"t0 = {timeL[idx_to_print_state]}")
     print(f"x0 = {x[idx_to_print_state]}")
     print(f"y0 = {y[idx_to_print_state]}")
@@ -403,7 +407,7 @@ def color_yaxis(ax: plt.Axes, color: str):
 def show_dynamics(nrows: int, ncols: int, times: list, coords: list, 
                   colors: list, xlabels: list, ylabels: list, show_zero_line: list,
                   second_yaxis_coords: list=[], second_yaxis_colors: list=[], second_yaxis_ylabels: list=[],
-                  ax_width: float=2.5, linewidth: float=2.5):
+                  ax_width: float=1., linewidth: float=1.5):
     """
     Plot dynamics results (coordinates and velocities) over time in a subplots grid.
 
@@ -428,7 +432,7 @@ def show_dynamics(nrows: int, ncols: int, times: list, coords: list,
     axs :   matplotlib axis object for the dynamics subplots 
     """
     
-    fig, dyn_axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*6,nrows*4))
+    fig, dyn_axs = plt.subplots(nrows=nrows, ncols=ncols, figsize=(ncols*4,nrows*2.5))
 
     if nrows == 1 and ncols == 1:
         dyn_axs_flat = [dyn_axs]
