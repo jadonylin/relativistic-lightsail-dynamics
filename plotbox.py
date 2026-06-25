@@ -5,6 +5,7 @@ In particular, the PlotBox class contains methods for plotting the permittivity 
 angular efficiency, spectrum, and field distributions of a TwoBox grating.
 """
 
+import adaptive as adp
 import numpy as np
 
 import torcwa
@@ -677,7 +678,7 @@ class PlotBox:
             return fig, (ax1, ax2)
 
     def show_FOM_spectrum(self, monofom, angle: float=0., wavelength_range: list=[1., 1.5], 
-                          num_plot_points: int=200, I: float=10e9, grad_method: str="grad"):
+                          num_plot_points: int=200, I: float=10e9, grad_method: str="grad", adaptive_sampling: bool=False, loss_goal: float=0.1):
         """
         Show spectrum of various efficiency quantities for the twobox.
 
@@ -690,8 +691,10 @@ class PlotBox:
                                 "t" - transmission, "PDr" - transmission angular derivative),
                                 "FoM" - single-wavelength figure of merit
         wavelength_range    :   Wavelength range to plot spectrum (same units as grating pitch)
-        num_plot_points     :   Number of points to plot
+        num_plot_points     :   Number of points to plot (only used if adaptive_sampling is False)
         I                   :   Laser intensity
+        adaptive_sampling   :   If true, use adaptive sampling to increase point density near resonances
+        loss_goal           :   Loss goal for adaptive sampling (lower means more points, only used if adaptive_sampling is True)
 
         Returns
         -------
@@ -699,21 +702,32 @@ class PlotBox:
         ax  :   Spectrum axs object
         """
         
-        wavelengths = np.linspace(*wavelength_range, num_plot_points)
         init_wavelength = self.wavelength  # record user-initialised wavelength
-        inc_angle_deg = angle*180/np.pi
         
-        efficiencies = np.zeros(num_plot_points, dtype=float)
-        for idx, lam in enumerate(wavelengths):
-            self.wavelength = lam
-            efficiencies[idx] = monofom(self, I=I, grad_method=grad_method)
+        if adaptive_sampling:
+            # Define a single-argument function, needed when passing to learner
+            def f(l):
+                self.wavelength = l*init_wavelength
+                return self.to_numpy(monofom(self, I=I, grad_method=grad_method)) # losing autograd here by calling to_numpy, but torch tensors are not compatible with adaptive
+            
+            f_learner = adp.Learner1D(f, bounds=wavelength_range)
+            f_runner = adp.runner.simple(f_learner, loss_goal=loss_goal)
+            
+            f_data = f_learner.to_numpy()
+            wavelengths = f_data[:,0]
+            efficiencies = f_data[:,1]
+        else:
+            wavelengths = np.linspace(*wavelength_range, num_plot_points)
+            efficiencies = np.zeros(num_plot_points, dtype=float)
+            for idx, lam in enumerate(wavelengths):
+                self.wavelength = lam
+                efficiencies[idx] = monofom(self, I=I, grad_method=grad_method)
         self.wavelength = init_wavelength
 
         fig, ax = plt.subplots(1)         
-        p = self.to_numpy(self.grating_pitch)
-        ax.set_xlim(np.array(wavelength_range)/p)  # normalise wavelength to grating pitch
-        ax.plot(wavelengths/p, efficiencies, color=(0.7, 0, 0), linestyle='-', lw=LINE_WIDTH)
-        ax.set(title=rf"{self.title} $h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$", xlabel=r"$\lambda'/\Lambda'$", ylabel="FoM")
+        ax.set_xlim(np.array(wavelength_range))  # normalise wavelength to grating pitch
+        ax.plot(wavelengths, efficiencies, color=(0.7, 0, 0), linestyle='-', lw=LINE_WIDTH)
+        ax.set(title=rf"{self.title} $h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$", xlabel=r"$\lambda'$ [$\lambda_0$]", ylabel="FoM")
         ax.axhline(y=0, color='black', linestyle='-', lw = '1')
         ax.tick_params(axis='both', which='both', direction='in') # ticks inside box
         
