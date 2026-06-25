@@ -7,7 +7,9 @@ angular efficiency, spectrum, and field distributions of a TwoBox grating.
 
 import adaptive as adp
 import numpy as np
+import scipy
 
+import scipy.constants
 import torcwa
 
 import matplotlib.pyplot as plt
@@ -540,10 +542,10 @@ class PlotBox:
         x0 = np.linspace(-0.5,0.5,self.Nx)
         
 
-        fig, axs = plt.subplots(nrows=1, ncols=1)
+        fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(6, 4.5))
         
-        p=self.to_numpy(self.grating_pitch)
-        grating_depth=self.to_numpy(self.grating_depth)
+        p = self.to_numpy(self.grating_pitch)
+        h = self.to_numpy(self.grating_depth)
         if show_eps_profile:
             axs2 = axs.twinx()
             
@@ -559,7 +561,7 @@ class PlotBox:
             axs2.set(ylabel=r"$\varepsilon$")
             axs2.set_ylim(bottom=eps_min, top=eps_max)
             axs2.yaxis.label.set_color(eps_color)
-        E_mesh = axs.pcolormesh(x0, heights/p, Eys, vmin=vmin, vmax=vmax, shading=fill_style, cmap='hot')
+        E_mesh = axs.pcolormesh(x0, heights/h, Eys, vmin=vmin, vmax=vmax, shading=fill_style, cmap='hot')
 
 
         # Create an axes on the right side of ax. The width of cax will be x%
@@ -572,24 +574,125 @@ class PlotBox:
             cax = divider.append_axes("right", size="2.5%", pad=0.05) 
         fig.colorbar(E_mesh, label=cbar_label, cax=cax)
 
-
         axs.set_title(label=rf"{self.title}$\Lambda'={p:.4f}\lambda_0$")
-        axs.set(xlabel=r"$x'/\Lambda'$", ylabel=r"$z'/\Lambda'$")
-        axs.set_ylim(bottom=np.min(heights), top=np.max(heights))
-        axs.set_aspect('equal')
-        
-        fig_mult = 4
-        fig_width = 9
-        
-        
-        # if grating_depth/p < 0.2:
-        #     fig_height = 3*grating_depth/p*fig_mult
-        # else:
-        #     fig_height = grating_depth/p*fig_mult
-        # fig.set_size_inches(fig_width, fig_height)
+        axs.set(xlabel=r"$x'/\Lambda'$", ylabel=r"$y'/h'$")
         
         return fig, axs
     
+    def calculate_fields(self, height):
+        """
+        Return Ey on the grid at a fixed height
+
+        Parameters
+        ----------
+        height :   Height to calculate field
+        TODO: check TORCWA returns same orientation/order as GRCWA
+        """    
+        self.init_TORCWA()
+        self.RCWA.source_planewave(amplitude=[0,1.],direction='forward')
+        z=self.npa.array([height])
+        E, H = self.to_numpy(self.RCWA.field_xz(torcwa.rcwa_geo.x,z,0))
+        return E, H
+
+    def show_forces(self, heights: np.ndarray, fill_style: str="gouraud", show_eps_profile: bool=False):
+        """
+        Show Maxwell stress tensor and force density at given z heights for the twobox.
+
+        Parameters
+        ----------
+        heights          :   z heights to calculate fields
+        fill_style       :   Field plot shading style (passed to pcolormesh)
+        show_eps_profile :   Overlay permittivity profile onto fields 
+
+        Returns
+        -------
+        fig :   Field plot figure object
+        axs :   Field plot axs object
+        """
+
+        e0 = scipy.constants.epsilon_0
+        m0 = scipy.constants.mu_0
+
+        p = self.to_numpy(self.grating_pitch)
+        h = self.to_numpy(self.grating_depth)
+
+        # Order: Ex, Ey, Ez, Hx, Hy, Hz
+        fields = np.zeros((6, self.Nx, len(heights)), dtype=np.complex128)  # must be complex to assign complex Ey to Eys
+
+        for idx, d in enumerate(heights):
+            E, H = self.calculate_fields(d)
+            fields[:3,:,idx] = E[:,:,0]
+            fields[3:,:,idx] = m0*H[:,:,0]
+        
+        fields_real = np.real(fields)
+        field_magnitudes = e0*np.sum(fields_real[:3,:,:]**2, axis=0) + 1/m0*np.sum(fields_real[3:,:,:]**2, axis=0)
+        _Txx = e0*fields_real[0,:,:]**2 + 1/m0*fields_real[3,:,:]**2 - 0.5*field_magnitudes
+        _Tyy = e0*fields_real[1,:,:]**2 + 1/m0*fields_real[4,:,:]**2 - 0.5*field_magnitudes
+        _Tyx = e0*fields_real[0,:,:]*fields_real[1,:,:] + 1/m0*fields_real[3,:,:]*fields_real[4,:,:]
+
+        # Factor of 1/2 for time-averaged stress tensor
+        Txx = 1/2*_Txx
+        Tyy = 1/2*_Tyy
+        Tyx = 1/2*_Tyx
+
+        # Force densities
+        force_x = np.gradient(Txx, axis=0) + np.gradient(Tyx, axis=1)  
+        force_y = np.gradient(Tyy, axis=1) + np.gradient(Tyx, axis=0)
+        
+        # cbar_label = r"$\Re(E_y)$"
+        # max_colour_scale = np.maximum(np.abs(np.min(Eys)), np.abs(np.max(Eys)))
+        # vmax = max_colour_scale
+        # vmin = -max_colour_scale
+
+        x0 = np.linspace(-0.5,0.5,self.Nx)
+        
+        fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(8, 6))
+        axs_flat = axs.flatten()
+        
+        # if show_eps_profile:
+        #     axs2 = axs.twinx()
+            
+        #     # eps_array = self.RCWA.Return_eps(1,self.Nx,self.Ny,component='xx')
+        #     # eps_array = np.flip(eps_array.real)
+        #     eps_array = self.grating_grid
+            
+        #     eps_min = np.min(eps_array)
+        #     eps_max = np.max(eps_array)
+            
+        #     eps_color = 'b'
+        #     axs2.plot(x0, eps_array, color=eps_color)
+        #     axs2.set(ylabel=r"$\varepsilon$")
+        #     axs2.set_ylim(bottom=eps_min, top=eps_max)
+        #     axs2.yaxis.label.set_color(eps_color)
+        
+        cmap = "bwr"
+        T_lim = np.maximum(np.max(np.abs(Txx)), np.max(np.abs(Tyy)))
+        Txx_mesh = axs_flat[0].pcolormesh(x0, heights/h, Txx.T, vmin=-T_lim, vmax=T_lim, shading=fill_style, cmap=cmap)
+        # Tyy_lim = np.maximum(np.abs(np.min(Tyy)), np.abs(np.max(Tyy)))
+        Tyy_mesh = axs_flat[1].pcolormesh(x0, heights/h, Tyy.T, vmin=-T_lim, vmax=T_lim, shading=fill_style, cmap=cmap)
+
+        axs_flat[0].set(ylabel=r"$y'/h'$")
+        axs_flat[2].set(xlabel=r"$x'/\Lambda'$", ylabel=r"$y'/h'$")
+        axs_flat[3].set(xlabel=r"$x'/\Lambda'$")
+
+        # Plot forces
+        force_x_mesh = axs_flat[2].pcolormesh(x0, heights/h, force_x.T, shading=fill_style, cmap=cmap)
+        force_y_mesh = axs_flat[3].pcolormesh(x0, heights/h, force_y.T, shading=fill_style, cmap=cmap)
+
+        # Create an axes on the right side of ax. The width of cax will be x%
+        # of ax and the padding between cax and ax will be fixed at y inch.
+        divider = make_axes_locatable(axs_flat[1])
+        cax = divider.append_axes("right", size="2.5%", pad=0.05) 
+        fig.colorbar(Tyy_mesh, label="Pa", cax=cax)
+
+        divider = make_axes_locatable(axs_flat[3])
+        cax = divider.append_axes("right", size="2.5%", pad=0.05) 
+        fig.colorbar(force_y_mesh, label=r"N/m$^3$", cax=cax)
+
+        # plt.subplots_adjust(wspace=0.5)
+        
+        return fig, axs
+
     def show_Eigs(self, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plot_points: int=200, 
                 eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, marker: str='o', return_eigvals: bool=False):
         """
