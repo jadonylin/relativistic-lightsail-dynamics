@@ -466,44 +466,32 @@ class PlotBox:
         return fig, ax
     
 
-    def calculate_y_fields(self, height):
+    def calculate_fields(self, heights):
         """
-        Return Ey on the grid at a fixed height
+        Return E and H fields on the grid at a range of heights
 
         Parameters
         ----------
-        height :   Height to calculate field
-        TODO: check TORCWA returns same orientation/order as GRCWA
-        """
-        if self.RCWA_engine == 'GRCWA':
-            self.init_RCWA()
-            if(height<=self.grating_depth and height>=0): # in grating layer
-                fields = self.RCWA.Solve_FieldOnGrid(1,height) # above grating
-                Efield = fields[0]
-                Ey = np.transpose(Efield[1])
-            elif(height>self.grating_depth): # above  grating
-                Ey = np.zeros((self.Nx,1)) # self.RCWA.Solve_FieldOnGrid(2,height) 
-            else:            # below grating
-                Ey = np.zeros((self.Nx,1)) # self.RCWA.Solve_FieldOnGrid(0,height)
-            
-        elif self.RCWA_engine == 'TORCWA':
-            self.init_TORCWA()
-            self.RCWA.source_planewave(amplitude=[0,1.],direction='forward')
-            z=self.npa.array([height])
-            [Ex, Ey, Ez], [Hx, Hy, Hz] = self.to_numpy(self.RCWA.field_xz(torcwa.rcwa_geo.x,z,0))
-        return Ey
+        heights :   z values to calculate field
+        """    
+        self.init_TORCWA()
+        self.RCWA.source_planewave(amplitude=[0,1.],direction='forward')
+        z = self.npa.array(heights)
+        E, H = self.to_numpy(self.RCWA.field_xz(torcwa.rcwa_geo.x,z,0))
+        return E, H  # [Ex, Ey, Ez], [Hx, Hy, Hz]
 
-    def show_fields(self, heights: np.ndarray, field_output: str="real", fill_style: str="gouraud", show_eps_profile: bool=False):
+    def show_fields(self, heights: np.ndarray, field_output: str="real", fill_style: str="gouraud", 
+                    show_eps_profile: bool=False, show_layer_boundaries: bool=False):
         """
         Show out-of-plane electric field at given z heights for the twobox.
 
         Parameters
         ----------
-        field_output     :   "real" (Ey), "square" (Ey**2) or "abs" (|Ey|) fields
-        heights          :   z heights to calculate fields
-        fill_style       :   Field plot shading style (passed to pcolormesh)
-        show_eps_profile :   Overlay permittivity profile onto fields 
-        NOTE: unchaned for Torcwa as no GRCWA/autograd used
+        field_output          :   "real" (Ey), "square" (Ey**2) or "abs" (|Ey|) fields
+        heights               :   z heights to calculate fields
+        fill_style            :   Field plot shading style (passed to pcolormesh)
+        show_eps_profile      :   Overlay permittivity profile onto fields 
+        show_layer_boundaries :   Overlay grating and substrate layer boundaries
 
         Returns
         -------
@@ -511,9 +499,10 @@ class PlotBox:
         axs :   Field plot axs object
         """
 
-        Eys = np.zeros((len(heights), self.Nx), dtype=np.complex128)  # must be complex to assign complex Ey to Eys
-        for idx, d in enumerate(heights):
-            Eys[idx,:] = self.calculate_y_fields(d).flatten()
+        # The incident light travels towards +z with the following transpose (can check by giving the boxes 
+        # negative permittivity and observing the direction of reflected fields relative to the structure).
+        Eys = self.calculate_fields(heights)[0][1]
+        Eys = Eys.T
 
         if field_output == "real":
             Eys = np.real(Eys)
@@ -536,16 +525,13 @@ class PlotBox:
         else:
             return print("Field output form not valid. Must be 'real', 'square' or 'abs'.")
 
-        # The incident light comes from the positive z direction with our convention (can check by giving the boxes negative 
-        # permittivity and observing the direction of reflection of the fields relative to the structure).
-        Eys = Eys[::-1]  
-        x0 = np.linspace(-0.5,0.5,self.Nx)
         
-
         fig, axs = plt.subplots(nrows=1, ncols=1, figsize=(6, 4.5))
         
+        x0 = np.linspace(-0.5,0.5,self.Nx)
         p = self.to_numpy(self.grating_pitch)
         h = self.to_numpy(self.grating_depth)
+        hsub = self.to_numpy(self.substrate_depth)
         if show_eps_profile:
             axs2 = axs.twinx()
             
@@ -574,35 +560,67 @@ class PlotBox:
             cax = divider.append_axes("right", size="2.5%", pad=0.05) 
         fig.colorbar(E_mesh, label=cbar_label, cax=cax)
 
+        if show_layer_boundaries:
+            [axs.axhline(y=i, color='white', linestyle='--', lw = '1') for i in [0,1.,1.+hsub/h]]
+
         axs.set_title(label=rf"{self.title}$\Lambda'={p:.4f}\lambda_0$")
-        axs.set(xlabel=r"$x'/\Lambda'$", ylabel=r"$y'/h'$")
+        axs.set(xlabel=r"$x'/\Lambda'$", ylabel=r"$z'/h'$")
         
         return fig, axs
-    
-    def calculate_fields(self, height):
+
+    def calculate_forces(self, heights):
         """
-        Return Ey on the grid at a fixed height
+        Return diagonal MST fields, force-density fields and net forces on the unit cell
 
         Parameters
         ----------
-        height :   Height to calculate field
-        TODO: check TORCWA returns same orientation/order as GRCWA
+        heights :   z values to calculate field
         """    
-        self.init_TORCWA()
-        self.RCWA.source_planewave(amplitude=[0,1.],direction='forward')
-        z=self.npa.array([height])
-        E, H = self.to_numpy(self.RCWA.field_xz(torcwa.rcwa_geo.x,z,0))
-        return E, H
+        e0 = scipy.constants.epsilon_0
+        m0 = scipy.constants.mu_0
 
-    def show_forces(self, heights: np.ndarray, fill_style: str="gouraud", show_eps_profile: bool=False):
+        p = self.to_numpy(self.grating_pitch)  # micron
+        h = self.to_numpy(self.grating_depth)  # micron
+        hsub = self.to_numpy(self.substrate_depth)  # micron
+
+        E_LH, H_LH = self.calculate_fields(heights)
+        E = np.sqrt(e0)*E_LH  # Convert from Lorentz-Heaviside units to SI units
+        B = np.sqrt(m0)*m0*H_LH
+        Ex, Ey, Ez = E  
+        Bx, By, Bz = B
+        
+        cross_term = e0*np.sum(np.abs(E)**2,axis=0) + 1/m0*np.sum(np.abs(B)**2,axis=0)
+        Txx = 1/2*(e0*np.abs(Ex)**2 + 1/m0*np.abs(Bx)**2 - 0.5*cross_term)
+        Tzz = 1/2*(e0*np.abs(Ez)**2 + 1/m0*np.abs(Bz)**2 - 0.5*cross_term)
+        Txz = 1/2*(e0*np.real(Ex*np.conjugate(Ez)) + 1/m0*np.real(Bx*np.conjugate(Bz)))
+
+        # Force densities
+        force_x = np.gradient(Txx, p/self.Nx, axis=0) + np.gradient(Txz, heights, axis=1)  # N/m^2/micron
+        force_z = np.gradient(Txz, p/self.Nx, axis=0) + np.gradient(Tzz, heights, axis=1)  # N/m^2/micron
+
+        # Integrate force density over the grating and substrate layers (0 <= z <= h + hsub)
+        # Negative sign required because we haven't taken the transpose of the force density
+        #   Transpose is needed so that positive x and z are defined correctly
+        idx_within_layers = np.where((heights >= 0) & (heights <= h + hsub))[0]
+        net_force_x = np.trapezoid(force_x[:,idx_within_layers], x=heights[idx_within_layers], axis=1)  # N/m^2
+        net_force_x = -1e-6*np.trapezoid(net_force_x, x=np.linspace(0,p, self.Nx), axis=0)  # N/m
+        net_force_z = np.trapezoid(force_z[:,idx_within_layers], x=heights[idx_within_layers], axis=1)
+        net_force_z = -1e-6*np.trapezoid(net_force_z, x=np.linspace(0,p, self.Nx), axis=0)  # N/m
+        
+        return Txx, Tzz, force_x, force_z, net_force_x, net_force_z
+        
+
+    def show_forces(self, heights: np.ndarray, fill_style: str="gouraud", 
+                    show_layer_boundaries: bool=False):
         """
         Show Maxwell stress tensor and force density at given z heights for the twobox.
 
         Parameters
         ----------
-        heights          :   z heights to calculate fields
-        fill_style       :   Field plot shading style (passed to pcolormesh)
-        show_eps_profile :   Overlay permittivity profile onto fields 
+        heights               :   z heights to calculate fields
+        fill_style            :   Field plot shading style (passed to pcolormesh)
+        show_eps_profile      :   Overlay permittivity profile onto fields 
+        show_layer_boundaries :   Overlay grating and substrate layer boundaries
 
         Returns
         -------
@@ -610,86 +628,48 @@ class PlotBox:
         axs :   Field plot axs object
         """
 
-        e0 = scipy.constants.epsilon_0
-        m0 = scipy.constants.mu_0
-
-        p = self.to_numpy(self.grating_pitch)
-        h = self.to_numpy(self.grating_depth)
-
-        # Order: Ex, Ey, Ez, Hx, Hy, Hz
-        fields = np.zeros((6, self.Nx, len(heights)), dtype=np.complex128)  # must be complex to assign complex Ey to Eys
-
-        for idx, d in enumerate(heights):
-            E, H = self.calculate_fields(d)
-            fields[:3,:,idx] = E[:,:,0]
-            fields[3:,:,idx] = m0*H[:,:,0]
+        p = self.to_numpy(self.grating_pitch)  # micron
+        h = self.to_numpy(self.grating_depth)  # micron
+        hsub = self.to_numpy(self.substrate_depth)  # micron
+        Txx, Tzz, force_x, force_z, _, _ = self.calculate_forces(heights)
         
-        fields_real = np.real(fields)
-        field_magnitudes = e0*np.sum(fields_real[:3,:,:]**2, axis=0) + 1/m0*np.sum(fields_real[3:,:,:]**2, axis=0)
-        _Txx = e0*fields_real[0,:,:]**2 + 1/m0*fields_real[3,:,:]**2 - 0.5*field_magnitudes
-        _Tyy = e0*fields_real[1,:,:]**2 + 1/m0*fields_real[4,:,:]**2 - 0.5*field_magnitudes
-        _Tyx = e0*fields_real[0,:,:]*fields_real[1,:,:] + 1/m0*fields_real[3,:,:]*fields_real[4,:,:]
-
-        # Factor of 1/2 for time-averaged stress tensor
-        Txx = 1/2*_Txx
-        Tyy = 1/2*_Tyy
-        Tyx = 1/2*_Tyx
-
-        # Force densities
-        force_x = np.gradient(Txx, axis=0) + np.gradient(Tyx, axis=1)  
-        force_y = np.gradient(Tyy, axis=1) + np.gradient(Tyx, axis=0)
-        
-        # cbar_label = r"$\Re(E_y)$"
-        # max_colour_scale = np.maximum(np.abs(np.min(Eys)), np.abs(np.max(Eys)))
-        # vmax = max_colour_scale
-        # vmin = -max_colour_scale
-
         x0 = np.linspace(-0.5,0.5,self.Nx)
-        
         fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(8, 6))
         axs_flat = axs.flatten()
         
-        # if show_eps_profile:
-        #     axs2 = axs.twinx()
+        plot_labels = [r"$T_{xx}$", r"$T_{zz}$", r"$f_x$", r"$f_z$"]
+        for ax_idx, ax in enumerate(axs_flat):
+            ax.text(0.03, 0.9, plot_labels[ax_idx], 
+                    horizontalalignment='left', verticalalignment='center', transform=ax.transAxes,
+                    fontsize=SMALL_SIZE)
             
-        #     # eps_array = self.RCWA.Return_eps(1,self.Nx,self.Ny,component='xx')
-        #     # eps_array = np.flip(eps_array.real)
-        #     eps_array = self.grating_grid
-            
-        #     eps_min = np.min(eps_array)
-        #     eps_max = np.max(eps_array)
-            
-        #     eps_color = 'b'
-        #     axs2.plot(x0, eps_array, color=eps_color)
-        #     axs2.set(ylabel=r"$\varepsilon$")
-        #     axs2.set_ylim(bottom=eps_min, top=eps_max)
-        #     axs2.yaxis.label.set_color(eps_color)
+            if show_layer_boundaries:
+                [ax.axhline(y=i, color='black', linestyle='--', lw = '1') for i in [0,1.,1.+hsub/h]]
         
         cmap = "bwr"
-        T_lim = np.maximum(np.max(np.abs(Txx)), np.max(np.abs(Tyy)))
+        T_lim = np.maximum(np.max(np.abs(Txx)), np.max(np.abs(Tzz)))
         Txx_mesh = axs_flat[0].pcolormesh(x0, heights/h, Txx.T, vmin=-T_lim, vmax=T_lim, shading=fill_style, cmap=cmap)
-        # Tyy_lim = np.maximum(np.abs(np.min(Tyy)), np.abs(np.max(Tyy)))
-        Tyy_mesh = axs_flat[1].pcolormesh(x0, heights/h, Tyy.T, vmin=-T_lim, vmax=T_lim, shading=fill_style, cmap=cmap)
+        Tzz_mesh = axs_flat[1].pcolormesh(x0, heights/h, Tzz.T, vmin=-T_lim, vmax=T_lim, shading=fill_style, cmap=cmap)
 
-        axs_flat[0].set(ylabel=r"$y'/h'$")
-        axs_flat[2].set(xlabel=r"$x'/\Lambda'$", ylabel=r"$y'/h'$")
+        axs_flat[0].set(ylabel=r"$z'/h'$")
+        axs_flat[2].set(xlabel=r"$x'/\Lambda'$", ylabel=r"$z'/h'$")
         axs_flat[3].set(xlabel=r"$x'/\Lambda'$")
 
         # Plot forces
-        force_x_mesh = axs_flat[2].pcolormesh(x0, heights/h, force_x.T, shading=fill_style, cmap=cmap)
-        force_y_mesh = axs_flat[3].pcolormesh(x0, heights/h, force_y.T, shading=fill_style, cmap=cmap)
+        cmap = "PiYG"
+        force_lim = np.maximum(np.max(np.abs(force_x)), np.max(np.abs(force_z)))
+        force_x_mesh = axs_flat[2].pcolormesh(x0, heights/h, force_x.T, vmin=-force_lim, vmax=force_lim, shading=fill_style, cmap=cmap)
+        force_z_mesh = axs_flat[3].pcolormesh(x0, heights/h, force_z.T, vmin=-force_lim, vmax=force_lim, shading=fill_style, cmap=cmap)
 
         # Create an axes on the right side of ax. The width of cax will be x%
         # of ax and the padding between cax and ax will be fixed at y inch.
         divider = make_axes_locatable(axs_flat[1])
         cax = divider.append_axes("right", size="2.5%", pad=0.05) 
-        fig.colorbar(Tyy_mesh, label="Pa", cax=cax)
+        fig.colorbar(Tzz_mesh, label="Pa", cax=cax)
 
         divider = make_axes_locatable(axs_flat[3])
         cax = divider.append_axes("right", size="2.5%", pad=0.05) 
-        fig.colorbar(force_y_mesh, label=r"N/m$^3$", cax=cax)
-
-        # plt.subplots_adjust(wspace=0.5)
+        fig.colorbar(force_z_mesh, label=r"N/m$^3$", cax=cax)
         
         return fig, axs
 
