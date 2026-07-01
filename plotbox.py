@@ -13,6 +13,7 @@ import scipy.constants
 import torcwa
 
 import matplotlib.pyplot as plt
+import matplotlib.colors as colors
 from matplotlib.ticker import Locator
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 plt.rcParams['figure.figsize'] = [15, 7.5] # change inline figure size
@@ -578,34 +579,61 @@ class PlotBox:
         """    
         e0 = scipy.constants.epsilon_0
         m0 = scipy.constants.mu_0
-
         p = self.to_numpy(self.grating_pitch)  # micron
         h = self.to_numpy(self.grating_depth)  # micron
         hsub = self.to_numpy(self.substrate_depth)  # micron
+        esub = self.to_numpy(self.substrate_eps)
+        x0, eps = self.return_epsilon()
+        eps = np.array([eps]*3)
 
+        # Fields E and B have dimensions (3,Nx,len(heights)). The 0 dimension is the 3 field components (Ex, Ey, Ez) 
+        # The 1 and 2 dimensions are the positions across the xz plane of the unit cell. 
+        # By default, TORCWA outputs fields with increasing x along the 1 axis, increasing z along the 2 axis.
         E_LH, H_LH = self.calculate_fields(heights)
-        E = np.sqrt(e0)*E_LH  # Convert from Lorentz-Heaviside units to SI units
-        B = np.sqrt(m0)*m0*H_LH
+        E = 1/np.sqrt(e0)*E_LH  # Convert from Lorentz-Heaviside units to SI units
+        B = m0*(1/np.sqrt(m0)*H_LH)
         Ex, Ey, Ez = E  
         Bx, By, Bz = B
-        
-        cross_term = e0*np.sum(np.abs(E)**2,axis=0) + 1/m0*np.sum(np.abs(B)**2,axis=0)
-        Txx = 1/2*(e0*np.abs(Ex)**2 + 1/m0*np.abs(Bx)**2 - 0.5*cross_term)
-        Tzz = 1/2*(e0*np.abs(Ez)**2 + 1/m0*np.abs(Bz)**2 - 0.5*cross_term)
-        Txz = 1/2*(e0*np.real(Ex*np.conjugate(Ez)) + 1/m0*np.real(Bx*np.conjugate(Bz)))
+
+        # Calculate D-field with the x-dependent grating and substrate layer permittivities
+        idx_within_resonator = np.where((heights >= 0) & (heights <= h))[0]
+        idx_within_substrate = np.where((heights > h) & (heights <= h+hsub))[0]
+
+        D = e0*E
+        D[:, :, idx_within_substrate] = e0*esub*E[:, :, idx_within_substrate]
+        D[:, :, idx_within_resonator] = e0*eps*E[:, :, idx_within_resonator]
+        Dx, Dy, Dz = D
+
+        cross_term = np.sum(np.real(E*np.conjugate(D)),axis=0) + 1/m0*np.sum(np.abs(B)**2,axis=0)
+        Txx = 1/2*(np.real(Ex*np.conjugate(Dx)) + 1/m0*np.abs(Bx)**2 - 0.5*cross_term)
+        Tzz = 1/2*(np.real(Ez*np.conjugate(Dz)) + 1/m0*np.abs(Bz)**2 - 0.5*cross_term)
+        Txz = 1/2*(np.real(Ex*np.conjugate(Dz)) + 1/m0*np.real(Bx*np.conjugate(Bz)))
+        Tzx = 1/2*(np.real(Ez*np.conjugate(Dx)) + 1/m0*np.real(Bz*np.conjugate(Bx)))
 
         # Force densities
-        force_x = np.gradient(Txx, p/self.Nx, axis=0) + np.gradient(Txz, heights, axis=1)  # N/m^2/micron
-        force_z = np.gradient(Txz, p/self.Nx, axis=0) + np.gradient(Tzz, heights, axis=1)  # N/m^2/micron
+        force_x = 1e6*(np.gradient(Txx, p/self.Nx, axis=0) + np.gradient(Txz, heights, axis=1))  # N/m^3
+        force_z = 1e6*(np.gradient(Txz, p/self.Nx, axis=0) + np.gradient(Tzz, heights, axis=1))  # N/m^3
 
-        # Integrate force density over the grating and substrate layers (0 <= z <= h + hsub)
-        # Negative sign required because we haven't taken the transpose of the force density
-        #   Transpose is needed so that positive x and z are defined correctly
-        idx_within_layers = np.where((heights >= 0) & (heights <= h + hsub))[0]
-        net_force_x = np.trapezoid(force_x[:,idx_within_layers], x=heights[idx_within_layers], axis=1)  # N/m^2
-        net_force_x = -1e-6*np.trapezoid(net_force_x, x=np.linspace(0,p, self.Nx), axis=0)  # N/m
-        net_force_z = np.trapezoid(force_z[:,idx_within_layers], x=heights[idx_within_layers], axis=1)
-        net_force_z = -1e-6*np.trapezoid(net_force_z, x=np.linspace(0,p, self.Nx), axis=0)  # N/m
+        # Surface-integrate MST over unit-cell rectangle
+        # We can ignore the left and right surface assuming the grating is very long compared to its thickness
+        # This is because we want the forces on a grating with many periods in the x direction, so the actual
+        # integration surface should include all the unit cells. With this assumption, the dominant force contribution 
+        # comes from the top and bottom surfaces, which are very long compared to the side surfaces.
+        # If you ignore the contributions from th left and right surface, then it doesn't matter if
+        # you use E or D fields in the calculation above (since the top and bottom surfaces should be
+        # outside of the grating and substrate layers)
+        net_force_x = 1e-6*(np.trapezoid(Txz[:,-1], x=np.linspace(0,p, self.Nx))  # top surface
+                            - np.trapezoid(Txz[:,0], x=np.linspace(0,p, self.Nx))  # bottom surface
+                            # + np.trapezoid(Txx[-1,:], x=heights)  # right surface
+                            # - np.trapezoid(Txx[0,:], x=heights)  # left surface
+                            )
+                            # N/m^2
+        net_force_z = 1e-6*(np.trapezoid(Tzz[:,-1], x=np.linspace(0,p, self.Nx))
+                            - np.trapezoid(Tzz[:,0], x=np.linspace(0,p, self.Nx))
+                            # + np.trapezoid(Tzx[-1,:], x=heights)
+                            # - np.trapezoid(Tzx[0,:], x=heights)
+                            )
+                            # N/m^2
         
         return Txx, Tzz, force_x, force_z, net_force_x, net_force_z
         
@@ -658,8 +686,9 @@ class PlotBox:
         # Plot forces
         cmap = "PiYG"
         force_lim = np.maximum(np.max(np.abs(force_x)), np.max(np.abs(force_z)))
-        force_x_mesh = axs_flat[2].pcolormesh(x0, heights/h, force_x.T, vmin=-force_lim, vmax=force_lim, shading=fill_style, cmap=cmap)
-        force_z_mesh = axs_flat[3].pcolormesh(x0, heights/h, force_z.T, vmin=-force_lim, vmax=force_lim, shading=fill_style, cmap=cmap)
+        norm = colors.SymLogNorm(linthresh=10**(int(np.log10(force_lim))-4), linscale=1.0, vmin=-force_lim, vmax=force_lim, base=10)
+        force_x_mesh = axs_flat[2].pcolormesh(x0, heights/h, force_x.T, shading=fill_style, cmap=cmap, norm=norm)
+        force_z_mesh = axs_flat[3].pcolormesh(x0, heights/h, force_z.T, shading=fill_style, cmap=cmap, norm=norm)
 
         # Create an axes on the right side of ax. The width of cax will be x%
         # of ax and the padding between cax and ax will be fixed at y inch.
