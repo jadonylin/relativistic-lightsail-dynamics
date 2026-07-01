@@ -6,10 +6,8 @@ import twobox
 
 wavelength      = 1.
 angle           = 0.0
-Nx              = 100
-numpoints       = 1
-numG_torcwa     = 25
-numG            = 2*numG_torcwa
+Nx              = 300
+numG_torcwa     = 30
 Qabs            = np.inf
 
 def ilic():
