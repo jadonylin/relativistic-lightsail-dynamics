@@ -559,9 +559,6 @@ class TwoBox(PlotBox, QprBox):
         w2 = self.box2_width
         eb1 = self.box1_eps
         eb2 = self.box2_eps
-        if self.invert_unit_cell:
-            w1, w2 = w2, w1
-            eb1, eb2 = eb2, eb1
         bcd = self.box_centre_dist
         x1 = w1/2 + 0.02*Lam # box1 centre location (offset to avoid left box left edge clipping)
         x2 = x1 + bcd # box2 centre location    
@@ -570,6 +567,8 @@ class TwoBox(PlotBox, QprBox):
         box2_bool = torcwa.rcwa_geo.rectangle(Wx=w2, Wy=L[1], Cx=x2, Cy=L[1]/2.) # width, height, centerx, centery
         layer0_bool = torcwa.rcwa_geo.union(box1_bool,box2_bool)
         layer0_eps = eb1*box1_bool + eb2*box2_bool + (1. - layer0_bool)
+        if self.invert_unit_cell:
+            layer0_eps = torch.flip(layer0_eps,(0,))
         self.grating_grid_torcwa = layer0_eps  #: TODO: why not cast to grating_grid directly?
         
         try: # when called to calculate gradient functions rather than values, tensors are virtual - do not copy to grating_grid
