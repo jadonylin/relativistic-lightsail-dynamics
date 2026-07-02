@@ -569,7 +569,7 @@ class PlotBox:
         
         return fig, axs
 
-    def calculate_forces(self, heights):
+    def calculate_forces(self, heights: np.ndarray, return_Poynting: bool=False):
         """
         Return diagonal MST fields, force-density fields and net forces on the unit cell
 
@@ -635,7 +635,15 @@ class PlotBox:
                             )
                             # N/m^2
         
-        return Txx, Tzz, force_x, force_z, net_force_x, net_force_z
+        if return_Poynting:
+            c = scipy.constants.c
+            max_tan = -np.real(Ey*Bz)/np.imag(Ey*Bz)
+            max_cos = np.sqrt(1/(1+max_tan**2))
+            omega = 2*np.pi*c/(self.to_numpy(self.wavelength)*1e-6)
+            force_x_Poynting = e0*omega*max_cos*np.abs(Ey*Bz)**2/np.imag(Ey*Bz)
+            return Txx, Tzz, force_x, force_z, net_force_x, net_force_z, force_x_Poynting
+        else:
+            return Txx, Tzz, force_x, force_z, net_force_x, net_force_z
         
 
     def show_forces(self, heights: np.ndarray, fill_style: str="gouraud", 
