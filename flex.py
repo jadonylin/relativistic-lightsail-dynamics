@@ -106,3 +106,36 @@ def dQprj_dscale(grating, j: int=2, scale: float=1.0, grad_method: str="finite")
         return dQpr_dscale(grating, scale)[j-1]
     else:
         raise ValueError(f"Unknown grad_method: {grad_method}")
+    
+def d2Qprj_dscale2(grating, j: int=2, scale: float=1.0, grad_method: str="finite") -> float:
+    """
+    Calculate the second derivative of the radiation pressure efficiency Qprj 
+    with respect to elongation parallel to the grating.
+
+    Parameters
+    ----------
+    grating     :   The TwoBox grating object.
+    j           :   Index of the radiation pressure efficiency to calculate (1 for Qpr1, 2 for Qpr2).
+    scale       :   Scale factor for elongation, by default 1.0.
+    grad_method :   Method for gradient calculation.
+
+    Returns
+    -------
+    dQprj_dscale : float
+    """
+    if j not in [1, 2]:
+        raise ValueError(f"Invalid value for j: {j}. Must be 1 or 2.")
+    if grad_method == "finite":
+        h = 1e-6
+        # Qprj_plus = dQprj_dscale(grating, j, scale + h, grad_method="grad")
+        # Qprj_minus = dQprj_dscale(grating, j, scale - h, grad_method="grad")
+        Qprj_plus = dQprj_dscale(grating, j, scale + h, grad_method="finite")
+        Qprj_minus = dQprj_dscale(grating, j, scale - h, grad_method="finite")
+        return (Qprj_plus - Qprj_minus)/(2*h)
+    elif grad_method == "grad":
+        scale = grating.npa.array(scale)
+        func = lambda s: dQprj_dscale(grating, j, s, grad_method="grad")
+        grad_func = grating.npa.grad(func)
+        return grad_func(scale)
+    else:
+        raise ValueError(f"Unknown grad_method: {grad_method}")
