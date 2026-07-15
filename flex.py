@@ -106,3 +106,58 @@ def dQprj_dscale(grating, j: int=2, scale: float=1.0, grad_method: str="finite")
         return dQpr_dscale(grating, scale)[j-1]
     else:
         raise ValueError(f"Unknown grad_method: {grad_method}")
+
+
+def absorption(grating, scale: float=1.0) -> float:
+    """
+    Calculate the absorption (1-R-T) as a function of elongation
+    parallel to the grating.
+
+    Parameters
+    ----------
+    grating :   The TwoBox grating object.
+    scale   :   Scale factor for elongation, by default 1.0.
+
+    Returns
+    -------
+    absorption : absorption of the grating
+    """
+
+    # Store original parameters
+    p = grating.grating_pitch
+    w1 = grating.box1_width 
+    w2 = grating.box2_width 
+    bcd = grating.box_centre_dist 
+
+    grating.grating_pitch = p * scale
+    grating.box1_width = w1 * scale
+    grating.box2_width = w2 * scale
+    grating.box_centre_dist = bcd * scale
+    Rs, Ts = grating.eff()
+    absorption = 1 - grating.npa.sum(Rs + Ts)
+
+    # TODO: Is there a better way to use the grating object without modifying the original?
+    # Restore original parameters
+    grating.grating_pitch = p
+    grating.box1_width = w1
+    grating.box2_width = w2
+    grating.box_centre_dist = bcd
+    return absorption
+
+def dabsorption_dscale(grating, scale: float=1.0) -> float:
+    """
+    Calculate the derivative of the absorption
+    with respect to elongation parallel to the grating.
+
+    Parameters
+    ----------
+    grating     :   The TwoBox grating object.
+    scale       :   Scale factor for elongation, by default 1.0.
+
+    Returns
+    -------
+    dabsorption_dscale : Scale derivative of absorption
+    """
+    scale = grating.npa.array(scale)
+    grad_func = grating.npa.grad(absorption, argnum=1)
+    return grad_func(grating, scale)
