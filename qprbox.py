@@ -244,6 +244,7 @@ class QprBox:
         todo: check the torch version works...
         """
         r,t = self.eff()
+        a = 1 - self.npa.sum(r + t)
         
         Q1 = self.npa.array(0.0)
         Q2 = self.npa.array(0.0)
@@ -270,7 +271,7 @@ class QprBox:
             # take back to real as Q are real, complex intermediary only for gradient tracking compatibility
                 Q1 = Q1+ r[m]*(1 + self.npa.cos(self.angle+delta_m)) + t[m]*(1 - self.npa.cos(delta_m-self.angle))
                 Q2 = Q2+ r[m]*self.npa.sin(self.angle+delta_m) + t[m]*self.npa.sin(delta_m-self.angle)
-        Q1 =  self.npa.cos(self.angle)*Q1
+        Q1 =  self.npa.cos(self.angle)*Q1 + a
         Q2 = -self.npa.cos(self.angle)*Q2
         if self.RCWA_engine == 'TORCWA':
             return torch.stack((Q1,Q2))
