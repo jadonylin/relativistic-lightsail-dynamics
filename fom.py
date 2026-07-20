@@ -131,8 +131,8 @@ def monofom_elongation(grating, I: float=1e9, grad_method: str="finite", **kwarg
     -------
     F_lam :   Figure of merit
     """
-    scale = 1.
-    kpr = flex.Qprj_elongated(grating, j=2, scale=scale) + flex.dQprj_dscale(grating, j=2, scale=scale, grad_method=grad_method)
+    strain = 0.
+    kpr = flex.Qprj(grating, j=2, strain=strain) + flex.dQprj_dstrain(grating, j=2, strain=strain, grad_method=grad_method)
     F_lam = -grating.npa.abs(kpr)
     return F_lam
 
@@ -150,8 +150,8 @@ def monofom_kpr_unstable(grating, I: float=1e9, grad_method: str="finite", **kwa
     -------
     F_lam :   Figure of merit
     """
-    scale = 1.
-    kpr = flex.Qprj_elongated(grating, j=2, scale=scale) + flex.dQprj_dscale(grating, j=2, scale=scale, grad_method=grad_method)
+    strain = 0.
+    kpr = flex.Qprj(grating, j=2, strain=strain) + flex.dQprj_dstrain(grating, j=2, strain=strain, grad_method=grad_method)
     F_lam = grating.npa.abs(kpr)
     return F_lam
 
