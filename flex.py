@@ -3,6 +3,33 @@ A module to store Qpr functions with thermal and elastic coupling.
 """
 import materials
 
+def permittivity_scaled(grating, e, strain: float=0., temp: float=0., material: dict=materials.Si3N4) -> float:
+    """
+    Scale a given permittivity with material-dependent change in real and imaginary 
+    refractive index due to strain and temperature change.
+
+    Parameters
+    ----------
+    grating  :   The TwoBox grating object.
+    e        :   Permittivity of the material.
+    strain   :   strain factor for elongation
+    temp     :   Temperature relative to rest temperature in Kelvin
+    material :   Material properties dictionary
+
+    Returns
+    -------
+    permittivity : scaled permittivity
+    """
+    n = grating.npa.sqrt(e) + 0j  # ensure n is complex to make PyTorch happy
+    nr = grating.npa.real(n)
+    ni = grating.npa.imag(n)
+    dnrdT = material["thermorefract"]
+    dnidT = material["thermoextinct"]
+    nr_scaled = nr*(1 + dnrdT*temp)
+    ni_scaled = ni*(1 + dnidT*temp)
+    n_scaled = nr_scaled + 1j*ni_scaled
+    return n_scaled**2
+
 def grating_scaler(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4) -> float:
     """
     Scale the grating due to longitudinal-wave strain and temperature change.
@@ -25,7 +52,10 @@ def grating_scaler(grating, strain: float=0., temp: float=0., material: dict=mat
     w1 = grating.box1_width 
     w2 = grating.box2_width 
     bcd = grating.box_centre_dist 
-    hs = grating.substrate_depth    
+    hs = grating.substrate_depth
+    eb1 = grating.box1_eps
+    eb2 = grating.box2_eps
+    es = grating.substrate_eps
 
     nu = material["Poisson"]
     alpha = material["thermal_expansion"]
@@ -41,8 +71,12 @@ def grating_scaler(grating, strain: float=0., temp: float=0., material: dict=mat
     grating.grating_depth = h*zscale
     grating.substrate_depth = hs*zscale
 
+    grating.box1_eps = permittivity_scaled(grating, eb1, strain, temp, material)
+    grating.box2_eps = permittivity_scaled(grating, eb2, strain, temp, material)
+    grating.substrate_eps = permittivity_scaled(grating, es, strain, temp, material)
+
     if strain != 0. or temp != 0.:
-        raise ValueError("Warning: input grating parameters have been modified due to request for non-zero strain or temperature.")
+        raise ValueError("Error: input grating parameters have been modified due to request for non-zero strain or temperature.")
     return grating
 
 def jacobian_maker(func, grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4) -> float:
@@ -92,16 +126,17 @@ def Qpr(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N
     _grating = grating_scaler(grating, strain, temp, material)
     return _grating.Q()
 
-def Qprj(grating, j: int=2, strain: float=0.) -> float:
+def Qprj(grating, j: int=2, strain: float=0., material: dict=materials.Si3N4) -> float:
     """
     Calculate the radiation pressure efficiency Qprj as a function of elongation
     parallel to the grating.
 
     Parameters
     ----------
-    grating :   The TwoBox grating object.
-    j       :   Index of the radiation pressure efficiency to calculate (1 for Qpr1, 2 for Qpr2).
-    strain  :   strain factor for elongation
+    grating  :   The TwoBox grating object.
+    j        :   Index of the radiation pressure efficiency to calculate (1 for Qpr1, 2 for Qpr2).
+    strain   :   strain factor for elongation
+    material :   Material properties dictionary
 
     Returns
     -------
@@ -110,7 +145,7 @@ def Qprj(grating, j: int=2, strain: float=0.) -> float:
 
     if j not in [1, 2]:
         raise ValueError(f"Invalid value for j: {j}. Must be 1 or 2.")
-    return Qpr(grating, strain)[j-1]
+    return Qpr(grating, strain, 0., material)[j-1]
 
 def dQpr(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4) -> float:
     """
@@ -148,7 +183,7 @@ def dQpr_dstrain(grating, strain: float=0., material: dict=materials.Si3N4) -> f
     """
     return dQpr(grating, strain, 0., material)[:,0]
 
-def dQprj_dstrain(grating, j: int=2, strain: float=0., grad_method: str="finite") -> float:
+def dQprj_dstrain(grating, j: int=2, strain: float=0., grad_method: str="finite", material: dict=materials.Si3N4) -> float:
     """
     Calculate the derivative of the radiation pressure efficiency Qprj 
     with respect to strain parallel to the grating.
@@ -159,6 +194,7 @@ def dQprj_dstrain(grating, j: int=2, strain: float=0., grad_method: str="finite"
     j           :   Index of the radiation pressure efficiency to calculate (1 for Qpr1, 2 for Qpr2).
     strain      :   strain factor for elongation
     grad_method :   Method for gradient calculation.
+    material    :   Material properties dictionary
 
     Returns
     -------
@@ -168,15 +204,15 @@ def dQprj_dstrain(grating, j: int=2, strain: float=0., grad_method: str="finite"
         raise ValueError(f"Invalid value for j: {j}. Must be 1 or 2.")
     if grad_method == "finite":
         h = 1e-6
-        Qprj_plus = Qprj(grating, j, strain + h)
-        Qprj_minus = Qprj(grating, j, strain - h)
+        Qprj_plus = Qprj(grating, j, strain + h, material)
+        Qprj_minus = Qprj(grating, j, strain - h, material)
         return (Qprj_plus - Qprj_minus)/(2*h)
     elif grad_method == "grad":
-        return dQpr_dstrain(grating, strain)[j-1]
+        return dQpr_dstrain(grating, strain, material)[j-1]
     else:
         raise ValueError(f"Unknown grad_method: {grad_method}")
 
-def d2Qprj_dstrain2(grating, j: int=2, strain: float=0., grad_method: str="finite") -> float:
+def d2Qprj_dstrain2(grating, j: int=2, strain: float=0., grad_method: str="finite", material: dict=materials.Si3N4) -> float:
     """
     Calculate the second derivative of the radiation pressure efficiency Qprj 
     with respect to strain parallel to the grating.
@@ -188,6 +224,7 @@ def d2Qprj_dstrain2(grating, j: int=2, strain: float=0., grad_method: str="finit
     j           :   Index of the radiation pressure efficiency to calculate (1 for Qpr1, 2 for Qpr2).
     strain      :   strain factor for elongation
     grad_method :   Method for gradient calculation.
+    material    :   Material properties dictionary
 
     Returns
     -------
@@ -199,12 +236,12 @@ def d2Qprj_dstrain2(grating, j: int=2, strain: float=0., grad_method: str="finit
         h = 1e-6
         # Qprj_plus = dQprj_dstrain(grating, j, strain + h, grad_method="grad")
         # Qprj_minus = dQprj_dstrain(grating, j, strain - h, grad_method="grad")
-        Qprj_plus = dQprj_dstrain(grating, j, strain + h, grad_method="finite")
-        Qprj_minus = dQprj_dstrain(grating, j, strain - h, grad_method="finite")
+        Qprj_plus = dQprj_dstrain(grating, j, strain + h, grad_method="finite", material=material)
+        Qprj_minus = dQprj_dstrain(grating, j, strain - h, grad_method="finite", material=material)
         return (Qprj_plus - Qprj_minus)/(2*h)
     elif grad_method == "grad":
         strain = grating.npa.array(strain)
-        func = lambda s: dQprj_dstrain(grating, j, s, grad_method="grad")
+        func = lambda s: dQprj_dstrain(grating, j, s, grad_method="grad", material=material)
         grad_func = grating.npa.grad(func)
         return grad_func(strain)
     else:
