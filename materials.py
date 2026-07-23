@@ -22,7 +22,7 @@ Si3N4 = {"Young": 270e9,  # [Gad-el-Hak 2006, MEMS: Design and Fabrication, pg 3
          "specific_heat": 523,  # [Steinlechner 2017, DOI: 10.1103/PhysRevD.96.022007]
          "absorption": 3e-2,  # at 1550 nm, [Ji 2017, DOI: https://doi.org/10.1364/OPTICA.4.000619]
          "thermorefract": 4e-5,  # [Steinlechner 2017, DOI: 10.1103/PhysRevD.96.022007]
-         "thermoextinct": 1.7e-6  # calculated from data in [Fletcher 2018, DOI: 10.3389/fmats.2018.00001]
+         "thermoextinct": 1.e-6  # calculated from data in [Fletcher 2018, DOI: 10.3389/fmats.2018.00001]
          }
 
 SiO2_fused = {"Young": 73e9,  # [Corning 2015 Information Sheet, https://www.corning.com/media/worldwide/csm/documents/HPFS_Product_Brochure_All_Grades_2015_07_21.pdf]
