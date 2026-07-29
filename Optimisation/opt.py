@@ -105,6 +105,16 @@ def boxes_clip_unit_cell(params,gradn):
     condition = (w1+w2)/2 + bcd - 0.98*Lam
     return condition
 
+def thermal_domination(params,gradn):
+    """
+    Constraint function to balance absorption effects and enter radiation-pressure regime.
+    """
+    w1 = params[2]
+    w2 = params[3]
+    bcd = params[4]
+    condition= (w1+w2)/2 - bcd 
+    return condition
+
 
 def global_optimise(objective_fom, opt_hyperparams,
                     sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxstop: dict={'maxfev': 1000, 'maxtime': 600},
