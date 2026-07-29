@@ -1,6 +1,7 @@
 """
 A module to store Qpr functions with thermal and elastic coupling.
 """
+import copy
 import materials
 
 def permittivity_scaled(grating, e, strain: float=0., temp: float=0., material: dict=materials.Si3N4) -> float:
@@ -30,7 +31,8 @@ def permittivity_scaled(grating, e, strain: float=0., temp: float=0., material: 
     n_scaled = nr_scaled + 1j*ni_scaled
     return n_scaled**2
 
-def grating_scaler(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4) -> float:
+def grating_scaler(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4,
+                   requires_grad: bool=True) -> float:
     """
     Scale the grating due to longitudinal-wave strain and temperature change.
 
@@ -45,39 +47,45 @@ def grating_scaler(grating, strain: float=0., temp: float=0., material: dict=mat
     -------
     scaled_grating : grating with physical properties scaled
     """
-
+    
+    if requires_grad:
+        if strain != 0. or temp != 0.:
+            raise ValueError("Error: input grating parameters have been modified due to request for non-zero strain or temperature.")
+        _grating = grating
+    else:
+        _grating = copy.deepcopy(grating)
+        _grating.npa = grating.npa
+        
     # Store original parameters
-    p = grating.grating_pitch
-    h = grating.grating_depth
-    w1 = grating.box1_width 
-    w2 = grating.box2_width 
-    bcd = grating.box_centre_dist 
-    hs = grating.substrate_depth
-    eb1 = grating.box1_eps
-    eb2 = grating.box2_eps
-    es = grating.substrate_eps
+    p = _grating.grating_pitch
+    h = _grating.grating_depth
+    w1 = _grating.box1_width 
+    w2 = _grating.box2_width 
+    bcd = _grating.box_centre_dist 
+    hs = _grating.substrate_depth
+    eb1 = _grating.box1_eps
+    eb2 = _grating.box2_eps
+    es = _grating.substrate_eps
 
     nu = material["Poisson"]
     alpha = material["thermal_expansion"]
 
     scale_from_strain = 1 + strain
     scale_from_temp = 1 + alpha*temp
-    grating.grating_pitch = p*scale_from_strain*scale_from_temp
-    grating.box1_width = w1*scale_from_strain*scale_from_temp
-    grating.box2_width = w2*scale_from_strain*scale_from_temp
-    grating.box_centre_dist = bcd*scale_from_strain*scale_from_temp
+    _grating.grating_pitch = p*scale_from_strain*scale_from_temp
+    _grating.box1_width = w1*scale_from_strain*scale_from_temp
+    _grating.box2_width = w2*scale_from_strain*scale_from_temp
+    _grating.box_centre_dist = bcd*scale_from_strain*scale_from_temp
     
     zscale = 1 - nu*strain + (1+nu)*alpha*temp
-    grating.grating_depth = h*zscale
-    grating.substrate_depth = hs*zscale
+    _grating.grating_depth = h*zscale
+    _grating.substrate_depth = hs*zscale
 
-    grating.box1_eps = permittivity_scaled(grating, eb1, strain, temp, material)
-    grating.box2_eps = permittivity_scaled(grating, eb2, strain, temp, material)
-    grating.substrate_eps = permittivity_scaled(grating, es, strain, temp, material)
+    _grating.box1_eps = permittivity_scaled(_grating, eb1, strain, temp, material)
+    _grating.box2_eps = permittivity_scaled(_grating, eb2, strain, temp, material)
+    _grating.substrate_eps = permittivity_scaled(_grating, es, strain, temp, material)
 
-    if strain != 0. or temp != 0.:
-        raise ValueError("Error: input grating parameters have been modified due to request for non-zero strain or temperature.")
-    return grating
+    return _grating
 
 def jacobian_maker(func, grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4) -> float:
     """
@@ -105,7 +113,8 @@ def jacobian_maker(func, grating, strain: float=0., temp: float=0., material: di
     return grating.npa.array(grating.npa.jacobian(_func)(p).squeeze())
 
 
-def Qpr(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4) -> float:
+def Qpr(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4,
+        requires_grad: bool=True) -> float:
     """
     Calculate the radiation pressure efficiency Qprj as a function of strain
     parallel to the grating and temperature. Temperature changes are assumed
@@ -123,10 +132,11 @@ def Qpr(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N
     -------
     [Qpr1, Qpr2] : Radiation pressure efficiency factors
     """
-    _grating = grating_scaler(grating, strain, temp, material)
+    _grating = grating_scaler(grating, strain, temp, material,requires_grad)
     return _grating.Q()
 
-def Qprj(grating, j: int=2, strain: float=0., material: dict=materials.Si3N4) -> float:
+def Qprj(grating, j: int=2, strain: float=0., material: dict=materials.Si3N4,
+         requires_grad: bool=True) -> float:
     """
     Calculate the radiation pressure efficiency Qprj as a function of elongation
     parallel to the grating.
@@ -145,7 +155,7 @@ def Qprj(grating, j: int=2, strain: float=0., material: dict=materials.Si3N4) ->
 
     if j not in [1, 2]:
         raise ValueError(f"Invalid value for j: {j}. Must be 1 or 2.")
-    return Qpr(grating, strain, 0., material)[j-1]
+    return Qpr(grating, strain, 0., material, requires_grad)[j-1]
 
 def dQpr(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4) -> float:
     """
@@ -248,23 +258,25 @@ def d2Qprj_dstrain2(grating, j: int=2, strain: float=0., grad_method: str="finit
         raise ValueError(f"Unknown grad_method: {grad_method}")
     
 
-def absorption(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4) -> float:
+def absorption(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4,
+               requires_grad: bool=True) -> float:
     """
     Calculate the absorption (1-R-T) as a function of elongation
     parallel to the grating.
 
     Parameters
     ----------
-    grating  :   The TwoBox grating object.
-    strain   :   strain factor for elongation
-    temp     :   Temperature relative to rest temperature in Kelvin
-    material :   Material properties dictionary
+    grating       :   The TwoBox grating object.
+    strain        :   strain factor for elongation
+    temp          :   Temperature relative to rest temperature in Kelvin
+    material      :   Material properties dictionary
+    requires_grad :   Whether to enable gradient tracking for the absorption calculation.
 
     Returns
     -------
     absorption : absorption of the grating
     """
-    _grating = grating_scaler(grating, strain, temp, material)
+    _grating = grating_scaler(grating, strain, temp, material, requires_grad)
     Rs, Ts = _grating.eff()
     absorption = 1 - _grating.npa.sum(Rs + Ts)
     return absorption
