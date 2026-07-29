@@ -18,6 +18,7 @@ the unit cell along the x-axis about the unit-cell centre.
 import adaptive as adp
 import numpy as np
 import flex
+import materials
 import parameters
 from parameters import Parameters, D1_ND, FOMSettings
 I0, L, m, c = Parameters()
@@ -153,6 +154,32 @@ def monofom_kpr_unstable(grating, I: float=1e9, grad_method: str="finite", **kwa
     strain = 0.
     kpr = flex.Qprj(grating, j=2, strain=strain) + flex.dQprj_dstrain(grating, j=2, strain=strain, grad_method=grad_method)
     F_lam = grating.npa.abs(kpr)
+    return F_lam
+
+def monofom_optoelastic_regime(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
+    """
+    optoelastic regime FOM: Maximise the radiation-pressure spring constant Cv*kprstrain - alpha*T0*E*kprtemp
+
+    Parameters
+    ----------
+    grating     :   Calculate figure of merit for this grating
+    I           :   Laser intensity
+    grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+
+    Returns
+    -------
+    F_lam :   Figure of merit
+    """
+    T0 = 300  # Kelvin
+    alpha = materials.Si3N4["thermal_expansion"]
+    Cv = materials.Si3N4["density"]*materials.Si3N4["specific_heat"]
+    E = materials.Si3N4["Young"]
+    _Cv = Cv/(alpha*T0*E)
+    strain, temp = 0., 0.
+    dQpr = flex.dQpr(grating, strain=strain, temp=temp, material=materials.Si3N4)
+    kpr = flex.Qpr(grating, strain=strain, temp=temp, material=materials.Si3N4) + dQpr[1,0]
+    kprtemp = dQpr[1,1]
+    F_lam = grating.npa.abs(kpr - kprtemp/_Cv)
     return F_lam
 
 def monofom_wasymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
