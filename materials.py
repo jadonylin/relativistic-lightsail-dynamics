@@ -14,7 +14,8 @@ thermoextinct = change in imaginary refractive index with temperature
                 at specified wavelength and temperature, /K
 """
 
-Si3N4 = {"Young": 270e9,  # [Gad-el-Hak 2006, MEMS: Design and Fabrication, pg 3-172]
+Si3N4 = {"name": "Si3N4",
+         "Young": 270e9,  # [Gad-el-Hak 2006, MEMS: Design and Fabrication, pg 3-172]
          "density": 3.1e3,  # [Steinlechner 2017, DOI: 10.1103/PhysRevD.96.022007]
          "Poisson": 0.27,  # [Gad-el-Hak 2006, MEMS: Design and Fabrication, pg 3-172]
          "thermal_expansion": 2.6e-6,  # [Steinlechner 2017, DOI: 10.1103/PhysRevD.96.022007]
@@ -25,7 +26,8 @@ Si3N4 = {"Young": 270e9,  # [Gad-el-Hak 2006, MEMS: Design and Fabrication, pg 3
          "thermoextinct": 1.e-6  # calculated from data in [Fletcher 2018, DOI: 10.3389/fmats.2018.00001]
          }
 
-SiO2_fused = {"Young": 73e9,  # [Corning 2015 Information Sheet, https://www.corning.com/media/worldwide/csm/documents/HPFS_Product_Brochure_All_Grades_2015_07_21.pdf]
+SiO2_fused = {"name": "SiO2_fused",
+              "Young": 73e9,  # [Corning 2015 Information Sheet, https://www.corning.com/media/worldwide/csm/documents/HPFS_Product_Brochure_All_Grades_2015_07_21.pdf]
               "density": 2.2e3,  # [Corning 2015 Information Sheet, https://www.corning.com/media/worldwide/csm/documents/HPFS_Product_Brochure_All_Grades_2015_07_21.pdf]
               "Poisson": 0.16,  # [Corning 2015 Information Sheet, https://www.corning.com/media/worldwide/csm/documents/HPFS_Product_Brochure_All_Grades_2015_07_21.pdf]
               "thermal_expansion": 0.57e-6,  # [Corning 2015 Information Sheet, https://www.corning.com/media/worldwide/csm/documents/HPFS_Product_Brochure_All_Grades_2015_07_21.pdf]
