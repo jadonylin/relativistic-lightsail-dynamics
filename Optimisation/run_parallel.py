@@ -43,7 +43,7 @@ from parameters import FOMSettings, OptimisationSettings, Hyperparameters, Bound
 
 # Extract settings from parameters.py
 choose_monofom, choose_multifom, fom_kwargs = FOMSettings()
-num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample = OptimisationSettings()
+num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample, lo_method = OptimisationSettings()
 wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters, pol = Hyperparameters()
 h1_min, h1_max, param_bounds = Bounds()
 
@@ -58,7 +58,8 @@ print(f"Multi-wavelength FOM: {choose_multifom}\nMono-wavelength FOM: {choose_mo
 hyperparams_dict = {'multifom': choose_multifom, 'monofom': choose_monofom, 'FOM kwargs': fom_kwargs, 
                     'wavelength': wavelength, 'angle': angle, 'Nx': Nx, 'nG': nG, 'Qabs': Qabs,
                     'RCWA engine': RCWA_engine, 'TORCWA edge sharpness': torcwa_sharpness,
-                    'Fixed parameters': fixed_parameters, 'Polarisation': pol}
+                    'Fixed parameters': fixed_parameters, 'Polarisation': pol,
+                    'Material': parameters.material, 'Rest temperature': parameters.T0}
 hyperparams_line = str(hyperparams_dict)
 FOM_params_dict = {'final_speed': final_speed, 'goal': goal}
 FOM_params_line = str(FOM_params_dict)
@@ -70,7 +71,7 @@ bounds_line = str(bounds_dict)
 # Optimiser options
 sampling_dict = {'Sampling method': sampling, 'n_sample': f'2E+{n_sample_exp}', 'seed': seed}
 sampling_line = str(sampling_dict)
-LO_dict = {'xtol_rel': f"{xtol_rel:.1E}", 'ftol_rel': f"{ftol_rel:.1E}"}
+LO_dict = {'xtol_rel': f"{xtol_rel:.1E}", 'ftol_rel': f"{ftol_rel:.1E}", 'local optimisation method': lo_method}
 LO_line = str(LO_dict)
 GO_dict = {'number of cores': num_cores, 'maxstop per core': maxstop}
 GO_line = str(GO_dict)
