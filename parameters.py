@@ -9,6 +9,8 @@ TODO: move relativity functions to specrel.py
 import numpy as np
 import scipy
 
+import materials
+
 
 def gamma_ND(v):
     """
@@ -104,6 +106,8 @@ def Hyperparameters():
 
     return wavelength, angle, Nx, nG, Qabs, goal, final_speed, return_grad, RCWA_engine, torcwa_sharpness, fixed_parameters, pol
 
+material = materials.Si3N4  # Material for the grating. Only used with optoelastic_regime monofom
+T0 = 300  # Rest temperature of the grating in Kelvin. Only used with optoelastic_regime monofom
 
 choose_monofom = "kpr_unstable"
 choose_monofom = "optoelastic_regime"
@@ -120,7 +124,7 @@ def FOMSettings():
 def OptimisationSettings():
     # Global optimisation parameters
     num_cores = 2  # number of cores to run parallel optimisation
-    maxtime = 5  # Stop after maxtime minutes
+    maxtime = 2  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
     if choose_multifom != "monochrome":
         # runID = f"F{choose_monofom}{int(final_speed)}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
@@ -137,7 +141,9 @@ def OptimisationSettings():
     n_sample_exp = 4
     n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
 
-    return num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample
+    lo_method = "SLSQP"  # "MMA" or "SLSQP"
+
+    return num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample, lo_method
 
 
 def Bounds():
