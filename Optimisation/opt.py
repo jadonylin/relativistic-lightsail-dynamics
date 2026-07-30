@@ -23,8 +23,14 @@ import dill as pickle
 import sys
 sys.path.append("../")
 
+import flex
 import parameters
 I0, L, m, c = parameters.Parameters()
+_wavelength, _angle, _Nx, _nG, _Qabs, \
+_goal, _final_speed, _return_grad, \
+_RCWA_engine, _torcwa_sharpness, _fixed_parameters, _pol = parameters.Hyperparameters()
+choose_monofom, _, _ = parameters.FOMSettings()
+lo_method = parameters.OptimisationSettings()[-1]
 from twobox import TwoBox
 
 
@@ -108,11 +114,41 @@ def boxes_clip_unit_cell(params,gradn):
 def thermal_domination(params,gradn):
     """
     Constraint function to balance absorption effects and enter radiation-pressure regime.
+    TODO: avoid hard-coding that the Gaussian width is the only fixed parameter
+    TODO: avoid hard-coding the wavelength at which absorption is measured for the chosen material
     """
-    w1 = params[2]
-    w2 = params[3]
-    bcd = params[4]
-    condition= (w1+w2)/2 - bcd 
+    
+    absorption_coeff = parameters.material["absorption"]
+    alpha = parameters.material["thermal_expansion"]
+    
+    if len(parameters.fixed_parameters) != 1 or parameters.fixed_parameters[0] != "gaussian_width":
+        raise ValueError("The thermal_domination constraint function currently assumes that the only fixed parameter is the Gaussian width.")
+    p0, p1, p2, p3, p4, p5, p6, p8, p9 = params
+    p7 = parameters.fix_parameter_values[0]
+    
+    # Calculate new grating permittivities given material absorption at the wavelength l0
+    l0 = 1.55  # wavelength, micron
+    l0_metre = l0*1e-6 
+    n_im = l0_metre*absorption_coeff/(4*np.pi)  # extinction coefficient, dimensionless
+    eb1_im = 2*n_im*np.sqrt(p5)  # imaginary part of permittivity, dimensionless
+    eb2_im = 2*n_im*np.sqrt(p6)  # imaginary part of permittivity, dimensionless
+    esub_im = 2*n_im*np.sqrt(p9)  # imaginary part of permittivity, dimensionless
+    
+    # Scale physical parameters by wavelength to ensure imaginary refractive index is in the 
+    # correct structure
+    _params = [p0*l0, p1*l0, p2*l0, p3*l0, p4*l0, 
+               p5, p6, p7,  # permittivities and Gaussian width is not scaled
+               p8*l0, 
+               p9]
+    
+    grating = TwoBox(*_params, wavelength=l0, angle=0., Nx=_Nx, nG=_nG, Qabs=_Qabs, 
+                     RCWA_engine=_RCWA_engine, torcwa_edge_sharpness=_torcwa_sharpness, polarisation=_pol)
+    grating.box1_eps = p5 + 1j*eb1_im  # TODO: instantiating twobox with complex permittivity is disallowed, so we have to set the imaginary part manually afterwards
+    grating.box2_eps = p6 + 1j*eb2_im
+    grating.substrate_eps = p9 + 1j*esub_im
+        
+    dadϵ, dadϑ = flex.dabsorption(grating, strain=0., temp=0., material=parameters.material) 
+    condition = 1 + alpha*dadϵ/dadϑ 
     return condition
 
 
@@ -198,8 +234,17 @@ def global_optimise(objective_fom, opt_hyperparams,
         global_opt = nlopt.opt(nlopt.G_MLSL, ndof)
     else:
         global_opt = nlopt.opt(nlopt.G_MLSL_LDS, ndof)
-    local_opt = nlopt.opt(nlopt.LD_MMA, ndof)
-
+    
+    match lo_method:
+        case "MMA":
+            if choose_monofom == "optoelastic_regime":
+                raise ValueError("MMA local optimiser is not compatible with the optoelastic_regime monofom. Please use SLSQP instead.")
+            local_opt = nlopt.opt(nlopt.LD_MMA, ndof)
+        case "SLSQP":
+            local_opt = nlopt.opt(nlopt.LD_SLSQP, ndof)
+        case _:
+            raise ValueError(f"Local optimiser method {lo_method} not recognised. Please use 'MMA' or 'SLSQP'.")
+    
     nlopt.srand(seed) 
     n_sample = int(n_sample)
     global_opt.set_population(n_sample)  # set initial sampling points
@@ -216,6 +261,9 @@ def global_optimise(objective_fom, opt_hyperparams,
         local_opt.add_inequality_constraint(box1_too_wide)
         local_opt.add_inequality_constraint(box2_too_wide)
         local_opt.add_inequality_constraint(bcd_redundant)
+
+    if choose_monofom == "optoelastic_regime":
+        local_opt.add_equality_constraint(thermal_domination)
 
     local_opt.set_xtol_rel(xtol_rel)
     local_opt.set_ftol_rel(ftol_rel)
