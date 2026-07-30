@@ -18,7 +18,6 @@ the unit cell along the x-axis about the unit-cell centre.
 import adaptive as adp
 import numpy as np
 import flex
-import materials
 import parameters
 from parameters import Parameters, D1_ND, FOMSettings
 I0, L, m, c = Parameters()
@@ -44,6 +43,8 @@ def monofom(grating, I: float=1e9, grad_method: str="finite") -> float:
         return monofom_elongation(grating, I=I, grad_method=grad_method, **fom_kwargs)
     elif choose_monofom == "kpr_unstable":
         return monofom_kpr_unstable(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_monofom == "optoelastic_regime":
+        return monofom_optoelastic_regime(grating, I=I, grad_method=grad_method, **fom_kwargs)
     elif choose_monofom == "wasymp":
         return monofom_wasymp(grating, I=I, grad_method=grad_method, **fom_kwargs)
     elif choose_monofom == "damp":
@@ -170,16 +171,17 @@ def monofom_optoelastic_regime(grating, I: float=1e9, grad_method: str="finite",
     -------
     F_lam :   Figure of merit
     """
-    T0 = 300  # Kelvin
-    alpha = materials.Si3N4["thermal_expansion"]
-    Cv = materials.Si3N4["density"]*materials.Si3N4["specific_heat"]
-    E = materials.Si3N4["Young"]
-    _Cv = Cv/(alpha*T0*E)
+    T0 = parameters.T0
+    mat = parameters.material
+    alpha = mat["thermal_expansion"]
+    Cv = mat["density"]*mat["specific_heat"]
+    E = mat["Young"]
+    Cv_nd = Cv/(alpha**2*T0*E)
     strain, temp = 0., 0.
-    dQpr = flex.dQpr(grating, strain=strain, temp=temp, material=materials.Si3N4)
-    kpr = flex.Qpr(grating, strain=strain, temp=temp, material=materials.Si3N4) + dQpr[1,0]
+    dQpr = flex.dQpr(grating, strain=strain, temp=temp, material=mat)
+    kpr = flex.Qpr(grating, strain=strain, temp=temp, material=mat)[1] + dQpr[1,0]
     kprtemp = dQpr[1,1]
-    F_lam = grating.npa.abs(kpr - kprtemp/_Cv)
+    F_lam = grating.npa.abs(kpr - kprtemp/(Cv_nd*alpha))
     return F_lam
 
 def monofom_wasymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
@@ -506,8 +508,9 @@ def multifom_monochrome(grating, monofom: callable=monofom, return_grad: bool=Tr
         raise ValueError("Multifom monochrome only valid for gratings with wavelength = 1.0.")
     FOM = float(grating.to_numpy(_F_lam(grating, monofom)))
     if return_grad:
+        ps = grating.npa.real(grating.npa.array(grating.params))  # ensure optimisation parameters are real
         F_lam_grad = grating.npa.grad(F_lam, argnum=1)
-        FOM_grad = grating.to_numpy(F_lam_grad(grating, grating.params, monofom))
+        FOM_grad = grating.to_numpy(F_lam_grad(grating, ps, monofom))
         return [FOM,FOM_grad]
     else:
         return FOM
