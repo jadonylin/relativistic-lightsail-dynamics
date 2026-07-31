@@ -39,12 +39,16 @@ user_home_path_full = user_home_path.expanduser()
 final_speed = 20.
 num_cores = 200
 maxtime = 1440
-runID = "Fasympmonochrome_fixgaussian20_50GW_nG30"
+# runID = "Fasympmonochrome_fixgaussian20_50GW_nG30"
 # runID = "Fasymp20_fixgaussian20_50GW"
+runID = "Fkpr_unstablemonochrome_fixgaussian20_50GW"
 
 common_path = user_home_path_full / "Library/CloudStorage/OneDrive-TheUniversityofSydney(Students)/Doppler Damping - Jadon Lin/Documentation/Data/relativistic-lightsail-dynamics/Optimisation/Jadon's results"
 # custom_folder_path = f"Fasymp/final_speed{int(final_speed)}/maxtime{int(maxtime)}/{runID}"
-custom_folder_path = f"Fasymp/mono/maxtime{int(maxtime)}/{runID}"
+# custom_folder_path = f"Fasymp/mono/maxtime{int(maxtime)}/{runID}"
+custom_folder_path = f"Fkpr_unstable/maxtime{int(maxtime)}/{runID}"
+
+
 fname_preamble = common_path / custom_folder_path
 
 pkl_fname = fname_preamble / f'{runID}_FOM_optimisation_maxtime{maxtime}'
@@ -69,6 +73,7 @@ choose_monofom = fom.monofom_asymp
 xtol_rel = 1e-7
 ftol_rel = 1e-14
 maxfev = 200
+# txt_fname = fname_preamble / f'{runID}_LO_maxfev{maxfev}.txt'  # save results to text file
 txt_fname = fname_preamble / f'{runID}_LO_maxfev{maxfev}.txt'  # save results to text file
 
 
@@ -103,6 +108,7 @@ def fun_nlopt(params,gradn):
     bcd_redundancy = opt.bcd_redundant(params,gradn)
     box_overlap = opt.boxes_overlap(params,gradn)
     box_clipping = opt.boxes_clip_unit_cell(params,gradn) 
+    thermal_domination = opt.thermal_domination(params,gradn)
     
     step = (ctrl, y, params, box1_wide, box2_wide, bcd_redundancy, box_overlap, box_clipping)
     steps.append(step)
