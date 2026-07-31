@@ -12,6 +12,8 @@ thermorefract = change in real refractive index with temperature, /K
 absorption = absorption coefficient at specified wavelength, /m
 thermoextinct = change in imaginary refractive index with temperature 
                 at specified wavelength and temperature, /K
+strainoptic11 = strain-optic coefficient assuming initial isotropy, p_{11}, dimensionless
+strainoptic12 = strain-optic coefficient assuming initial isotropy, p_{12}, dimensionless
 """
 
 Si3N4 = {"name": "Si3N4",
@@ -23,7 +25,9 @@ Si3N4 = {"name": "Si3N4",
          "specific_heat": 523,  # [Steinlechner 2017, DOI: 10.1103/PhysRevD.96.022007]
          "absorption": 3e-2,  # at 1550 nm, [Ji 2017, DOI: https://doi.org/10.1364/OPTICA.4.000619]
          "thermorefract": 4e-5,  # [Steinlechner 2017, DOI: 10.1103/PhysRevD.96.022007]
-         "thermoextinct": 1.e-6  # calculated from data in [Fletcher 2018, DOI: 10.3389/fmats.2018.00001]
+         "thermoextinct": 1.e-6,  # calculated from data in [Fletcher 2018, DOI: 10.3389/fmats.2018.00001]
+         "strainoptic11": -0.125,  # [Mishra 2026, DOI: https://doi.org/10.48550/arXiv.2603.02584]
+         "strainoptic12": 0.047  # [Mishra 2026, DOI:  https://doi.org/10.48550/arXiv.2603.02584]
          }
 
 SiO2_fused = {"name": "SiO2_fused",
