@@ -26,7 +26,8 @@ def permittivity_scaled(grating, e, strain: float=0., temp: float=0., material: 
     ni = grating.npa.imag(n)
     dnrdT = material["thermorefract"]
     dnidT = material["thermoextinct"]
-    nr_scaled = nr*(1 + dnrdT*temp)
+    p11 = material["strainoptic11"]
+    nr_scaled = nr*(1 + dnrdT*temp) - nr**3*p11*strain/2
     ni_scaled = ni*(1 + dnidT*temp)
     n_scaled = nr_scaled + 1j*ni_scaled
     return n_scaled**2
