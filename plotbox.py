@@ -32,6 +32,7 @@ plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
 plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
 import fom as fom_module
+import materials
 from parameters import Parameters
 I0, L, m, c = Parameters()
 
@@ -622,6 +623,13 @@ class PlotBox:
         # If you ignore the contributions from th left and right surface, then it doesn't matter if
         # you use E or D fields in the calculation above (since the top and bottom surfaces should be
         # outside of the grating and substrate layers)
+        net_force_x = 1e-6*np.trapezoid(force_x, x=np.linspace(0,p, self.Nx), axis=0)  # N/m^2
+        net_force_x = 1e-6*np.trapezoid(net_force_x, x=heights, axis=0)  # N/m
+        net_force_z = 1e-6*np.trapezoid(force_z, x=np.linspace(0,p, self.Nx), axis=0)  # N/m^2
+        net_force_z = 1e-6*np.trapezoid(net_force_z, x=heights, axis=0)  # N/m
+        
+        print(f"net force by volume integration: {net_force_x:.3e} N/m, {net_force_z:.3e} N/m")
+
         net_force_x = 1e-6*(np.trapezoid(Txz[:,-1], x=np.linspace(0,p, self.Nx))  # top surface
                             - np.trapezoid(Txz[:,0], x=np.linspace(0,p, self.Nx))  # bottom surface
                             # + np.trapezoid(Txx[-1,:], x=heights)  # right surface
@@ -635,6 +643,8 @@ class PlotBox:
                             )
                             # N/m^2
         
+        print(f"net force by surface integration: {net_force_x:.3e} N/m, {net_force_z:.3e} N/m")
+        
         if return_Poynting:
             c = scipy.constants.c
             max_tan = -np.real(Ey*Bz)/np.imag(Ey*Bz)
@@ -644,18 +654,87 @@ class PlotBox:
             return Txx, Tzz, force_x, force_z, net_force_x, net_force_z, force_x_Poynting
         else:
             return Txx, Tzz, force_x, force_z, net_force_x, net_force_z
+
+    def calculate_electrostrictive_forces(self, heights: np.ndarray, material: dict=materials.Si3N4):
+        """
+        Return force-density fields on the unit cell due to electrostriction
+
+        Parameters
+        ----------
+        heights :   z values to calculate field
+        """    
+        e0 = scipy.constants.epsilon_0
+        m0 = scipy.constants.mu_0
+        p = self.to_numpy(self.grating_pitch)  # micron
+        h = self.to_numpy(self.grating_depth)  # micron
+        hsub = self.to_numpy(self.substrate_depth)  # micron
+        esub = self.to_numpy(self.substrate_eps)
+        x0, eps = self.return_epsilon()
+        eps = np.array([eps]*3)
+        p12 = material["strainoptic12"]
+
+        # Fields E and B have dimensions (3,Nx,len(heights)). The 0 dimension is the 3 field components (Ex, Ey, Ez) 
+        # The 1 and 2 dimensions are the positions across the xz plane of the unit cell. 
+        # By default, TORCWA outputs fields with increasing x along the 1 axis, increasing z along the 2 axis.
+        E_LH, H_LH = self.calculate_fields(heights)
+        E = 1/np.sqrt(e0)*E_LH  # Convert from Lorentz-Heaviside units to SI units
         
+        # Calculate fields accounting for the x-dependent grating and substrate layer permittivities
+        idx_within_resonator = np.where((heights >= 0) & (heights <= h))[0]
+        idx_within_substrate = np.where((heights > h) & (heights <= h+hsub))[0]
+
+        # Can take absolute value squared of E-field for TE polarisation, where only Ey is nonzero
+        # Factor of 1/2 comes from time averaging
+        n4E2 = 1/2*E  # electric field^2 times refractive index^4
+        n4E2[:, :, idx_within_substrate] = 1/2*esub**2*np.abs(E[:, :, idx_within_substrate])**2
+        n4E2[:, :, idx_within_resonator] = 1/2*eps**2*np.abs(E[:, :, idx_within_resonator])**2
+        n4E2x, n4E2y, n4E2z = n4E2
+
+        Txx = Tzz = np.real(-1/2*e0*p12*n4E2y)
+        Txz = Tzx = np.zeros_like(Txx)
+
+        # Force densities
+        force_x = -1e6*np.gradient(Txx, p/self.Nx, axis=0) # N/m^3
+        force_z = -1e6*np.gradient(Tzz, heights, axis=1)  # N/m^3
+
+        # # Net force by volume integration
+        net_force_x = 1e-6*np.trapezoid(force_x, x=np.linspace(0,p, self.Nx), axis=0)  # N/m^2
+        net_force_x = 1e-6*np.trapezoid(net_force_x, x=heights, axis=0)  # N/m
+        net_force_z = 1e-6*np.trapezoid(force_z, x=np.linspace(0,p, self.Nx), axis=0)  # N/m^2
+        net_force_z = 1e-6*np.trapezoid(net_force_z, x=heights, axis=0)  # N/m
+
+        print(f"net force by volume integration: {net_force_x:.3e} N/m, {net_force_z:.3e} N/m")
+
+        net_force_x = 1e-6*(np.trapezoid(Txz[:,-1], x=np.linspace(0,p, self.Nx))  # top surface
+                            - np.trapezoid(Txz[:,0], x=np.linspace(0,p, self.Nx))  # bottom surface
+                            # + np.trapezoid(Txx[-1,:], x=heights)  # right surface
+                            # - np.trapezoid(Txx[0,:], x=heights)  # left surface
+                            )
+                            # N/m
+        net_force_z = 1e-6*(np.trapezoid(Tzz[:,-1], x=np.linspace(0,p, self.Nx))
+                            - np.trapezoid(Tzz[:,0], x=np.linspace(0,p, self.Nx))
+                            # + np.trapezoid(Tzx[-1,:], x=heights)
+                            # - np.trapezoid(Tzx[0,:], x=heights)
+                            )
+                            # N/m
+        
+        print(f"net force by surface integration: {net_force_x:.3e} N/m, {net_force_z:.3e} N/m")
+
+        return Txx, Tzz, force_x, force_z, net_force_x, net_force_z
 
     def show_forces(self, heights: np.ndarray, fill_style: str="gouraud", 
+                    show_electrostriction: bool=False,
                     show_layer_boundaries: bool=False):
         """
-        Show Maxwell stress tensor and force density at given z heights for the twobox.
+        Show optical stress tensor and force density at given z heights for the twobox.
+        By default, plots the radiation pressure quantities.
 
         Parameters
         ----------
         heights               :   z heights to calculate fields
         fill_style            :   Field plot shading style (passed to pcolormesh)
         show_eps_profile      :   Overlay permittivity profile onto fields 
+        show_electrostriction :   Plot electrostrictive forces instead of RP forces.
         show_layer_boundaries :   Overlay grating and substrate layer boundaries
 
         Returns
@@ -667,7 +746,10 @@ class PlotBox:
         p = self.to_numpy(self.grating_pitch)  # micron
         h = self.to_numpy(self.grating_depth)  # micron
         hsub = self.to_numpy(self.substrate_depth)  # micron
-        Txx, Tzz, force_x, force_z, _, _ = self.calculate_forces(heights)
+        if not show_electrostriction:
+            Txx, Tzz, force_x, force_z, _, _ = self.calculate_forces(heights)
+        else:
+            Txx, Tzz, force_x, force_z, _, _ = self.calculate_electrostrictive_forces(heights)
         
         x0 = np.linspace(-0.5,0.5,self.Nx)
         fig, axs = plt.subplots(nrows=2, ncols=2, figsize=(8, 6))
@@ -684,12 +766,9 @@ class PlotBox:
         
         cmap = "bwr"
         T_lim = np.maximum(np.max(np.abs(Txx)), np.max(np.abs(Tzz)))
-        Txx_mesh = axs_flat[0].pcolormesh(x0, heights/h, Txx.T, vmin=-T_lim, vmax=T_lim, shading=fill_style, cmap=cmap)
-        Tzz_mesh = axs_flat[1].pcolormesh(x0, heights/h, Tzz.T, vmin=-T_lim, vmax=T_lim, shading=fill_style, cmap=cmap)
-
-        axs_flat[0].set(ylabel=r"$z'/h'$")
-        axs_flat[2].set(xlabel=r"$x'/\Lambda'$", ylabel=r"$z'/h'$")
-        axs_flat[3].set(xlabel=r"$x'/\Lambda'$")
+        norm = colors.SymLogNorm(linthresh=10**(int(np.log10(T_lim))-4), linscale=1.0, vmin=-T_lim, vmax=T_lim, base=10)
+        Txx_mesh = axs_flat[0].pcolormesh(x0, heights/h, Txx.T, shading=fill_style, cmap=cmap, norm=norm)
+        Tzz_mesh = axs_flat[1].pcolormesh(x0, heights/h, Tzz.T, shading=fill_style, cmap=cmap, norm=norm)
 
         # Plot forces
         cmap = "PiYG"
@@ -697,6 +776,10 @@ class PlotBox:
         norm = colors.SymLogNorm(linthresh=10**(int(np.log10(force_lim))-4), linscale=1.0, vmin=-force_lim, vmax=force_lim, base=10)
         force_x_mesh = axs_flat[2].pcolormesh(x0, heights/h, force_x.T, shading=fill_style, cmap=cmap, norm=norm)
         force_z_mesh = axs_flat[3].pcolormesh(x0, heights/h, force_z.T, shading=fill_style, cmap=cmap, norm=norm)
+
+        axs_flat[0].set(ylabel=r"$z'/h'$")
+        axs_flat[2].set(xlabel=r"$x'/\Lambda'$", ylabel=r"$z'/h'$")
+        axs_flat[3].set(xlabel=r"$x'/\Lambda'$")
 
         # Create an axes on the right side of ax. The width of cax will be x%
         # of ax and the padding between cax and ax will be fixed at y inch.
@@ -707,8 +790,91 @@ class PlotBox:
         divider = make_axes_locatable(axs_flat[3])
         cax = divider.append_axes("right", size="2.5%", pad=0.05) 
         fig.colorbar(force_z_mesh, label=r"N/m$^3$", cax=cax)
-        
+
         return fig, axs
+
+    # def show_forces(self, heights: np.ndarray, fill_style: str="gouraud", 
+    #                 show_electrostriction: bool=False,
+    #                 show_layer_boundaries: bool=False):
+    #     """
+    #     Show Maxwell stress tensor and force density at given z heights for the twobox.
+
+    #     Parameters
+    #     ----------
+    #     heights               :   z heights to calculate fields
+    #     fill_style            :   Field plot shading style (passed to pcolormesh)
+    #     show_eps_profile      :   Overlay permittivity profile onto fields 
+    #     show_electrostriction :   Plot electrostrictive force density
+    #     show_layer_boundaries :   Overlay grating and substrate layer boundaries
+
+    #     Returns
+    #     -------
+    #     fig :   Field plot figure object
+    #     axs :   Field plot axs object
+    #     """
+
+    #     p = self.to_numpy(self.grating_pitch)  # micron
+    #     h = self.to_numpy(self.grating_depth)  # micron
+    #     hsub = self.to_numpy(self.substrate_depth)  # micron
+    #     Txx, Tzz, force_x, force_z, _, _ = self.calculate_forces(heights)
+    #     ES_force_x, ES_force_z, _, _ = self.calculate_electrostrictive_forces(heights)
+        
+    #     x0 = np.linspace(-0.5,0.5,self.Nx)
+    #     if show_electrostriction:
+    #         nrows = 3
+    #     else:
+    #         nrows = 2
+    #     fig, axs = plt.subplots(nrows=nrows, ncols=2, figsize=(8, nrows*3))
+    #     axs_flat = axs.flatten()
+        
+    #     plot_labels = [r"$T_{xx}$", r"$T_{zz}$", r"$f_x$", r"$f_z$", r"$f_x^{\rm ES}$", r"$f_z^{\rm ES}$"]
+    #     for ax_idx, ax in enumerate(axs_flat):
+    #         ax.text(0.03, 0.9, plot_labels[ax_idx], 
+    #                 horizontalalignment='left', verticalalignment='center', transform=ax.transAxes,
+    #                 fontsize=SMALL_SIZE)
+            
+    #         if show_layer_boundaries:
+    #             [ax.axhline(y=i, color='black', linestyle='--', lw = '1') for i in [0,1.,1.+hsub/h]]
+        
+    #     cmap = "bwr"
+    #     T_lim = np.maximum(np.max(np.abs(Txx)), np.max(np.abs(Tzz)))
+    #     Txx_mesh = axs_flat[0].pcolormesh(x0, heights/h, Txx.T, vmin=-T_lim, vmax=T_lim, shading=fill_style, cmap=cmap)
+    #     Tzz_mesh = axs_flat[1].pcolormesh(x0, heights/h, Tzz.T, vmin=-T_lim, vmax=T_lim, shading=fill_style, cmap=cmap)
+
+    #     # Plot forces
+    #     cmap = "PiYG"
+    #     force_lim = np.maximum(np.max(np.abs(force_x)), np.max(np.abs(force_z)))
+    #     norm = colors.SymLogNorm(linthresh=10**(int(np.log10(force_lim))-4), linscale=1.0, vmin=-force_lim, vmax=force_lim, base=10)
+    #     force_x_mesh = axs_flat[2].pcolormesh(x0, heights/h, force_x.T, shading=fill_style, cmap=cmap, norm=norm)
+    #     force_z_mesh = axs_flat[3].pcolormesh(x0, heights/h, force_z.T, shading=fill_style, cmap=cmap, norm=norm)
+
+    #     # Create an axes on the right side of ax. The width of cax will be x%
+    #     # of ax and the padding between cax and ax will be fixed at y inch.
+    #     divider = make_axes_locatable(axs_flat[1])
+    #     cax = divider.append_axes("right", size="2.5%", pad=0.05) 
+    #     fig.colorbar(Tzz_mesh, label="Pa", cax=cax)
+
+    #     divider = make_axes_locatable(axs_flat[3])
+    #     cax = divider.append_axes("right", size="2.5%", pad=0.05) 
+    #     fig.colorbar(force_z_mesh, label=r"N/m$^3$", cax=cax)
+
+    #     axs_flat[0].set(ylabel=r"$z'/h'$")
+    #     axs_flat[2].set(xlabel=r"$x'/\Lambda'$", ylabel=r"$z'/h'$")
+    #     axs_flat[3].set(xlabel=r"$x'/\Lambda'$")
+    #     if show_electrostriction:
+    #         ES_force_x_mesh = axs_flat[4].pcolormesh(x0, heights/h, ES_force_x.T, shading=fill_style, cmap=cmap, norm=norm)
+    #         ES_force_z_mesh = axs_flat[5].pcolormesh(x0, heights/h, ES_force_z.T, shading=fill_style, cmap=cmap, norm=norm)
+            
+    #         divider = make_axes_locatable(axs_flat[5])
+    #         cax = divider.append_axes("right", size="2.5%", pad=0.05) 
+    #         fig.colorbar(ES_force_z_mesh, label=r"N/m$^3$", cax=cax)
+
+    #         axs_flat[2].set(xlabel=None)
+    #         axs_flat[3].set(xlabel=None)
+    #         axs_flat[4].set(xlabel=r"$x'/\Lambda'$", ylabel=r"$z'/h'$")
+    #         axs_flat[5].set(xlabel=r"$x'/\Lambda'$")
+        
+    #     return fig, axs
 
     def show_Eigs(self, wavelength_range: list=[1., 1.5],  I: float=10e9, num_plot_points: int=200, 
                 eig_real_log_axis: bool=True, eig_imag_log_axis: bool=True, marker: str='o', return_eigvals: bool=False):
