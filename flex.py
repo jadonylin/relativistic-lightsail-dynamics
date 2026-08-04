@@ -27,8 +27,16 @@ def permittivity_scaled(grating, e, strain: float=0., temp: float=0., material: 
     dnrdT = material["thermorefract"]
     dnidT = material["thermoextinct"]
     p11 = material["strainoptic11"]
-    nr_scaled = nr*(1 + dnrdT*temp) - nr**3*p11*strain/2
-    ni_scaled = ni*(1 + dnidT*temp)
+    p12 = material["strainoptic12"]
+    nu = material["Poisson"]
+    alpha = material["thermal_expansion"]
+    
+    # Even for n = 3.5, the thermoelastic contribution to the change in real refractive index is 1 OOM
+    # smaller than the bulk thermorefractive contribution dnrdT for Si3N4 material parameters, so ignore it
+    # Delta_nr_ES = -1/2 * nr**3 * ( (p12 - (p11+p12)*nu)*strain + (p11+p12)*(1+nu)*alpha*temp )
+    Delta_nr_ES = -1/2 * nr**3 * (p12 - (p11+p12)*nu)*strain
+    nr_scaled = nr + dnrdT*temp + Delta_nr_ES
+    ni_scaled = ni + dnidT*temp
     n_scaled = nr_scaled + 1j*ni_scaled
     return n_scaled**2
 
