@@ -615,6 +615,12 @@ class PlotBox:
         force_x = 1e6*(np.gradient(Txx, p/self.Nx, axis=0) + np.gradient(Txz, heights, axis=1))  # N/m^3
         force_z = 1e6*(np.gradient(Txz, p/self.Nx, axis=0) + np.gradient(Tzz, heights, axis=1))  # N/m^3
 
+        # # # Net force by volume integration
+        # net_force_x = 1e-6*np.trapezoid(force_x, x=np.linspace(0,p, self.Nx), axis=0)  # N/m^2
+        # net_force_x = 1e-6*np.trapezoid(net_force_x, x=heights, axis=0)  # N/m
+        # net_force_z = 1e-6*np.trapezoid(force_z, x=np.linspace(0,p, self.Nx), axis=0)  # N/m^2
+        # net_force_z = 1e-6*np.trapezoid(net_force_z, x=heights, axis=0)  # N/m
+
         # Surface-integrate MST over unit-cell rectangle
         # We can ignore the left and right surface assuming the grating is very long compared to its thickness
         # This is because we want the forces on a grating with many periods in the x direction, so the actual
@@ -623,13 +629,6 @@ class PlotBox:
         # If you ignore the contributions from th left and right surface, then it doesn't matter if
         # you use E or D fields in the calculation above (since the top and bottom surfaces should be
         # outside of the grating and substrate layers)
-        net_force_x = 1e-6*np.trapezoid(force_x, x=np.linspace(0,p, self.Nx), axis=0)  # N/m^2
-        net_force_x = 1e-6*np.trapezoid(net_force_x, x=heights, axis=0)  # N/m
-        net_force_z = 1e-6*np.trapezoid(force_z, x=np.linspace(0,p, self.Nx), axis=0)  # N/m^2
-        net_force_z = 1e-6*np.trapezoid(net_force_z, x=heights, axis=0)  # N/m
-        
-        print(f"net force by volume integration: {net_force_x:.3e} N/m, {net_force_z:.3e} N/m")
-
         net_force_x = 1e-6*(np.trapezoid(Txz[:,-1], x=np.linspace(0,p, self.Nx))  # top surface
                             - np.trapezoid(Txz[:,0], x=np.linspace(0,p, self.Nx))  # bottom surface
                             # + np.trapezoid(Txx[-1,:], x=heights)  # right surface
@@ -642,8 +641,6 @@ class PlotBox:
                             # - np.trapezoid(Tzx[0,:], x=heights)
                             )
                             # N/m^2
-        
-        print(f"net force by surface integration: {net_force_x:.3e} N/m, {net_force_z:.3e} N/m")
         
         if return_Poynting:
             c = scipy.constants.c
@@ -694,31 +691,29 @@ class PlotBox:
         Txz = Tzx = np.zeros_like(Txx)
 
         # Force densities
+        # Force density = -1 * divergence of stress tensor by Rakish 2010 convention
+        # Minus sisgn also appears in the surface integral calculation
         force_x = -1e6*np.gradient(Txx, p/self.Nx, axis=0) # N/m^3
         force_z = -1e6*np.gradient(Tzz, heights, axis=1)  # N/m^3
 
-        # # Net force by volume integration
-        net_force_x = 1e-6*np.trapezoid(force_x, x=np.linspace(0,p, self.Nx), axis=0)  # N/m^2
-        net_force_x = 1e-6*np.trapezoid(net_force_x, x=heights, axis=0)  # N/m
-        net_force_z = 1e-6*np.trapezoid(force_z, x=np.linspace(0,p, self.Nx), axis=0)  # N/m^2
-        net_force_z = 1e-6*np.trapezoid(net_force_z, x=heights, axis=0)  # N/m
+        # # # Net force by volume integration
+        # net_force_x = 1e-6*np.trapezoid(force_x, x=np.linspace(0,p, self.Nx), axis=0)  # N/m^2
+        # net_force_x = 1e-6*np.trapezoid(net_force_x, x=heights, axis=0)  # N/m
+        # net_force_z = 1e-6*np.trapezoid(force_z, x=np.linspace(0,p, self.Nx), axis=0)  # N/m^2
+        # net_force_z = 1e-6*np.trapezoid(net_force_z, x=heights, axis=0)  # N/m
 
-        print(f"net force by volume integration: {net_force_x:.3e} N/m, {net_force_z:.3e} N/m")
-
-        net_force_x = 1e-6*(np.trapezoid(Txz[:,-1], x=np.linspace(0,p, self.Nx))  # top surface
+        net_force_x = -1e-6*(np.trapezoid(Txz[:,-1], x=np.linspace(0,p, self.Nx))  # top surface
                             - np.trapezoid(Txz[:,0], x=np.linspace(0,p, self.Nx))  # bottom surface
                             # + np.trapezoid(Txx[-1,:], x=heights)  # right surface
                             # - np.trapezoid(Txx[0,:], x=heights)  # left surface
                             )
                             # N/m
-        net_force_z = 1e-6*(np.trapezoid(Tzz[:,-1], x=np.linspace(0,p, self.Nx))
+        net_force_z = -1e-6*(np.trapezoid(Tzz[:,-1], x=np.linspace(0,p, self.Nx))
                             - np.trapezoid(Tzz[:,0], x=np.linspace(0,p, self.Nx))
                             # + np.trapezoid(Tzx[-1,:], x=heights)
                             # - np.trapezoid(Tzx[0,:], x=heights)
                             )
                             # N/m
-        
-        print(f"net force by surface integration: {net_force_x:.3e} N/m, {net_force_z:.3e} N/m")
 
         return Txx, Tzz, force_x, force_z, net_force_x, net_force_z
 
