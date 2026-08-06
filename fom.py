@@ -159,7 +159,7 @@ def monofom_kpr_unstable(grating, I: float=1e9, grad_method: str="finite", **kwa
 
 def monofom_optoelastic_regime(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
-    optoelastic regime FOM: Maximise the radiation-pressure spring constant Cv*kprstrain - alpha*T0*E*kprtemp
+    optoelastic regime FOM: Wraps kpr_unstable FOM and tells optimiser to add thermal domination constraint(s).
 
     Parameters
     ----------
@@ -171,18 +171,7 @@ def monofom_optoelastic_regime(grating, I: float=1e9, grad_method: str="finite",
     -------
     F_lam :   Figure of merit
     """
-    T0 = parameters.T0
-    mat = parameters.material
-    alpha = mat["thermal_expansion"]
-    Cv = mat["density"]*mat["specific_heat"]
-    E = mat["Young"]
-    Cv_nd = Cv/(alpha**2*T0*E)
-    strain, temp = 0., 0.
-    dQpr = flex.dQpr(grating, strain=strain, temp=temp, material=mat)
-    kpr = flex.Qpr(grating, strain=strain, temp=temp, material=mat)[1] + dQpr[1,0]
-    kprtemp = dQpr[1,1]
-    F_lam = grating.npa.abs(kpr - kprtemp/(Cv_nd*alpha))
-    return F_lam
+    return monofom_kpr_unstable(grating, I, grad_method, **kwargs)
 
 def monofom_wasymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
