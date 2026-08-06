@@ -123,14 +123,9 @@ def FOMSettings():
 
 def OptimisationSettings():
     # Global optimisation parameters
-    num_cores = 3  # number of cores to run parallel optimisation
-    maxtime = 30  # Stop after maxtime minutes
+    num_cores = 2  # number of cores to run parallel optimisation
+    maxtime = 5  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
-    if choose_multifom != "monochrome":
-        # runID = f"F{choose_monofom}{int(final_speed)}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
-        runID = f"F{choose_monofom}{int(final_speed)}_fixgaussian20_50GW_TM"  # ID for saving results to distinguish different runs
-    else:
-        runID = f"F{choose_monofom}{choose_multifom}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
 
     # Local optimisation parameters
     xtol_rel = 1e-4  
@@ -142,6 +137,12 @@ def OptimisationSettings():
     n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
 
     lo_method = "SLSQP"  # "MMA" or "SLSQP"
+
+    if choose_multifom != "monochrome":
+        runID = f"F{choose_monofom}{int(final_speed)}_LO_{lo_method}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
+        # runID = f"F{choose_monofom}{int(final_speed)}_LO_{lo_method}_fixgaussian20_50GW_TM"  # ID for saving results to distinguish different runs
+    else:
+        runID = f"F{choose_monofom}{choose_multifom}_LO_{lo_method}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
 
     return num_cores, maxtime, maxstop, runID, xtol_rel, ftol_rel, seed, sampling, n_sample_exp, n_sample, lo_method
 
