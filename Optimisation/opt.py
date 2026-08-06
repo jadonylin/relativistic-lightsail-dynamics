@@ -111,15 +111,14 @@ def boxes_clip_unit_cell(params,gradn):
     condition = (w1+w2)/2 + bcd - 0.98*Lam
     return condition
 
-def thermal_domination(params,gradn):
+def absorbing_grating(params):
     """
-    Constraint function to balance absorption effects and enter radiation-pressure regime.
+    Add absorption to a grating.
     TODO: avoid hard-coding that the Gaussian width is the only fixed parameter
     TODO: avoid hard-coding the wavelength at which absorption is measured for the chosen material
     """
     
     absorption_coeff = parameters.material["absorption"]
-    alpha = parameters.material["thermal_expansion"]
     
     if len(parameters.fixed_parameters) != 1 or parameters.fixed_parameters[0] != "gaussian_width":
         raise ValueError("The thermal_domination constraint function currently assumes that the only fixed parameter is the Gaussian width.")
@@ -146,11 +145,47 @@ def thermal_domination(params,gradn):
     grating.box1_eps = p5 + 1j*eb1_im  # TODO: instantiating twobox with complex permittivity is disallowed, so we have to set the imaginary part manually afterwards
     grating.box2_eps = p6 + 1j*eb2_im
     grating.substrate_eps = p9 + 1j*esub_im
+    
+    return grating
+
+def thermal_domination(params,gradn):
+    """
+    Constraint function to balance absorption effects and enter radiation-pressure regime.
+    TODO: avoid hard-coding that the Gaussian width is the only fixed parameter
+    TODO: avoid hard-coding the wavelength at which absorption is measured for the chosen material
+    """
+    alpha = parameters.material["thermal_expansion"]
+    grating = absorbing_grating(params)
         
     dadϵ, dadϑ = flex.dabsorption(grating, strain=0., temp=0., material=parameters.material) 
-    condition = 1 + alpha*dadϵ/dadϑ 
+    condition = 1 + alpha*dadϵ/dadθ
     return condition
 
+def thermal_domination_plus(params,gradn):
+    """
+    Constraint function to balance absorption effects and enter radiation-pressure regime.
+    TODO: avoid hard-coding that the Gaussian width is the only fixed parameter
+    TODO: avoid hard-coding the wavelength at which absorption is measured for the chosen material
+    """
+    alpha = parameters.material["thermal_expansion"]
+    grating = absorbing_grating(params)
+        
+    dadϵ, dadϑ = flex.dabsorption(grating, strain=0., temp=0., material=parameters.material) 
+    condition = 1 + alpha*dadϵ/dadθ
+    return condition
+
+def thermal_domination_minus(params,gradn):
+    """
+    Constraint function to balance absorption effects and enter radiation-pressure regime.
+    TODO: avoid hard-coding that the Gaussian width is the only fixed parameter
+    TODO: avoid hard-coding the wavelength at which absorption is measured for the chosen material
+    """
+    alpha = parameters.material["thermal_expansion"]
+    grating = absorbing_grating(params)
+        
+    dadϵ, dadϑ = flex.dabsorption(grating, strain=0., temp=0., material=parameters.material) 
+    condition = 1 + alpha*dadϵ/dadθ
+    return -condition
 
 def global_optimise(objective_fom, opt_hyperparams,
                     sampling_method: str="sobol", seed: int=0, n_sample: int=8, maxstop: dict={'maxfev': 1000, 'maxtime': 600},
@@ -237,8 +272,6 @@ def global_optimise(objective_fom, opt_hyperparams,
     
     match lo_method:
         case "MMA":
-            if choose_monofom == "optoelastic_regime":
-                raise ValueError("MMA local optimiser is not compatible with the optoelastic_regime monofom. Please use SLSQP instead.")
             local_opt = nlopt.opt(nlopt.LD_MMA, ndof)
         case "SLSQP":
             local_opt = nlopt.opt(nlopt.LD_SLSQP, ndof)
@@ -263,7 +296,11 @@ def global_optimise(objective_fom, opt_hyperparams,
         local_opt.add_inequality_constraint(bcd_redundant)
 
     if choose_monofom == "optoelastic_regime":
-        local_opt.add_equality_constraint(thermal_domination)
+        if lo_method == "SLSQP":
+            local_opt.add_equality_constraint(thermal_domination)
+        elif lo_method == "MMA":
+            local_opt.add_inequality_constraint(thermal_domination_plus)
+            local_opt.add_inequality_constraint(thermal_domination_minus)
 
     local_opt.set_xtol_rel(xtol_rel)
     local_opt.set_ftol_rel(ftol_rel)
