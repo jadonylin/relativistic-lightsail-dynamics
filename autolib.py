@@ -96,6 +96,7 @@ class AutoLib:
             self.zeros = npa.zeros
             self.dot = npa.dot
             self.stack = npa.stack
+            self.iscomplex = npa.iscomplex
         elif lib == "torch":
             self.sqrt = torch.sqrt
             self.erf = torch_erf
@@ -132,6 +133,7 @@ class AutoLib:
             self.zeros = self.zeros_torch
             self.dot = torch.dot
             self.stack = torch.stack
+            self.iscomplex = torch.is_complex
             if precision == "double":
                 self.ctype = torch.complex128
                 self.ftype = torch.float64
