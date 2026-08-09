@@ -2,6 +2,7 @@
 A module to store Qpr functions with thermal and elastic coupling.
 """
 import copy
+import numpy as np
 import materials
 
 def permittivity_scaled(grating, e, strain: float=0., temp: float=0., material: dict=materials.Si3N4) -> float:
@@ -21,9 +22,17 @@ def permittivity_scaled(grating, e, strain: float=0., temp: float=0., material: 
     -------
     permittivity : scaled permittivity
     """
-    n = grating.npa.sqrt(e) + 0j  # ensure n is complex to make PyTorch happy
+    if grating.npa.iscomplex(e):
+        raise ValueError("Error: Attempting to add preset material absorption to grating that already has complex permittivity. Please provide a real permittivity value.")
+
+    scaled_wavelength = 1.55  # TODO: avoid hard coding the wavelength at which absorption was measured
+    lambda_0 = scaled_wavelength*1e-6  # wavelength, metres
+    a = material["absorption"]  # absorption coefficient, m^-1
+    n_im = lambda_0*a/(4*np.pi)  # extinction coefficient, dimensionless
+    n = grating.npa.sqrt(e) + 1j*n_im  # ensure n is complex to make PyTorch happy
     nr = grating.npa.real(n)
     ni = grating.npa.imag(n)
+    
     dnrdT = material["thermorefract"]
     dnidT = material["thermoextinct"]
     p11 = material["strainoptic11"]
