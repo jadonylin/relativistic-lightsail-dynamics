@@ -631,14 +631,14 @@ class PlotBox:
         # outside of the grating and substrate layers)
         net_force_x = 1e-6*(np.trapezoid(Txz[:,-1], x=np.linspace(0,p, self.Nx))  # top surface
                             - np.trapezoid(Txz[:,0], x=np.linspace(0,p, self.Nx))  # bottom surface
-                            # + np.trapezoid(Txx[-1,:], x=heights)  # right surface
-                            # - np.trapezoid(Txx[0,:], x=heights)  # left surface
+                            + np.trapezoid(Txx[-1,:], x=heights)  # right surface
+                            - np.trapezoid(Txx[0,:], x=heights)  # left surface
                             )
                             # N/m^2
         net_force_z = 1e-6*(np.trapezoid(Tzz[:,-1], x=np.linspace(0,p, self.Nx))
                             - np.trapezoid(Tzz[:,0], x=np.linspace(0,p, self.Nx))
-                            # + np.trapezoid(Tzx[-1,:], x=heights)
-                            # - np.trapezoid(Tzx[0,:], x=heights)
+                            + np.trapezoid(Tzx[-1,:], x=heights)
+                            - np.trapezoid(Tzx[0,:], x=heights)
                             )
                             # N/m^2
         
@@ -660,6 +660,9 @@ class PlotBox:
         ----------
         heights :   z values to calculate field
         """    
+        if self.polarisation != "TE":
+            raise ValueError("Electrostriction force calculation currently assumes TE polarisation")
+        
         e0 = scipy.constants.epsilon_0
         m0 = scipy.constants.mu_0
         p = self.to_numpy(self.grating_pitch)  # micron
@@ -704,14 +707,14 @@ class PlotBox:
 
         net_force_x = -1e-6*(np.trapezoid(Txz[:,-1], x=np.linspace(0,p, self.Nx))  # top surface
                             - np.trapezoid(Txz[:,0], x=np.linspace(0,p, self.Nx))  # bottom surface
-                            # + np.trapezoid(Txx[-1,:], x=heights)  # right surface
-                            # - np.trapezoid(Txx[0,:], x=heights)  # left surface
+                            + np.trapezoid(Txx[-1,:], x=heights)  # right surface
+                            - np.trapezoid(Txx[0,:], x=heights)  # left surface
                             )
                             # N/m
         net_force_z = -1e-6*(np.trapezoid(Tzz[:,-1], x=np.linspace(0,p, self.Nx))
                             - np.trapezoid(Tzz[:,0], x=np.linspace(0,p, self.Nx))
-                            # + np.trapezoid(Tzx[-1,:], x=heights)
-                            # - np.trapezoid(Tzx[0,:], x=heights)
+                            + np.trapezoid(Tzx[-1,:], x=heights)
+                            - np.trapezoid(Tzx[0,:], x=heights)
                             )
                             # N/m
 
