@@ -8,8 +8,8 @@ Poisson = Poisson's ratio, dimensionless
 thermal_expansion = thermal expansion coefficient, /K
 thermal_conductivity = thermal conductivity, W/(m*K)
 specific_heat = specific heat capacity per unit mass, J/(kg*K)
-thermorefract = change in real refractive index with temperature, /K
 absorption = absorption coefficient at specified wavelength, /m
+thermorefract = change in real refractive index with temperature, /K
 thermoextinct = change in imaginary refractive index with temperature 
                 at specified wavelength and temperature, /K
 strainoptic11 = strain-optic coefficient assuming initial isotropy, p_{11}, dimensionless
