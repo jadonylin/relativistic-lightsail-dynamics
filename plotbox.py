@@ -760,34 +760,44 @@ class PlotBox:
                     fontsize=SMALL_SIZE)
             
             if show_layer_boundaries:
-                [ax.axhline(y=i, color='black', linestyle='--', lw = '1') for i in [0,1.,1.+hsub/h]]
+                [ax.axhline(y=i, color='black', linestyle='--', lw = '1', alpha=0.5) for i in [0,1.,1.+hsub/h]]
         
         cmap = "bwr"
         T_lim = np.maximum(np.max(np.abs(Txx)), np.max(np.abs(Tzz)))
-        norm = colors.SymLogNorm(linthresh=10**(int(np.log10(T_lim))-4), linscale=1.0, vmin=-T_lim, vmax=T_lim, base=10)
-        Txx_mesh = axs_flat[0].pcolormesh(x0, heights/h, Txx.T, shading=fill_style, cmap=cmap, norm=norm)
-        Tzz_mesh = axs_flat[1].pcolormesh(x0, heights/h, Tzz.T, shading=fill_style, cmap=cmap, norm=norm)
+        # norm = colors.SymLogNorm(linthresh=10**(int(np.log10(T_lim))-1), linscale=1.0, vmin=-T_lim, vmax=T_lim, base=10)
+        norm = None
+        Txx_mesh = axs_flat[0].pcolormesh(x0, heights/h, Txx.T/np.max(np.abs(Txx)), 
+                                          vmin=-1., vmax=1.,
+                                          shading=fill_style, cmap=cmap, norm=norm)
+        Tzz_mesh = axs_flat[1].pcolormesh(x0, heights/h, Tzz.T/np.max(np.abs(Tzz)), 
+                                          vmin=-1., vmax=1.,
+                                          shading=fill_style, cmap=cmap, norm=norm)
 
         # Plot forces
         cmap = "PiYG"
         force_lim = np.maximum(np.max(np.abs(force_x)), np.max(np.abs(force_z)))
-        norm = colors.SymLogNorm(linthresh=10**(int(np.log10(force_lim))-4), linscale=1.0, vmin=-force_lim, vmax=force_lim, base=10)
-        force_x_mesh = axs_flat[2].pcolormesh(x0, heights/h, force_x.T, shading=fill_style, cmap=cmap, norm=norm)
-        force_z_mesh = axs_flat[3].pcolormesh(x0, heights/h, force_z.T, shading=fill_style, cmap=cmap, norm=norm)
+        # norm = colors.SymLogNorm(linthresh=10**(int(np.log10(force_lim))-1), linscale=1.0, vmin=-force_lim, vmax=force_lim, base=10)
+        norm = None
+        force_x_mesh = axs_flat[2].pcolormesh(x0, heights/h, force_x.T/np.max(np.abs(force_x)), 
+                                              vmin=-1., vmax=1.,
+                                              shading=fill_style, cmap=cmap, norm=norm)
+        force_z_mesh = axs_flat[3].pcolormesh(x0, heights/h, force_z.T/np.max(np.abs(force_z)), 
+                                              vmin=-1., vmax=1.,
+                                              shading=fill_style, cmap=cmap, norm=norm)
 
-        axs_flat[0].set(ylabel=r"$z'/h'$")
-        axs_flat[2].set(xlabel=r"$x'/\Lambda'$", ylabel=r"$z'/h'$")
-        axs_flat[3].set(xlabel=r"$x'/\Lambda'$")
+        axs_flat[0].set(ylabel=r"$z/h$")
+        axs_flat[2].set(xlabel=r"$x/\Lambda$", ylabel=r"$z/h$")
+        axs_flat[3].set(xlabel=r"$x/\Lambda$")
 
         # Create an axes on the right side of ax. The width of cax will be x%
         # of ax and the padding between cax and ax will be fixed at y inch.
         divider = make_axes_locatable(axs_flat[1])
         cax = divider.append_axes("right", size="2.5%", pad=0.05) 
-        fig.colorbar(Tzz_mesh, label="Pa", cax=cax)
+        fig.colorbar(Tzz_mesh, label=r"Norm. amp.", cax=cax)
 
         divider = make_axes_locatable(axs_flat[3])
         cax = divider.append_axes("right", size="2.5%", pad=0.05) 
-        fig.colorbar(force_z_mesh, label=r"N/m$^3$", cax=cax)
+        fig.colorbar(force_z_mesh, label=r"Norm. amp.", cax=cax)
 
         return fig, axs
 
