@@ -22,14 +22,7 @@ def permittivity_scaled(grating, e, strain: float=0., temp: float=0., material: 
     -------
     permittivity : scaled permittivity
     """
-    if grating.npa.iscomplex(e):
-        raise ValueError("Error: Attempting to add preset material absorption to grating that already has complex permittivity. Please provide a real permittivity value.")
-
-    scaled_wavelength = 1.55  # TODO: avoid hard coding the wavelength at which absorption was measured
-    lambda_0 = scaled_wavelength*1e-6  # wavelength, metres
-    a = material["absorption"]  # absorption coefficient, m^-1
-    n_im = lambda_0*a/(4*np.pi)  # extinction coefficient, dimensionless
-    n = grating.npa.sqrt(e) + 1j*n_im  # ensure n is complex to make PyTorch happy
+    n = grating.npa.sqrt(e) + 1j*0.  # ensure n is complex to make PyTorch happy
     nr = grating.npa.real(n)
     ni = grating.npa.imag(n)
     
@@ -68,7 +61,7 @@ def grating_scaler(grating, strain: float=0., temp: float=0., material: dict=mat
     
     if requires_grad:
         if strain != 0. or temp != 0.:
-            raise ValueError("Error: input grating parameters have been modified due to request for non-zero strain or temperature.")
+            raise ValueError("Error: input grating parameters will be modified due to request for non-zero strain or temperature.")
         _grating = grating
     else:
         _grating = copy.deepcopy(grating)
