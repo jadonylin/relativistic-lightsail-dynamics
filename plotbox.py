@@ -1009,18 +1009,18 @@ class PlotBox:
             
             f_data = f_learner.to_numpy()
             wavelengths = f_data[:,0]
-            efficiencies = f_data[:,1]
+            foms = f_data[:,1]
         else:
             wavelengths = np.linspace(*wavelength_range, num_plot_points)
-            efficiencies = np.zeros(num_plot_points, dtype=float)
+            foms = np.zeros(num_plot_points, dtype=float)
             for idx, lam in enumerate(wavelengths):
                 self.wavelength = lam
-                efficiencies[idx] = monofom(self, I=I, grad_method=grad_method)
+                foms[idx] = monofom(self, I=I, grad_method=grad_method)
         self.wavelength = init_wavelength
 
-        fig, ax = plt.subplots(1)         
+        fig, ax = plt.subplots(1)
         ax.set_xlim(np.array(wavelength_range))  # normalise wavelength to grating pitch
-        ax.plot(wavelengths, efficiencies, color=(0.7, 0, 0), linestyle='-', lw=LINE_WIDTH)
+        ax.plot(wavelengths, foms, color=(0.7, 0, 0), linestyle='-', lw=LINE_WIDTH)
         ax.set(title=rf"{self.title} $h_1' = {self.grating_depth/self.wavelength:.3f}\lambda_0$, $\Lambda' = {self.grating_pitch/self.wavelength:.3f}\lambda_0$", xlabel=r"$\lambda'$ [$\lambda_0$]", ylabel="FoM")
         ax.axhline(y=0, color='black', linestyle='-', lw = '1')
         ax.tick_params(axis='both', which='both', direction='in') # ticks inside box
@@ -1030,4 +1030,4 @@ class PlotBox:
         fig_height = 17.6*cm_to_inch
         fig.set_size_inches(fig_width/1.2, fig_height/1.2)
         
-        return fig, ax
+        return wavelengths, foms, fig, ax
