@@ -120,6 +120,7 @@ class TwoBox(PlotBox, QprBox):
 
 
         self.invert_unit_cell = False
+        self.user_unit_cell = 0.
 
         if title is None:
             self.title = self.RCWA_engine
@@ -275,6 +276,12 @@ class TwoBox(PlotBox, QprBox):
                 print("Warning: self.fixed_parameters was not defined for this grating. Ignoring params setter")
         self.build_grating_gradable()  # TODO: I think every instance method calls init_RCWA, so this is not needed
 
+    @property
+    def user_unit_cell(self):
+        return self._user_unit_cell
+    @user_unit_cell.setter
+    def user_unit_cell(self, new_user_unit_cell):
+        self._user_unit_cell = self.npa.array(new_user_unit_cell)
 
     # Needed for pickling - removes autograd information, written by chatgpt
     def __getstate__(self):
@@ -552,6 +559,11 @@ class TwoBox(PlotBox, QprBox):
         no care taken for autograd, assuming torcwa/torch will handle this
         """
         
+        if len(self.user_unit_cell.shape) != 0:
+            self.grating_grid_torcwa = self.user_unit_cell
+            self.grating_grid = self.to_numpy(self.user_unit_cell)
+            return self.grating_grid
+
         dy = 1e-4
         Lam = self.grating_pitch
         L = [Lam, dy]
