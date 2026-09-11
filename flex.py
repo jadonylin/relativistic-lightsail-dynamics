@@ -98,7 +98,7 @@ def grating_scaler(grating, strain: float=0., temp: float=0., material: dict=mat
 
     return _grating
 
-def jacobian_maker(func, grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4) -> float:
+def jacobian_maker(func, grating, strain: float=0., temp: float=0., angle: float=0., material: dict=materials.Si3N4) -> float:
     """
     Generates the jacobian for func with respect to strain and temperature-change variables.
 
@@ -117,14 +117,15 @@ def jacobian_maker(func, grating, strain: float=0., temp: float=0., material: di
     """
     strain = grating.npa.array(strain)
     temp = grating.npa.array(temp)
+    angle = grating.npa.array(angle)
     def _func(p):
-        strain, temp = p
-        return func(grating, strain, temp, material)
-    p = grating.npa.array([strain, temp])
+        strain, temp, angle = p
+        return func(grating, strain, temp, angle, material)
+    p = grating.npa.array([strain, temp, angle])
     return grating.npa.array(grating.npa.jacobian(_func)(p).squeeze())
 
 
-def Qpr(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4,
+def Qpr(grating, strain: float=0., temp: float=0., angle: float=0., material: dict=materials.Si3N4,
         requires_grad: bool=True) -> float:
     """
     Calculate the radiation pressure efficiency Qprj as a function of strain
@@ -144,6 +145,7 @@ def Qpr(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N
     [Qpr1, Qpr2] : Radiation pressure efficiency factors
     """
     _grating = grating_scaler(grating, strain, temp, material,requires_grad)
+    _grating.angle = angle
     return _grating.Q()
 
 def Qprj(grating, j: int=2, strain: float=0., material: dict=materials.Si3N4,
@@ -168,7 +170,7 @@ def Qprj(grating, j: int=2, strain: float=0., material: dict=materials.Si3N4,
         raise ValueError(f"Invalid value for j: {j}. Must be 1 or 2.")
     return Qpr(grating, strain, 0., material, requires_grad)[j-1]
 
-def dQpr(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4) -> float:
+def dQpr(grating, strain: float=0., temp: float=0., angle: float=0., material: dict=materials.Si3N4) -> float:
     """
     Calculate the derivative of the radiation pressure efficiency Qpr1 and Qpr2
     with respect to strain and temperature change.
@@ -185,7 +187,7 @@ def dQpr(grating, strain: float=0., temp: float=0., material: dict=materials.Si3
     |∂Qpr1/∂ϵ, ∂Qpr1/∂θ|
     |∂Qpr2/∂ϵ, ∂Qpr2/∂θ|
     """
-    return jacobian_maker(Qpr, grating, strain, temp, material)
+    return jacobian_maker(Qpr, grating, strain, temp, angle, material)
 
 def dQpr_dstrain(grating, strain: float=0., material: dict=materials.Si3N4) -> float:
     """
@@ -269,7 +271,7 @@ def d2Qprj_dstrain2(grating, j: int=2, strain: float=0., grad_method: str="finit
         raise ValueError(f"Unknown grad_method: {grad_method}")
     
 
-def absorption(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4,
+def absorption(grating, strain: float=0., temp: float=0., angle: float=0., material: dict=materials.Si3N4,
                requires_grad: bool=True) -> float:
     """
     Calculate the absorption (1-R-T) as a function of elongation
@@ -288,11 +290,12 @@ def absorption(grating, strain: float=0., temp: float=0., material: dict=materia
     absorption : absorption of the grating
     """
     _grating = grating_scaler(grating, strain, temp, material, requires_grad)
+    _grating.angle = angle
     Rs, Ts = _grating.eff()
     absorption = 1 - _grating.npa.sum(Rs + Ts)
     return absorption
 
-def dabsorption(grating, strain: float=0., temp: float=0., material: dict=materials.Si3N4) -> float:
+def dabsorption(grating, strain: float=0., temp: float=0., angle: float=0., material: dict=materials.Si3N4) -> float:
     """
     Calculate the derivative of the absorption with respect to strain and temperature change.
 
@@ -307,4 +310,4 @@ def dabsorption(grating, strain: float=0., temp: float=0., material: dict=materi
     -------
     [∂a/∂ϵ, ∂a/∂θ]
     """
-    return jacobian_maker(absorption, grating, strain, temp, material)
+    return jacobian_maker(absorption, grating, strain, temp, angle, material)
