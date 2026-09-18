@@ -559,10 +559,14 @@ class TwoBox(PlotBox, QprBox):
         no care taken for autograd, assuming torcwa/torch will handle this
         """
         
-        if len(self.user_unit_cell.shape) != 0:
-            self.grating_grid_torcwa = self.user_unit_cell
-            self.grating_grid = self.to_numpy(self.user_unit_cell)
-            return self.grating_grid
+
+        try:
+            if len(self.user_unit_cell.shape) != 0:
+                self.grating_grid_torcwa = self.user_unit_cell
+                self.grating_grid = self.to_numpy(self.user_unit_cell)
+                return self.grating_grid
+        except AttributeError:
+            self.user_unit_cell = 0.
 
         dy = 1e-4
         Lam = self.grating_pitch
