@@ -173,6 +173,24 @@ def monofom_optoelastic_regime(grating, I: float=1e9, grad_method: str="finite",
     """
     return monofom_kpr_unstable(grating, I, grad_method, **kwargs)
 
+def monofom_flexural_growth(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
+    """
+    flexural growth FOM: Minimise the Qprz dependence on incident angle
+
+    Parameters
+    ----------
+    grating     :   Calculate figure of merit for this grating
+    I           :   Laser intensity
+    grad_method :   Method to calculate gradient ("finite","grad"). Must be "finite" for optimisation
+
+    Returns
+    -------
+    F_lam :   Figure of merit
+    """
+    dQdangle = grating.return_Qs_auto(return_Q=False)[0]
+    F_lam = 1/grating.npa.abs(dQdangle)
+    return F_lam
+
 def monofom_wasymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
     Width-multiplied asymptotic stability FOM: Minimise the eigenvalue of the linear stability Jacobian with the 
