@@ -45,6 +45,8 @@ def monofom(grating, I: float=1e9, grad_method: str="finite") -> float:
         return monofom_kpr_unstable(grating, I=I, grad_method=grad_method, **fom_kwargs)
     elif choose_monofom == "optoelastic_regime":
         return monofom_optoelastic_regime(grating, I=I, grad_method=grad_method, **fom_kwargs)
+    elif choose_monofom == "flexural_growth":
+        return monofom_flexural_growth(grating, I=I, grad_method=grad_method, **fom_kwargs)
     elif choose_monofom == "wasymp":
         return monofom_wasymp(grating, I=I, grad_method=grad_method, **fom_kwargs)
     elif choose_monofom == "damp":
@@ -187,8 +189,8 @@ def monofom_flexural_growth(grating, I: float=1e9, grad_method: str="finite", **
     -------
     F_lam :   Figure of merit
     """
-    dQdangle = grating.return_Qs_auto(return_Q=False)[0]
-    F_lam = 1/grating.npa.abs(dQdangle)
+    dQdangle = grating.return_Qs_auto(return_Q=False)[:2]
+    F_lam = grating.npa.abs(dQdangle[1]/dQdangle[0])
     return F_lam
 
 def monofom_wasymp(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:

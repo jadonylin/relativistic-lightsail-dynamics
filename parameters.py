@@ -109,8 +109,8 @@ def Hyperparameters():
 material = materials.Si3N4  # Material for the grating. Only used with optoelastic_regime monofom
 T0 = 300  # Rest temperature of the grating in Kelvin. Only used with optoelastic_regime monofom
 
-# choose_monofom = "kpr_unstable"
-choose_monofom = "optoelastic_regime"
+choose_monofom = "flexural_growth"
+# choose_monofom = "optoelastic_regime"
 # choose_monofom = "asymp"
 # choose_multifom = "uniform"
 choose_multifom = "monochrome"
@@ -136,7 +136,7 @@ def OptimisationSettings():
     n_sample_exp = 4
     n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
 
-    lo_method = "SLSQP"  # "MMA" or "SLSQP"
+    lo_method = "MMA"  # "MMA" or "SLSQP"
 
     if choose_multifom != "monochrome":
         runID = f"F{choose_monofom}{int(final_speed)}_LO_{lo_method}_fixgaussian20_50GW"  # ID for saving results to distinguish different runs
@@ -166,14 +166,14 @@ def Bounds():
     pitch_min = 1.01
     pitch_max = 1.99
 
-    h1_min = 0.01*fixed_pitch  # Offset from zero to avoid zero Jacobian determinant 
-    h1_max = 1.5*fixed_pitch
+    h1_min = 0.01  # Offset from zero to avoid zero Jacobian determinant 
+    h1_max = 2.
 
-    box_width_min = 0.01*fixed_pitch  # Offset from zero to avoid zero Jacobian determinant
-    box_width_max = 1.*fixed_pitch  # single box width must be smaller than pitch
+    box_width_min = 0.01  # Offset from zero to avoid zero Jacobian determinant
+    box_width_max = 0.5*pitch_max  # single box width must be smaller than pitch
 
-    box_centre_dist_min = 0.03*fixed_pitch  # Offset from zero to avoid zero Jacobian determinant and symmetric unit cell
-    box_centre_dist_max = 0.5*fixed_pitch  # redundant space if > 0.5*pitch
+    box_centre_dist_min = 0.01  # Offset from zero to avoid zero Jacobian determinant and symmetric unit cell
+    box_centre_dist_max = 0.5*pitch_max  # redundant space if > 0.5*pitch
 
     box_eps_min = 1.1**2  # Minimum allowed grating permittivity set above vacuum to avoid zero Jacobian determinant 
     box_eps_max = 3.5**2  # Maximum allowed grating permittivity set to silicon
@@ -182,7 +182,7 @@ def Bounds():
     gaussian_width_max = 10*L
 
     substrate_depth_min = h1_min  # Offset from zero to avoid zero Jacobian determinant 
-    substrate_depth_max = 1.5*fixed_pitch 
+    substrate_depth_max = h1_max
     substrate_eps_min = box_eps_min 
     substrate_eps_max = box_eps_max
 
