@@ -161,7 +161,8 @@ def monofom_kpr_unstable(grating, I: float=1e9, grad_method: str="finite", **kwa
 
 def monofom_optoelastic_regime(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
-    optoelastic regime FOM: Wraps kpr_unstable FOM and tells optimiser to add thermal domination constraint(s).
+    optoelastic regime FOM: longitudinal-wave growth factor. 
+    Tells optimiser to add thermal domination constraint(s).
 
     Parameters
     ----------
@@ -173,7 +174,9 @@ def monofom_optoelastic_regime(grating, I: float=1e9, grad_method: str="finite",
     -------
     F_lam :   Figure of merit
     """
-    return monofom_kpr_unstable(grating, I, grad_method, **kwargs)
+    h = grating.grating_depth
+    hs = grating.substrate_depth
+    return monofom_kpr_unstable(grating, I, grad_method, **kwargs)/(h+hs)
 
 def monofom_flexural_growth(grating, I: float=1e9, grad_method: str="finite", **kwargs) -> float:
     """
