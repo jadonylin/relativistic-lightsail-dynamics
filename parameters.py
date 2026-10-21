@@ -109,8 +109,8 @@ def Hyperparameters():
 material = materials.Si3N4  # Material for the grating. Only used with optoelastic_regime monofom
 T0 = 300  # Rest temperature of the grating in Kelvin. Only used with optoelastic_regime monofom
 
-choose_monofom = "flexural_growth"
-# choose_monofom = "optoelastic_regime"
+# choose_monofom = "flexural_growth"
+choose_monofom = "optoelastic_regime"
 # choose_monofom = "asymp"
 # choose_multifom = "uniform"
 choose_multifom = "monochrome"
@@ -124,14 +124,14 @@ def FOMSettings():
 def OptimisationSettings():
     # Global optimisation parameters
     num_cores = 2  # number of cores to run parallel optimisation
-    maxtime = 5  # Stop after maxtime minutes
+    maxtime = 3  # Stop after maxtime minutes
     maxstop = {'maxtime': maxtime}  # global 1000
 
     # Local optimisation parameters
     xtol_rel = 1e-4  
     ftol_rel = 1e-8  
 
-    seed = 20260610  # LDS seed
+    seed = 20261021  # LDS seed
     sampling = 'sobol'  # 'sobol' or 'random'
     n_sample_exp = 4
     n_sample = 2**n_sample_exp  # number of random samples per iteration, the best of which (in non-overlapping regions of attraction) are locally optimised
