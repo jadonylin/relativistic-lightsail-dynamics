@@ -168,7 +168,7 @@ def Qprj(grating, j: int=2, strain: float=0., material: dict=materials.Si3N4,
 
     if j not in [1, 2]:
         raise ValueError(f"Invalid value for j: {j}. Must be 1 or 2.")
-    return Qpr(grating, strain, 0., material, requires_grad)[j-1]
+    return Qpr(grating, strain=strain, temp=0., angle=0., material=material, requires_grad=requires_grad)[j-1]
 
 def dQpr(grating, strain: float=0., temp: float=0., angle: float=0., material: dict=materials.Si3N4) -> float:
     """
@@ -204,7 +204,7 @@ def dQpr_dstrain(grating, strain: float=0., material: dict=materials.Si3N4) -> f
     -------
     [dQpr1_dstrain, dQpr2_dstrain] : strain derivatives of radiation pressure efficiency factors
     """
-    return dQpr(grating, strain, 0., material)[:,0]
+    return dQpr(grating, strain, 0., 0., material)[:,0]
 
 def dQprj_dstrain(grating, j: int=2, strain: float=0., grad_method: str="finite", material: dict=materials.Si3N4) -> float:
     """
